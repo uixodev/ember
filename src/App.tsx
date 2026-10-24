@@ -8,6 +8,9 @@ import { Home } from './screens/Home';
 import { AreaDetail } from './screens/AreaDetail';
 import { Areas } from './screens/Areas';
 import { NewArea } from './screens/NewArea';
+import { Settings } from './screens/Settings';
+import { ComingSoon } from './screens/ComingSoon';
+import { CelebrationSheet } from './components/ui/CelebrationSheet';
 import { SparkTimer } from './screens/SparkTimer';
 import { TabBar } from './components/ui/TabBar';
 
@@ -36,7 +39,7 @@ function StorageProblem() {
 }
 
 function Routes() {
-  const { data, loadStatus } = useStore();
+  const { data, loadStatus, celebration, dismissCelebration } = useStore();
   const path = usePath();
   if (loadStatus === 'corrupt' || loadStatus === 'unavailable') return <StorageProblem />;
   if (!data.onboarded) return <Setup />;
@@ -45,10 +48,18 @@ function Routes() {
   if (path === '/') view = <Home />;
   else if (path === '/areas') view = <Areas />;
   else if (path === '/new') view = <NewArea />;
+  else if (path === '/settings') view = <Settings />;
+  else if (path === '/history' || path === '/badges') view = <ComingSoon kind={path.slice(1) as 'history' | 'badges'} />;
   else if (path.startsWith('/spark/')) view = <SparkTimer key={path} areaId={path.slice(7)} />;
   else if (path.startsWith('/area/')) view = <AreaDetail key={path} areaId={path.slice(6)} />;
-  else view = <Screen><p className="lede">Route {path} comes next.</p></Screen>;
-  return <>{view}{tabs && <TabBar path={path} />}</>;
+  else view = <Screen><p className="lede">That page does not exist.</p><a href="#/" style={{ color: '#fff' }}>Back to Home</a></Screen>;
+  return (
+    <>
+      {view}
+      {tabs && <TabBar path={path} />}
+      {celebration && <CelebrationSheet name={celebration.name} from={celebration.from as 0 | 1} onClose={dismissCelebration} />}
+    </>
+  );
 }
 
 export function App() {

@@ -70,7 +70,8 @@ button.pill { cursor: pointer; }
   margin: 0 8px calc(12px + env(safe-area-inset-bottom)); padding: 20px; text-align: center; animation: rise .28s cubic-bezier(.2, .8, .2, 1);
 }
 .sheet-close { position: absolute; right: 12px; top: 12px; width: 44px; height: 44px; border: 0; border-radius: 50%; background: transparent; color: var(--navy); display: flex; align-items: center; justify-content: center; cursor: pointer; }
-.sheet-close::before { content: ""; position: absolute; width: 28px; height: 28px; border-radius: 50%; background: #ECEAF6; z-index: -1; }
+.sheet-close::before { content: ""; position: absolute; width: 28px; height: 28px; border-radius: 50%; background: #ECEAF6; }
+.sheet-close svg { position: relative; }
 .sheet h2 { margin: 0; font: var(--t-heading); letter-spacing: -.02em; }
 .sheet p { margin: 8px 0 0; font: var(--t-body); color: #4A4675; }
 .sheet .sheet-actions { display: grid; gap: 8px; margin-top: 16px; }
@@ -114,3 +115,11 @@ button.pill { cursor: pointer; }
 .sheet-label { display: grid; gap: 6px; font: var(--t-label); color: #4A4675; }
 .sheet-field { min-height: 48px; padding: 0 14px; border-radius: 14px; border: 1px solid #D8D5EE; background: #F6F5FC; color: var(--navy); font: 650 17px/1 var(--font); }
 .sheet-field:focus-visible { outline: 3px solid var(--navy); outline-offset: 1px; }
+
+/* celebration */
+.celebrate-art { position: relative; height: 120px; display: flex; align-items: center; justify-content: center; }
+.celebrate-art svg { position: absolute; }
+.celebrate-art img { position: relative; }
+.sheet h2.celebrate-title { margin-top: 6px; font: 800 30px/1.1 var(--font); letter-spacing: -.035em; color: #F2B21E; }
+@media (prefers-reduced-motion: no-preference) { .celebrate-art svg { animation: spin 40s linear infinite; } }
+@keyframes spin { to { transform: rotate(360deg); } }
