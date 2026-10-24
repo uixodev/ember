@@ -6,6 +6,8 @@ import { Screen } from './screens/Screen';
 import { Setup } from './screens/Setup';
 import { Home } from './screens/Home';
 import { AreaDetail } from './screens/AreaDetail';
+import { Areas } from './screens/Areas';
+import { NewArea } from './screens/NewArea';
 import { SparkTimer } from './screens/SparkTimer';
 import { TabBar } from './components/ui/TabBar';
 
@@ -41,6 +43,8 @@ function Routes() {
   const tabs = ['/', '/areas', '/history', '/badges'].includes(path);
   let view;
   if (path === '/') view = <Home />;
+  else if (path === '/areas') view = <Areas />;
+  else if (path === '/new') view = <NewArea />;
   else if (path.startsWith('/spark/')) view = <SparkTimer key={path} areaId={path.slice(7)} />;
   else if (path.startsWith('/area/')) view = <AreaDetail key={path} areaId={path.slice(6)} />;
   else view = <Screen><p className="lede">Route {path} comes next.</p></Screen>;
