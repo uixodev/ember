@@ -1,0 +1,98 @@
+/*
+ * Motion. Every rule lives inside the no-preference query, so with
+ * "reduce motion" on, none of it runs (base.css also zeroes any leftover durations).
+ * Rules: no confetti, no drop shadows (except the spark button halo), nothing loud.
+ */
+:root { --ease-out: cubic-bezier(.2, .8, .2, 1); --ease-pop: cubic-bezier(.3, 1.5, .5, 1); }
+
+/* Colour and press feedback also apply with reduced motion: they are not movement. */
+.btn, .icon-btn, .chip, .tab, .seg-item, .pill, .stepper-btn, .tabbar button, .field {
+  transition: background-color .2s ease, color .2s ease, border-color .2s ease, opacity .2s ease;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .btn, .icon-btn, .chip, .tab, .seg-item, .pill, .stepper-btn, .tabbar button, .spark-btn, .area-card-open {
+    transition: background-color .2s ease, color .2s ease, border-color .2s ease, opacity .2s ease, transform .14s var(--ease-out);
+  }
+  .btn:active, .icon-btn:active, .chip:active, .tab:active, .seg-item:active, .stepper-btn:active, button.pill:active { transform: scale(.96); }
+  .tabbar button:active { transform: scale(.92); }
+
+  /* Screens: every screen fades in and its blocks rise in one after another. */
+  .screen > * { animation: rise-in .45s var(--ease-out) backwards; }
+  .screen > :nth-child(2) { animation-delay: .05s; }
+  .screen > :nth-child(3) { animation-delay: .1s; }
+  .screen > :nth-child(4) { animation-delay: .15s; }
+  .screen > :nth-child(5) { animation-delay: .2s; }
+  .screen > :nth-child(6) { animation-delay: .25s; }
+  .screen > :nth-child(n+7) { animation-delay: .3s; }
+  .screen > .grow { animation: none; }
+
+  /* Lists and grids stagger their items. */
+  .areas-grid > *, .side-row > *, .stack > .history-row, .stack > .spark-row { animation: rise-in .4s var(--ease-out) backwards; }
+  .areas-grid > :nth-child(2), .side-row > :nth-child(2), .stack > :nth-child(3) { animation-delay: .06s; }
+  .areas-grid > :nth-child(3), .side-row > :nth-child(3), .stack > :nth-child(4) { animation-delay: .12s; }
+  .areas-grid > :nth-child(4), .side-row > :nth-child(4), .stack > :nth-child(5) { animation-delay: .18s; }
+  .areas-grid > :nth-child(n+5), .side-row > :nth-child(n+5), .stack > :nth-child(n+6) { animation-delay: .24s; }
+
+  /* Week row: marks pop in left to right. */
+  .week-mark > * { animation: pop-in .45s var(--ease-pop) backwards; }
+  .week-day:nth-child(1) .week-mark > * { animation-delay: .20s; }
+  .week-day:nth-child(2) .week-mark > * { animation-delay: .25s; }
+  .week-day:nth-child(3) .week-mark > * { animation-delay: .30s; }
+  .week-day:nth-child(4) .week-mark > * { animation-delay: .35s; }
+  .week-day:nth-child(5) .week-mark > * { animation-delay: .40s; }
+  .week-day:nth-child(6) .week-mark > * { animation-delay: .45s; }
+  .week-day:nth-child(7) .week-mark > * { animation-delay: .50s; }
+  .history-row > svg { animation: pop-in .45s var(--ease-pop) .15s backwards; }
+
+  /* Fires breathe. Solid colours only: the core's brightness moves, never its transparency. */
+  .ring-hot .ring-core { animation: breathe 3.4s ease-in-out infinite; }
+  .ring-warm .ring-core { animation: breathe 4.2s ease-in-out infinite; }
+  .ring-embers .ring-core { animation: breathe-soft 5.5s ease-in-out infinite; }
+  .ring-rim { transition: filter .4s ease; }
+  .ring-urgent .ring-arc { animation: urgent-blink 1.6s ease-in-out infinite; }
+  .ring-paused .ring-sub svg { animation: moon-bob 3s ease-in-out infinite; }
+
+  /* Spark button: a calm halo that invites a tap. */
+  .spark-btn { animation: halo 3.2s ease-in-out infinite; }
+  .spark-btn img { transition: transform .2s var(--ease-pop); }
+  .spark-btn:active img { transform: scale(1.15) rotate(-6deg); }
+
+  /* Flames flicker a little. */
+  .detail-fire { animation: float 4s ease-in-out infinite, rise-in .6s var(--ease-out) backwards; transform-origin: 50% 90%; }
+  .streak-pill img { animation: flicker 2.4s ease-in-out infinite; transform-origin: 50% 90%; }
+  .setup-fire { animation: float 4s ease-in-out infinite; transform-origin: 50% 90%; }
+  .blob-main img { animation: flicker 2.2s ease-in-out infinite; transform-origin: 50% 90%; }
+  .longest img { animation: flicker 3s ease-in-out infinite; transform-origin: 50% 90%; }
+
+  /* Tab bar: the chosen tab bounces its icon. */
+  .tabbar button.on svg { animation: tab-pop .4s var(--ease-pop); }
+
+  /* Stepper numbers pop whenever they change (the component re-keys the value). */
+  .stepper-value { animation: num-pop .3s var(--ease-pop); display: inline-block; }
+
+  /* Spark timer: when time is up, the blob gently pulses. */
+  .blob-main.done { animation: done-pulse 1.8s ease-in-out infinite; }
+
+  /* Sheets: scrim fades, sheet rises (see ui.css); the celebration adds a flame pop. */
+  .celebrate-art img { animation: pop-in .7s var(--ease-pop) .15s backwards, flicker 2.6s ease-in-out .9s infinite; transform-origin: 50% 90%; }
+  .sheet h2.celebrate-title { animation: rise-in .5s var(--ease-out) .3s backwards; }
+  .celebrate-art + h2 + p, .sheet:has(.celebrate-art) .sheet-actions { animation: rise-in .5s var(--ease-out) .4s backwards; }
+  .sheet-actions .btn, .sheet-form .btn { animation: rise-in .4s var(--ease-out) .2s backwards; }
+
+  /* Storage problem and empty states settle in softly. */
+  .home-empty, .coming { animation: rise-in .5s var(--ease-out) backwards; }
+}
+
+@keyframes rise-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes pop-in { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: none; } }
+@keyframes breathe { 0%, 100% { filter: brightness(1) saturate(1); } 50% { filter: brightness(1.09) saturate(1.06); } }
+@keyframes breathe-soft { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.18); } }
+@keyframes urgent-blink { 0%, 100% { opacity: 1; } 50% { opacity: .65; } }
+@keyframes moon-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+@keyframes halo { 0%, 100% { box-shadow: 0 0 0 4px rgba(255, 255, 255, .18), 0 8px 20px rgba(28, 24, 80, .35); } 50% { box-shadow: 0 0 0 9px rgba(255, 255, 255, .08), 0 8px 20px rgba(28, 24, 80, .35); } }
+@keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+@keyframes flicker { 0%, 100% { transform: scale(1, 1) rotate(0); } 30% { transform: scale(1.04, .97) rotate(-1.5deg); } 60% { transform: scale(.97, 1.04) rotate(1.5deg); } }
+@keyframes tab-pop { 0% { transform: scale(.7); } 60% { transform: scale(1.18); } 100% { transform: scale(1); } }
+@keyframes num-pop { from { opacity: .4; transform: scale(.88); } to { opacity: 1; transform: none; } }
+@keyframes done-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.035); } }

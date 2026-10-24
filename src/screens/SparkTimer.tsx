@@ -54,7 +54,7 @@ export function SparkTimer({ areaId }: { areaId: string }) {
       <div className="timer-blob-wrap">
         <div className="blob blob-a" />
         <div className="blob blob-b" />
-        <div className="blob blob-main" role="timer" aria-live="off">
+        <div className={`blob blob-main${!bigMode && left === 0 ? ' done' : ''}`} role="timer" aria-live="off">
           <Flame size={40} />
           <div className="timer-clock">{bigMode ? clock(elapsed) : clock(left)}</div>
           <div className="timer-of">

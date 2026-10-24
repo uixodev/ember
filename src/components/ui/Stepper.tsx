@@ -16,7 +16,7 @@ export function Stepper({ title = 'Cools every', value, caption, onMinus, onPlus
       <div className="stepper-title">{title}</div>
       <div className="stepper-row">
         <button type="button" className="stepper-btn minus" aria-label="Shorter time" onClick={onMinus} disabled={minusDisabled}><IconMinus size={22} /></button>
-        <div className="stepper-value" aria-live="polite">{value}</div>
+        <div key={value} className="stepper-value" aria-live="polite">{value}</div>
         <button type="button" className="stepper-btn plus" aria-label="Longer time" onClick={onPlus} disabled={plusDisabled}><IconPlus size={22} /></button>
       </div>
       {caption && <div className="stepper-caption">{caption}</div>}
