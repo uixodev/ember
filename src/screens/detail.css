@@ -1,0 +1,16 @@
+.detail { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+.detail-fire { align-self: center; margin-top: 4px; }
+.detail-headline { text-align: center; }
+.detail-title { font: var(--t-title); font-size: 34px; letter-spacing: -.04em; }
+.detail-sub { margin-top: 4px; font: var(--t-body); color: var(--ink-2); }
+.detail-actions > * { flex: 1; }
+.longest { display: flex; align-items: center; gap: 12px; padding: 14px 18px; }
+.longest-label { font: var(--t-caption); font-size: 12px; color: var(--ink-2); }
+.longest-value { font: 800 20px/1.1 var(--font); letter-spacing: -.02em; }
+.spark-row { display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 16px; border-radius: 18px; background: var(--sunken); min-height: 60px; }
+.spark-text { flex: 1; font: var(--t-body); overflow-wrap: anywhere; }
+.spark-edit { display: flex; gap: 8px; width: 100%; align-items: center; }
+.spark-edit .field { flex: 1; min-width: 0; }
+.detail-seg { position: fixed; bottom: calc(14px + env(safe-area-inset-bottom)); left: 0; right: 0; display: flex; justify-content: center; z-index: 5; pointer-events: none; }
+.detail-seg > * { pointer-events: auto; }
+.coming { padding: 20px; display: grid; gap: 8px; }

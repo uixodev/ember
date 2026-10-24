@@ -99,3 +99,18 @@ button.pill { cursor: pointer; }
 .week-day.today .week-label { color: #fff; }
 .dot { width: 24px; height: 24px; border-radius: 50%; background: var(--sky-300); display: block; }
 .dashed { width: 24px; height: 24px; border-radius: 50%; border: 2px dashed rgba(255, 255, 255, .45); display: block; }
+
+/* chips */
+.chips { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.chip { min-height: 44px; padding: 0 16px; border-radius: var(--r-pill); border: 1px solid var(--glass-line); background: var(--glass); color: #fff; font: 700 14px/1 var(--font); cursor: pointer; }
+.chip.on { background: #fff; color: var(--navy); border-color: #fff; }
+.chip:focus-visible { outline: 3px solid var(--sun); outline-offset: 2px; }
+.chips.light .chip { background: #ECEAF6; color: var(--navy); border-color: transparent; }
+.chips.light .chip.on { background: var(--navy); color: #fff; }
+
+/* sheet forms */
+.sheet-link { min-height: 44px; border: 0; background: transparent; color: #4A4675; font: 700 14px/1 var(--font); cursor: pointer; }
+.sheet-form { display: grid; gap: 12px; margin-top: 16px; text-align: left; }
+.sheet-label { display: grid; gap: 6px; font: var(--t-label); color: #4A4675; }
+.sheet-field { min-height: 48px; padding: 0 14px; border-radius: 14px; border: 1px solid #D8D5EE; background: #F6F5FC; color: var(--navy); font: 650 17px/1 var(--font); }
+.sheet-field:focus-visible { outline: 3px solid var(--navy); outline-offset: 1px; }
