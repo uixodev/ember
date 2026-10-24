@@ -33,6 +33,8 @@
 .ring-sub { font-weight: 700; display: flex; gap: 6px; align-items: center; justify-content: center; }
 .ring-label { color: #fff; transition: color .25s ease .2s; }
 .ring-warm .ring-label { color: var(--navy); }
+.ring-hot .ring-label, .ring-embers .ring-label { text-shadow: 0 1px 10px rgba(74, 36, 32, .55); }
+.ring-cold .ring-label { text-shadow: 0 1px 10px rgba(34, 64, 154, .5); }
 
 .ring-action {
   position: absolute; left: 50%;

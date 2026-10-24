@@ -1,0 +1,84 @@
+/* Scene inside the big circle. Sizes come from --s (the ring's pixel size) so it scales. */
+.ring-scene { position: absolute; inset: 0; border-radius: 50%; overflow: hidden; pointer-events: none; }
+.ring-scene > * { position: absolute; }
+
+/* ---- Hot: flames ---- */
+.sc-hot-glow { inset: auto 10% 0 10%; height: 55%; border-radius: 50% 50% 0 0; background: radial-gradient(ellipse at 50% 100%, rgba(255, 154, 46, .55) 0%, rgba(255, 154, 46, .25) 45%, rgba(255, 154, 46, 0) 75%); }
+.sc-flames { inset: 0; width: 100%; height: 100%; }
+.fl { transform-box: fill-box; transform-origin: 50% 100%; }
+.sc-spark { left: var(--x); bottom: 6%; width: calc(var(--s) * var(--k)); height: calc(var(--s) * var(--k)); border-radius: 50%; opacity: 0; }
+.sc-spark.sp0 { background: #FFD25A; }
+.sc-spark.sp1 { background: #FF9A2E; }
+.sc-spark.sp2 { background: #FFFBE0; }
+
+/* ---- Warm: sunlight ---- */
+.sc-warm-rays {
+  left: 50%; top: 56%; width: 150%; height: 150%; margin: -75% 0 0 -75%;
+  background: repeating-conic-gradient(from 0deg, rgba(255, 251, 224, .34) 0deg 6deg, rgba(255, 251, 224, 0) 6deg 20deg);
+  -webkit-mask-image: radial-gradient(circle, #000 0%, rgba(0, 0, 0, 0) 55%); mask-image: radial-gradient(circle, #000 0%, rgba(0, 0, 0, 0) 55%);
+}
+.sc-warm-glow { left: 50%; top: 56%; width: 70%; height: 70%; margin: -35% 0 0 -35%; border-radius: 50%; background: radial-gradient(circle, rgba(255, 251, 224, .75) 0%, rgba(255, 251, 224, .3) 40%, rgba(255, 251, 224, 0) 70%); }
+.sc-mote { left: var(--x); bottom: -4%; width: calc(var(--s) * var(--k)); height: calc(var(--s) * var(--k)); border-radius: 50%; background: #FFFBE0; opacity: 0; }
+
+/* ---- Embers: glowing coals ---- */
+.sc-ember-bed { inset: auto 0 0 0; height: 48%; background: radial-gradient(ellipse at 50% 100%, rgba(232, 85, 58, .5) 0%, rgba(232, 85, 58, .2) 50%, rgba(232, 85, 58, 0) 80%); }
+.sc-coal {
+  left: var(--x); top: var(--y); width: calc(var(--s) * var(--k)); height: calc(var(--s) * var(--k)); margin: calc(var(--s) * var(--k) * -.5) 0 0 calc(var(--s) * var(--k) * -.5);
+  border-radius: 50%; background: radial-gradient(circle, #FFD25A 0%, #FF9A2E 30%, #E8553A 62%, rgba(232, 85, 58, 0) 78%); opacity: .55;
+}
+.sc-ash { left: var(--x); bottom: 12%; width: calc(var(--s) * var(--k)); height: calc(var(--s) * var(--k)); border-radius: 50%; background: #FF9A2E; opacity: 0; }
+
+/* ---- Cold: snow ---- */
+.sc-cold-glow { inset: 0; border-radius: 50%; background: radial-gradient(circle at 50% 45%, rgba(207, 232, 255, .5) 0%, rgba(207, 232, 255, .18) 40%, rgba(207, 232, 255, 0) 70%); }
+.sc-flake { left: var(--x); top: -8%; width: calc(var(--s) * var(--k)); height: calc(var(--s) * var(--k)); opacity: var(--o); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .ring-scene { animation: scene-in .7s ease both; }
+
+  .fl-a { animation: fl-a var(--d) ease-in-out var(--dl) infinite; }
+  .fl-b { animation: fl-b var(--d) ease-in-out var(--dl) infinite; }
+  .fl-c { animation: fl-c var(--d) ease-in-out var(--dl) infinite; }
+  .sc-hot-glow { animation: glow-pulse 2.4s ease-in-out infinite; }
+  .sc-spark { animation: rise var(--d) ease-out var(--dl) infinite; }
+
+  .sc-warm-rays { animation: spin 46s linear infinite; }
+  .sc-warm-glow { animation: warm-breathe 4.5s ease-in-out infinite; }
+  .sc-mote { animation: rise-soft var(--d) ease-in-out var(--dl) infinite; }
+
+  .sc-ember-bed { animation: glow-pulse 4.2s ease-in-out infinite; }
+  .sc-coal { animation: coal var(--d) ease-in-out var(--dl) infinite; }
+  .sc-ash { animation: rise var(--d) ease-out var(--dl) infinite; }
+
+  .sc-cold-glow { animation: warm-breathe 6s ease-in-out infinite; }
+  .sc-flake { animation: flake var(--d) linear var(--dl) infinite; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sc-spark, .sc-mote, .sc-ash { display: none; }
+  .sc-flake { top: calc(var(--x) * 1.1); }
+}
+
+@keyframes scene-in { from { opacity: 0; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes glow-pulse { 0%, 100% { opacity: .65; } 50% { opacity: 1; } }
+@keyframes warm-breathe { 0%, 100% { opacity: .6; transform: scale(.94); } 50% { opacity: 1; transform: scale(1.06); } }
+@keyframes fl-a { 0%, 100% { transform: scale(1, 1) rotate(0); } 25% { transform: scale(.9, 1.14) rotate(-2.5deg); } 50% { transform: scale(1.07, .88) rotate(1.5deg); } 75% { transform: scale(.95, 1.08) rotate(3deg); } }
+@keyframes fl-b { 0%, 100% { transform: scale(1, 1) rotate(0); } 30% { transform: scale(1.08, .9) rotate(2.5deg); } 60% { transform: scale(.9, 1.16) rotate(-3deg); } 80% { transform: scale(1.02, 1.04) rotate(1deg); } }
+@keyframes fl-c { 0%, 100% { transform: scale(1, 1) rotate(0); } 20% { transform: scale(.94, 1.1) rotate(2deg); } 55% { transform: scale(1.1, .86) rotate(-2deg); } 85% { transform: scale(.98, 1.12) rotate(-3.5deg); } }
+@keyframes rise {
+  0% { opacity: 0; transform: translate(0, 0) scale(1); }
+  12% { opacity: 1; }
+  100% { opacity: 0; transform: translate(calc(var(--s) * var(--sw)), calc(var(--s) * -.5)) scale(.3); }
+}
+@keyframes rise-soft {
+  0% { opacity: 0; transform: translate(0, 0); }
+  25% { opacity: .75; }
+  100% { opacity: 0; transform: translate(calc(var(--s) * var(--sw)), calc(var(--s) * -.6)); }
+}
+@keyframes coal { 0%, 100% { opacity: .3; transform: scale(.8); } 45% { opacity: 1; transform: scale(1.12); } 60% { opacity: .85; transform: scale(1); } }
+@keyframes flake {
+  0% { transform: translate(0, 0) rotate(0); opacity: 0; }
+  10% { opacity: var(--o); }
+  50% { transform: translate(calc(var(--s) * var(--sw)), calc(var(--s) * .55)) rotate(90deg); }
+  90% { opacity: var(--o); }
+  100% { transform: translate(calc(var(--s) * var(--sw) * -.6), calc(var(--s) * 1.1)) rotate(180deg); opacity: 0; }
+}

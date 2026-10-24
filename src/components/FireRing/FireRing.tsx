@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Level } from '../../engine/heat';
+import { HeatScene } from './HeatScene';
 import './FireRing.css';
 
 export interface FireRingLabel {
@@ -29,6 +30,8 @@ interface Props {
    * bottom next to the spark button. "clockwise": a single arc, from 12 o'clock clockwise.
    */
   drain?: 'split' | 'clockwise';
+  /** Show the living scene (flames, sunlight, coals, snow) inside the circle. */
+  scene?: boolean;
 }
 
 const CLASS: Record<Level, string> = { 3: 'hot', 2: 'warm', 1: 'embers', 0: 'cold' };
@@ -43,7 +46,7 @@ function Moon({ size }: { size: number }) {
 
 export function FireRing({
   level, size, progress, paused = false, urgent = false, label, thin = false,
-  flareKey, action, drain = 'split',
+  flareKey, action, drain = 'split', scene = false,
 }: Props) {
   const rimW = size * (thin ? 0.025 : 0.05);
   const box = size + rimW * 2;
@@ -96,6 +99,7 @@ export function FireRing({
     >
       <div className={`ring-core core-${CLASS[level]}`} />
       {fading !== null && <div className={`ring-core ring-core-prev core-${CLASS[fading]}`} />}
+      {scene && size >= 160 && <HeatScene key={level} level={level} size={size} />}
       <svg className="ring-rim" width={box} height={box} viewBox={`0 0 ${box} ${box}`}
         style={{ left: -rimW, top: -rimW }} aria-hidden="true">
         <circle cx={c} cy={c} r={r} fill="none" strokeWidth={rimW} className="ring-track" />

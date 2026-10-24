@@ -44,7 +44,7 @@ export function Home() {
           <div className="home-fire">
             <div className="home-fire-tap" onClick={() => open(mainArea.id)}>
               <FireRing
-                level={heat.level} size={250} progress={heat.progress} paused={heat.paused}
+                scene level={heat.level} size={250} progress={heat.progress} paused={heat.paused}
                 urgent={heat.level > 0 && heat.remainingMinutes <= 15}
                 flareKey={mainArea.levelSince}
                 label={{
