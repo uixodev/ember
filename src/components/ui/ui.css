@@ -109,7 +109,13 @@ button.pill { cursor: pointer; }
 
 /* sheet forms */
 .sheet-link { min-height: 44px; border: 0; background: transparent; color: #4A4675; font: 700 14px/1 var(--font); cursor: pointer; }
-.sheet-form { display: grid; gap: 12px; margin-top: 16px; text-align: left; }
+.sheet { display: flex; flex-direction: column; max-height: 92dvh; overflow: hidden; }
+.sheet-form { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; margin-top: 16px; text-align: left; }
+/* The fields scroll on their own; the summary and the Log button stay pinned below them. */
+.sheet-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; overflow-x: hidden; overflow-y: auto; min-height: 0; padding: 2px; margin: 0 -2px; overscroll-behavior: contain; }
+.sheet-foot { flex: none; display: grid; gap: 8px; padding-top: 12px; }
+.sheet-form > .btn { margin-top: 12px; }
+.chips, .field-block, .sheet-label { min-width: 0; }
 .sheet-label { display: grid; gap: 6px; font: var(--t-label); color: #4A4675; }
 .sheet-field { min-height: 48px; padding: 0 14px; border-radius: 14px; border: 1px solid #D8D5EE; background: #F6F5FC; color: var(--navy); font: 650 17px/1 var(--font); }
 .sheet-field:focus-visible { outline: 3px solid var(--navy); outline-offset: 1px; }
@@ -149,7 +155,6 @@ button.pill { cursor: pointer; }
 .feed-check input { width: 22px; height: 22px; accent-color: var(--navy); }
 .chips.light.left { justify-content: flex-start; }
 .chips.light .chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sheet { max-height: 92dvh; overflow-y: auto; }
 
 .stepper-value.long { font-size: 32px; letter-spacing: -.03em; text-align: center; }
 
@@ -170,4 +175,6 @@ button.pill { cursor: pointer; }
 
 .entry-next { margin-top: 4px; font: 700 13px/1.3 var(--font); color: var(--ink-2); }
 
-.sheet-foot { position: sticky; bottom: -20px; display: grid; gap: 8px; margin: 0 -20px -20px; padding: 10px 20px 20px; background: var(--sheet); }
+
+.chip { max-width: 100%; }
+.feed-note { min-width: 0; }

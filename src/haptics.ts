@@ -31,15 +31,24 @@ export const fed = (levelUp: boolean) => vibrate(levelUp ? [16, 40, 20, 40, 48] 
 
 const PRESSABLE = 'button, summary, a, [role="tab"], [role="radio"], select, label.feed-check, .area-card-open';
 
-/** One listener for the whole app: every enabled button ticks and clicks when pressed. */
+/** One listener for the whole app: every enabled button ticks and clicks when tapped. */
 export function installPressHaptics(): () => void {
-  const on = (e: PointerEvent) => {
-    unlockAudio();
+  // Waking the audio needs a touch, but it makes no noise, so it can use the first touch of any kind.
+  const wake = () => unlockAudio();
+  // The tick and click happen on `click`, which the browser only sends for a real tap. A touch that
+  // turns into a scroll never produces one, so scrolling past a card stays silent.
+  const on = (e: MouseEvent) => {
     const el = (e.target as Element | null)?.closest?.(PRESSABLE);
     if (!el || (el as HTMLButtonElement).disabled || el.classList.contains('spark-btn')) return;
-    if (e.pointerType !== 'mouse') tick();
+    const pointer = (e as PointerEvent).pointerType;
+    const byTouch = pointer ? pointer !== 'mouse' : e.detail > 0;
+    if (byTouch) tick();
     play(soundForPress(el));
   };
-  document.addEventListener('pointerdown', on, { passive: true });
-  return () => document.removeEventListener('pointerdown', on);
+  document.addEventListener('pointerdown', wake, { passive: true });
+  document.addEventListener('click', on, { passive: true });
+  return () => {
+    document.removeEventListener('pointerdown', wake);
+    document.removeEventListener('click', on);
+  };
 }

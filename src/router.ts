@@ -15,10 +15,19 @@ export function back(fallback = '/'): void {
   else navigate(fallback, { replace: true });
 }
 
+const savedScroll = new Map<string, number>();
+const pathOf = (url: string) => (url.split('#')[1] || '/');
+
+/** Where you were on a page when you left it. Only the tab pages use this when you come back. */
+export const scrollFor = (path: string): number => savedScroll.get(path) ?? 0;
+
 export function usePath(): string {
   const [path, setPath] = useState(currentPath());
   useEffect(() => {
-    const on = () => setPath(currentPath());
+    const on = (e: HashChangeEvent) => {
+      savedScroll.set(pathOf(e.oldURL), window.scrollY);
+      setPath(currentPath());
+    };
     window.addEventListener('hashchange', on);
     return () => window.removeEventListener('hashchange', on);
   }, []);

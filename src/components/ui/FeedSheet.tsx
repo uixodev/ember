@@ -53,6 +53,7 @@ export function FeedSheet({ area, kind = 'spark', prefill = '', prefillMinutes, 
           if (canSubmit) onConfirm({ note: trimmed, minutes: mins, effort, nextAt }, save && isNew);
         }}
       >
+        <div className="sheet-body">
         <textarea
           className="sheet-field feed-note" value={note} maxLength={160} autoFocus
           placeholder={big ? 'Built the todo list (optional)' : 'Wrote a function that sorts the list'} aria-label="What did you do?"
@@ -80,6 +81,7 @@ export function FeedSheet({ area, kind = 'spark', prefill = '', prefillMinutes, 
             Save this as a template
           </label>
         )}
+        </div>
         <div className="sheet-foot">
           <p className="feed-plan" aria-live="polite">
             {minsOk

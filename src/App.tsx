@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { installPressHaptics } from './haptics';
-import { usePath } from './router';
+import { scrollFor, usePath } from './router';
 import { StoreProvider, useStore } from './store/store';
 import { Button } from './components/ui/Button';
 import { Screen } from './screens/Screen';
@@ -44,6 +44,10 @@ function StorageProblem() {
 function Routes() {
   const { data, loadStatus, celebration, dismissCelebration, feed, finishFeed } = useStore();
   const path = usePath();
+  // A new page opens at the top. The tab pages go back to where you were.
+  useLayoutEffect(() => {
+    window.scrollTo(0, ['/', '/areas', '/history', '/badges'].includes(path) ? scrollFor(path) : 0);
+  }, [path]);
   if (loadStatus === 'corrupt' || loadStatus === 'unavailable') return <StorageProblem />;
   if (!data.onboarded) return <Setup />;
   const tabs = ['/', '/areas', '/history', '/badges'].includes(path);
