@@ -37,6 +37,8 @@ export interface Settings {
   activeHours: ActiveHours;
   /** Phase 2, kept in the model so data does not need migrating. */
   ambient: boolean;
+  /** Short vibrations when you press buttons (on phones that allow it). */
+  haptics: boolean;
 }
 
 export interface EmberData {

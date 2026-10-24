@@ -6,6 +6,7 @@ import {
   DEFAULT_MAIN_COOLING, SIDE_COOLING, type ActiveHours, type Heat, type Level, type Place,
 } from '../engine/heat';
 import { planFeed, type Effort } from '../engine/hold';
+import { setHapticsEnabled } from '../haptics';
 import { currentStreak, keptDays, sparksToday } from '../model/streaks';
 import type { Area, AreaEvent, EmberData } from '../model/types';
 import { clear, emptyData, load, parseJson, save, type LoadResult } from '../storage/storage';
@@ -75,6 +76,7 @@ export interface Store {
   /** Set an area's heat by hand. Not a feeding: no entry, no streak. */
   setHeat: (id: string, level: Level) => void;
   setActiveHours: (h: ActiveHours) => void;
+  setHaptics: (on: boolean) => void;
   importJson: (text: string) => boolean;
   resetAll: () => void;
   startFresh: () => void;
@@ -134,6 +136,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   ref.current = data;
   // While the stored data is corrupt or storage is unavailable, don't overwrite it until the user chooses.
   const writable = useRef(initial.current.status === 'ok' || initial.current.status === 'empty');
+
+  useEffect(() => { setHapticsEnabled(data.settings.haptics); }, [data.settings.haptics]);
 
   useEffect(() => {
     if (!writable.current) return;
@@ -272,6 +276,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       deleteEvent(eventId) {
         update((d) => ({ ...d, events: d.events.filter((e) => e.id !== eventId) }));
+      },
+
+      setHaptics(on) {
+        update((d) => ({ ...d, settings: { ...d.settings, haptics: on } }));
       },
 
       setActiveHours(h) {

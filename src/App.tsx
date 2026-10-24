@@ -1,4 +1,5 @@
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
+import { installPressHaptics } from './haptics';
 import { usePath } from './router';
 import { StoreProvider, useStore } from './store/store';
 import { Button } from './components/ui/Button';
@@ -67,6 +68,7 @@ function Routes() {
 }
 
 export function App() {
+  useEffect(() => installPressHaptics(), []);
   return (
     <StoreProvider>
       <FeedHost>

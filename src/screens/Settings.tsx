@@ -3,12 +3,13 @@ import { Button, IconButton } from '../components/ui/Button';
 import { IconBack } from '../components/ui/Icons';
 import { ConfirmSheet } from '../components/ui/Sheets';
 import { back } from '../router';
+import { hapticsSupported, tick } from '../haptics';
 import { exportJson } from '../storage/storage';
 import { useStore } from '../store/store';
 import { Screen, minutesToTime, timeToMinutes } from './Screen';
 
 export function Settings() {
-  const { data, setActiveHours, importJson, resetAll } = useStore();
+  const { data, setActiveHours, setHaptics, importJson, resetAll } = useStore();
   const { start, end } = data.settings.activeHours;
   const file = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState('');
@@ -49,6 +50,20 @@ export function Settings() {
             <input className="field" type="time" value={minutesToTime(end)} required onChange={(e) => e.target.value && setActiveHours({ start, end: timeToMinutes(e.target.value) })} />
           </label>
         </div>
+      </section>
+
+      <section className="stack">
+        <h2>Feel</h2>
+        <button
+          type="button" role="switch" aria-checked={data.settings.haptics} className="switch-row"
+          onClick={() => { const next = !data.settings.haptics; setHaptics(next); if (next) window.setTimeout(tick, 0); }}
+        >
+          <span>
+            <span className="switch-title">Vibrate when I press buttons</span>
+            <span className="note switch-note">{hapticsSupported() ? 'A tiny tick on every press, a longer one when you feed a fire.' : "This browser can't vibrate (iPhones don't allow it)."}</span>
+          </span>
+          <span className={`switch${data.settings.haptics ? ' on' : ''}`} aria-hidden="true"><span /></span>
+        </button>
       </section>
 
       <section className="stack">
