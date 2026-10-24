@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { play } from '../../sound';
 import { IconClose } from './Icons';
 import './ui.css';
 
@@ -18,11 +19,14 @@ export function Sheet({ children, onClose, label, closable = true }: {
   const dismiss = useCallback(() => {
     setClosing((was) => {
       if (was) return was;
+      play('close');
       const calm = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
       window.setTimeout(() => closeRef.current(), calm ? 0 : EXIT_MS);
       return true;
     });
   }, []);
+
+  useEffect(() => { play('open'); }, []);
 
   useEffect(() => {
     const key = (e: KeyboardEvent) => { if (e.key === 'Escape') dismiss(); };

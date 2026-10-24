@@ -1,3 +1,5 @@
+import { soundForPress, play, unlockAudio } from './sound';
+
 /**
  * Small vibrations for presses. Works where the browser allows it (Chrome and other browsers on
  * Android). iPhones do not let web pages vibrate, so there it quietly does nothing.
@@ -29,13 +31,14 @@ export const fed = (levelUp: boolean) => vibrate(levelUp ? [16, 40, 20, 40, 48] 
 
 const PRESSABLE = 'button, summary, a, [role="tab"], [role="radio"], select, label.feed-check, .area-card-open';
 
-/** One listener for the whole app: every enabled button gives a tick when pressed. */
+/** One listener for the whole app: every enabled button ticks and clicks when pressed. */
 export function installPressHaptics(): () => void {
   const on = (e: PointerEvent) => {
-    if (e.pointerType === 'mouse') return;
+    unlockAudio();
     const el = (e.target as Element | null)?.closest?.(PRESSABLE);
     if (!el || (el as HTMLButtonElement).disabled || el.classList.contains('spark-btn')) return;
-    tick();
+    if (e.pointerType !== 'mouse') tick();
+    play(soundForPress(el));
   };
   document.addEventListener('pointerdown', on, { passive: true });
   return () => document.removeEventListener('pointerdown', on);

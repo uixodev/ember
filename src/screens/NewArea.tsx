@@ -5,6 +5,7 @@ import { CoolingStepper } from '../components/ui/CoolingStepper';
 import { IconBack } from '../components/ui/Icons';
 import { ConfirmSheet } from '../components/ui/Sheets';
 import { Tabs } from '../components/ui/Tabs';
+import { play } from '../sound';
 import { back, navigate } from '../router';
 import { useStore } from '../store/store';
 import { Screen } from './Screen';
@@ -30,6 +31,7 @@ export function NewArea() {
       name, place, coolingMinutes: cooling,
       sparks: list.length ? list : [`Spend 5 minutes on ${name.trim()}`],
     });
+    play('ignite');
     navigate(place === 'archive' ? '/areas' : `/area/${id}`, { replace: true });
   };
 

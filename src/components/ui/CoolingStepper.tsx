@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { Place } from '../../engine/heat';
+import { play } from '../../sound';
 import {
   canStep, coolingCaption, coolingValue, customHint, customToMinutes, SIDE_PRESETS, stepCooling, unitsFor,
 } from '../../model/cooling';
@@ -16,7 +17,7 @@ export function CoolingStepper({ place, minutes, onChange }: { place: Exclude<Pl
   const apply = () => {
     const u = units.find((x) => x.value === unit) ?? units[0];
     const m = customToMinutes(place, Number(amount.replace(',', '.')), u);
-    if (m === null) { setError(true); return; }
+    if (m === null) { setError(true); play('error'); return; }
     setError(false);
     setAmount('');
     onChange(m);

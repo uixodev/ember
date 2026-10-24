@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import type { Level } from '../../engine/heat';
 import { hold as holdBuzz, tick } from '../../haptics';
+import { play } from '../../sound';
 import { HeatIcon } from '../ui/HeatIcon';
 import './SparkButton.css';
 
@@ -25,9 +26,9 @@ export function SparkButton({ size = 64, onTap, onHold, label = 'Feed the fire',
   const down = () => {
     held.current = false;
     clear();
-    timer.current = window.setTimeout(() => { held.current = true; holdBuzz(); onHold(); }, HOLD_MS);
+    timer.current = window.setTimeout(() => { held.current = true; holdBuzz(); play('hold'); onHold(); }, HOLD_MS);
   };
-  const up = () => { clear(); if (!held.current) { tick(); onTap(); } held.current = false; };
+  const up = () => { clear(); if (!held.current) { tick(); play('spark'); onTap(); } held.current = false; };
 
   return (
     <button

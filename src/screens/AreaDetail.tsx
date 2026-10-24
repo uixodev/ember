@@ -11,6 +11,7 @@ import { ConfirmSheet } from '../components/ui/Sheets';
 import { Segmented, Tabs } from '../components/ui/Tabs';
 import { currentStreak, keptDays, longestStreak } from '../model/streaks';
 import { useFeedSheet } from '../feed';
+import { play, playHeat } from '../sound';
 import { back, navigate } from '../router';
 import { useStore } from '../store/store';
 import { Screen } from './Screen';
@@ -121,7 +122,7 @@ export function AreaDetail({ areaId }: { areaId: string }) {
                   <>
                     <span className="spark-text">{s}</span>
                     <IconButton label={`Edit "${s}"`} onClick={() => { setEditing(i); setDraft(s); }}><IconEdit size={18} /></IconButton>
-                    <IconButton label={`Delete "${s}"`} onClick={() => updateArea(area.id, { sparks: area.sparks.filter((_, j) => j !== i) })}><IconTrash size={18} /></IconButton>
+                    <IconButton label={`Delete "${s}"`} onClick={() => { play('delete'); updateArea(area.id, { sparks: area.sparks.filter((_, j) => j !== i) }); }}><IconTrash size={18} /></IconButton>
                   </>
                 )}
               </div>
@@ -144,7 +145,7 @@ export function AreaDetail({ areaId }: { areaId: string }) {
               <span className="field-label">Heat, set by hand</span>
               <div className="chips left" role="group" aria-label="Heat level">
                 {([3, 2, 1, 0] as Level[]).map((l) => (
-                  <button key={l} type="button" className={`chip${heat.level === l ? ' on' : ''}`} aria-pressed={heat.level === l} onClick={() => setHeat(area.id, l)}>{LEVEL_NAMES[l]}</button>
+                  <button key={l} type="button" className={`chip${heat.level === l ? ' on' : ''}`} aria-pressed={heat.level === l} onClick={() => { setHeat(area.id, l); playHeat(l); }}>{LEVEL_NAMES[l]}</button>
                 ))}
               </div>
               <p className="note" style={{ marginTop: 6 }}>Changing it here refills the ring and is not logged as feeding.</p>
@@ -189,7 +190,7 @@ export function AreaDetail({ areaId }: { areaId: string }) {
           body="Its sparks and history are removed for good. Archiving keeps them."
           confirmLabel="Delete it" cancelLabel="Keep it"
           onCancel={() => setPending(null)}
-          onConfirm={() => { deleteArea(area.id); navigate('/areas', { replace: true }); }}
+          onConfirm={() => { play('delete'); deleteArea(area.id); navigate('/areas', { replace: true }); }}
         />
       )}
     </Screen>

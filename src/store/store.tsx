@@ -7,6 +7,7 @@ import {
 } from '../engine/heat';
 import { planFeed, type Effort } from '../engine/hold';
 import { setHapticsEnabled } from '../haptics';
+import { setSoundEnabled } from '../sound';
 import { currentStreak, keptDays, sparksToday } from '../model/streaks';
 import type { Area, AreaEvent, EmberData } from '../model/types';
 import { clear, emptyData, load, parseJson, save, type LoadResult } from '../storage/storage';
@@ -77,6 +78,7 @@ export interface Store {
   setHeat: (id: string, level: Level) => void;
   setActiveHours: (h: ActiveHours) => void;
   setHaptics: (on: boolean) => void;
+  setSounds: (on: boolean) => void;
   importJson: (text: string) => boolean;
   resetAll: () => void;
   startFresh: () => void;
@@ -138,6 +140,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const writable = useRef(initial.current.status === 'ok' || initial.current.status === 'empty');
 
   useEffect(() => { setHapticsEnabled(data.settings.haptics); }, [data.settings.haptics]);
+  useEffect(() => { setSoundEnabled(data.settings.sounds); }, [data.settings.sounds]);
 
   useEffect(() => {
     if (!writable.current) return;
@@ -276,6 +279,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       deleteEvent(eventId) {
         update((d) => ({ ...d, events: d.events.filter((e) => e.id !== eventId) }));
+      },
+
+      setSounds(on) {
+        update((d) => ({ ...d, settings: { ...d.settings, sounds: on } }));
       },
 
       setHaptics(on) {

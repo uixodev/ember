@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { formatSpan, LEVEL_NAMES } from '../../engine/format';
 import { fed } from '../../haptics';
+import { play } from '../../sound';
 import type { FeedInfo } from '../../store/store';
 import { FireRing } from '../FireRing/FireRing';
 import { Flame } from '../ui/Flame';
@@ -38,6 +39,7 @@ export function FeedBurst({ info, onDone }: { info: FeedInfo; onDone: () => void
       window.setTimeout(onDone, calm ? 2000 : 3000),
     ];
     fed(levelUp);
+    play(info.kind === 'big' ? 'big' : levelUp ? 'levelUp' : 'fed');
     return () => t.forEach(window.clearTimeout);
     // The burst plays once for this info; onDone changing identity must not restart it.
     // eslint-disable-next-line react-hooks/exhaustive-deps

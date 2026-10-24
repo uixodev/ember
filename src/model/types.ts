@@ -39,6 +39,8 @@ export interface Settings {
   ambient: boolean;
   /** Short vibrations when you press buttons (on phones that allow it). */
   haptics: boolean;
+  /** Short sounds for presses, feeding and level ups. */
+  sounds: boolean;
 }
 
 export interface EmberData {

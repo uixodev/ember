@@ -13,7 +13,7 @@ export function emptyData(): EmberData {
     onboarded: false,
     areas: [],
     events: [],
-    settings: { activeHours: { ...DEFAULT_ACTIVE_HOURS }, ambient: false, haptics: true },
+    settings: { activeHours: { ...DEFAULT_ACTIVE_HOURS }, ambient: false, haptics: true, sounds: true },
   };
 }
 
@@ -57,7 +57,7 @@ export function parseData(value: unknown): EmberData | null {
     onboarded: o.onboarded === true,
     areas: o.areas as Area[],
     events: o.events as EmberData['events'],
-    settings: { activeHours: { start: h.start, end: h.end }, ambient: s?.ambient === true, haptics: s?.haptics !== false },
+    settings: { activeHours: { start: h.start, end: h.end }, ambient: s?.ambient === true, haptics: s?.haptics !== false, sounds: s?.sounds !== false },
   };
 }
 

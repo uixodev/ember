@@ -4,6 +4,7 @@ import { HeatIcon } from '../components/ui/HeatIcon';
 import { IconBack } from '../components/ui/Icons';
 import { Segmented } from '../components/ui/Tabs';
 import { useFeedSheet } from '../feed';
+import { play } from '../sound';
 import { back, navigate } from '../router';
 import { useStore } from '../store/store';
 import { Screen } from './Screen';
@@ -29,6 +30,9 @@ export function SparkTimer({ areaId }: { areaId: string }) {
   useEffect(() => {
     if (!area || area.place === 'archive') navigate('/', { replace: true });
   }, [area]);
+
+  const finished = !bigMode && Math.floor((tick - started) / 1000) >= Number(minutes) * 60;
+  useEffect(() => { if (finished) play('bell'); }, [finished]);
   if (!area || area.place === 'archive') return null;
 
   const elapsed = Math.max(0, Math.floor((tick - started) / 1000));

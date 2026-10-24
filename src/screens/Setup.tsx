@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { DEFAULT_ACTIVE_HOURS } from '../engine/heat';
+import { play } from '../sound';
 import { useStore } from '../store/store';
 import { Button, IconButton } from '../components/ui/Button';
 import { Flame } from '../components/ui/Flame';
@@ -17,6 +18,7 @@ export function Setup() {
 
   const finish = () => {
     completeSetup(main, sides, { start: timeToMinutes(start), end: timeToMinutes(end) });
+    play('ignite');
     location.hash = '/';
   };
 

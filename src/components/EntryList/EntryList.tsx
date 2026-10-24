@@ -5,6 +5,7 @@ import { Flame } from '../ui/Flame';
 import { ConfirmSheet } from '../ui/Sheets';
 import { formatWhen } from '../../engine/format';
 import { EFFORT_LABELS, type Effort } from '../../engine/hold';
+import { play } from '../../sound';
 import { dayKey } from '../../model/streaks';
 import type { Area, AreaEvent } from '../../model/types';
 
@@ -72,7 +73,7 @@ export function EntryList({ events, areas, now, onDelete }: {
         <ConfirmSheet
           title="Delete this entry?" body="It disappears from your history and streaks. The fire keeps the heat it has."
           confirmLabel="Delete it" cancelLabel="Keep it"
-          onCancel={() => setAsking(null)} onConfirm={() => { onDelete(asking); setAsking(null); }}
+          onCancel={() => setAsking(null)} onConfirm={() => { play('delete'); onDelete(asking); setAsking(null); }}
         />
       )}
     </>
