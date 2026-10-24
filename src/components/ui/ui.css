@@ -146,3 +146,5 @@ button.pill { cursor: pointer; }
 .sheet { max-height: 92dvh; overflow-y: auto; }
 
 .stepper-value.long { font-size: 32px; letter-spacing: -.03em; text-align: center; }
+
+.chips.left { justify-content: flex-start; }

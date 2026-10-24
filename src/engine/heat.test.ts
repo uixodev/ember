@@ -7,6 +7,7 @@ import {
   coolingTimeBetween,
   isWithinActiveHours,
   rebase,
+  setLevel,
   spark,
   unarchive,
   type ActiveHours,
@@ -190,6 +191,12 @@ describe('actions', () => {
   });
   it('big session goes straight to Hot', () => {
     expect(bigSession(at(1, 20))).toEqual({ level: 3, levelSince: at(1, 20) });
+  });
+  it('setting the level by hand gives a full ring at that level', () => {
+    const stored = setLevel(1, at(1, 12));
+    expect(stored).toEqual({ level: 1, levelSince: at(1, 12) });
+    expect(computeHeat({ ...main(3, at(1, 8)), ...stored }, at(1, 12), day)).toMatchObject({ level: 1, progress: 1 });
+    expect(computeHeat({ ...side(3, at(1, 8)), ...setLevel(0, at(1, 12)) }, at(5, 12), day).level).toBe(0);
   });
   it('archive freezes the computed level', () => {
     const s = main(3, at(1, 9));

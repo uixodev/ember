@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import fire from '../assets/fire-3d.png';
 import { formatLong, formatShort, LEVEL_NAMES } from '../engine/format';
-import type { Place } from '../engine/heat';
+import type { Level, Place } from '../engine/heat';
 import { Button, IconButton } from '../components/ui/Button';
 import { CoolingStepper } from '../components/ui/CoolingStepper';
 import { Flame } from '../components/ui/Flame';
@@ -23,7 +23,7 @@ const PLACE_TABS: { value: Place; label: string }[] = [
 ];
 
 export function AreaDetail({ areaId }: { areaId: string }) {
-  const { data, now, heatOf, mainArea, big, updateArea, moveArea, deleteArea, deleteEvent } = useStore();
+  const { data, now, heatOf, mainArea, big, updateArea, moveArea, deleteArea, deleteEvent, setHeat } = useStore();
   const openFeed = useFeedSheet();
   const area = data.areas.find((a) => a.id === areaId);
   const [tab, setTab] = useState<'history' | 'badges'>('history');
@@ -139,6 +139,15 @@ export function AreaDetail({ areaId }: { areaId: string }) {
 
           <section className="stack" aria-label="Settings">
             <h2>Settings</h2>
+            <div>
+              <span className="field-label">Heat, set by hand</span>
+              <div className="chips left" role="group" aria-label="Heat level">
+                {([3, 2, 1, 0] as Level[]).map((l) => (
+                  <button key={l} type="button" className={`chip${heat.level === l ? ' on' : ''}`} aria-pressed={heat.level === l} onClick={() => setHeat(area.id, l)}>{LEVEL_NAMES[l]}</button>
+                ))}
+              </div>
+              <p className="note" style={{ marginTop: 6 }}>Changing it here refills the ring and is not logged as feeding.</p>
+            </div>
             {!archived && (
               <CoolingStepper place={area.place as 'main' | 'side'} minutes={area.coolingMinutes} onChange={(m) => updateArea(area.id, { coolingMinutes: m })} />
             )}

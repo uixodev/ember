@@ -135,6 +135,11 @@ export function bigSession(now: number): Stored {
   return { level: HOT, levelSince: now };
 }
 
+/** Set the heat by hand: the chosen level with a full ring, not counted as feeding. */
+export function setLevel(level: Level, now: number): Stored {
+  return { level, levelSince: now };
+}
+
 /** Freeze the computed level when archiving. */
 export function archive(state: HeatState, now: number, hours: ActiveHours): Stored {
   const { level } = computeHeat(state, now, hours);

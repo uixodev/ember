@@ -2,7 +2,7 @@ import {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode,
 } from 'react';
 import {
-  archive, bigSession, computeHeat, rebase, spark as sparkAction, unarchive,
+  archive, bigSession, computeHeat, rebase, setLevel as setLevelAction, spark as sparkAction, unarchive,
   DEFAULT_MAIN_COOLING, SIDE_COOLING, type ActiveHours, type Heat, type Level, type Place,
 } from '../engine/heat';
 import { currentStreak, keptDays, sparksToday } from '../model/streaks';
@@ -60,6 +60,8 @@ export interface Store {
   spark: (id: string, note?: string) => void;
   big: (id: string, minutes: number, note?: string) => void;
   deleteEvent: (eventId: string) => void;
+  /** Set an area's heat by hand. Not a feeding: no entry, no streak. */
+  setHeat: (id: string, level: Level) => void;
   setActiveHours: (h: ActiveHours) => void;
   importJson: (text: string) => boolean;
   resetAll: () => void;
@@ -241,6 +243,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const clean = note?.trim();
         const before = log(area, { type: 'big', at: t, minutes, ...(clean ? { note: clean } : {}) }, next.level, t);
         if (before <= 1) setCelebration({ areaId: id, name: area.name, from: before });
+      },
+
+      setHeat(id, level) {
+        const t = Date.now();
+        update((d) => ({ ...d, areas: d.areas.map((a) => (a.id === id ? { ...a, ...setLevelAction(level, t) } : a)) }));
       },
 
       deleteEvent(eventId) {
