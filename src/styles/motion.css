@@ -59,10 +59,15 @@
   .spark-btn:active img { transform: scale(1.15) rotate(-6deg); }
 
   /* Flames flicker a little. */
-  .detail-fire { animation: float 4s ease-in-out infinite, rise-in .6s var(--ease-out) backwards; transform-origin: 50% 90%; }
-  .streak-pill img { animation: flicker 2.4s ease-in-out infinite; transform-origin: 50% 90%; }
+  .detail-fire { animation: float 4s ease-in-out infinite, rise-in .6s var(--ease-out) backwards; }
+
+  /* Each heat picture has its own idle motion: fire flickers, the sun pulses, leaves sway, the snowflake turns. */
+  .heat-icon[data-level="3"] { animation: flicker 2.4s ease-in-out infinite; transform-origin: 50% 90%; }
+  .heat-icon[data-level="2"] { animation: sun-pulse 3.6s ease-in-out infinite; }
+  .heat-icon[data-level="1"] { animation: leaf-sway 4s ease-in-out infinite; transform-origin: 50% 80%; }
+  .heat-icon[data-level="0"] { animation: snow-turn 18s linear infinite; }
+  .spark-btn .heat-icon[data-level] { animation: none; }
   .setup-fire { animation: float 4s ease-in-out infinite; transform-origin: 50% 90%; }
-  .blob-main img { animation: flicker 2.2s ease-in-out infinite; transform-origin: 50% 90%; }
   .longest img { animation: flicker 3s ease-in-out infinite; transform-origin: 50% 90%; }
 
   /* Tab bar: the chosen tab bounces its icon. */
@@ -93,6 +98,9 @@
 @keyframes halo { 0%, 100% { box-shadow: 0 0 0 4px rgba(255, 255, 255, .18), 0 8px 20px rgba(28, 24, 80, .35); } 50% { box-shadow: 0 0 0 9px rgba(255, 255, 255, .08), 0 8px 20px rgba(28, 24, 80, .35); } }
 @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
 @keyframes flicker { 0%, 100% { transform: scale(1, 1) rotate(0); } 30% { transform: scale(1.04, .97) rotate(-1.5deg); } 60% { transform: scale(.97, 1.04) rotate(1.5deg); } }
+@keyframes sun-pulse { 0%, 100% { transform: scale(1) rotate(0); } 50% { transform: scale(1.07) rotate(4deg); } }
+@keyframes leaf-sway { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(5deg) translateY(-2px); } }
+@keyframes snow-turn { to { transform: rotate(360deg); } }
 @keyframes tab-pop { 0% { transform: scale(.7); } 60% { transform: scale(1.18); } 100% { transform: scale(1); } }
 @keyframes num-pop { from { opacity: .4; transform: scale(.88); } to { opacity: 1; transform: none; } }
 @keyframes done-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.035); } }

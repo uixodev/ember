@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, IconButton } from '../components/ui/Button';
-import { Flame } from '../components/ui/Flame';
+import { HeatIcon } from '../components/ui/HeatIcon';
 import { IconBack } from '../components/ui/Icons';
 import { BigSessionSheet } from '../components/ui/Sheets';
 import { Segmented } from '../components/ui/Tabs';
@@ -13,7 +13,7 @@ import './timer.css';
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
 export function SparkTimer({ areaId }: { areaId: string }) {
-  const { data, big } = useStore();
+  const { data, big, heatOf } = useStore();
   const openFeed = useFeedSheet();
   const area = data.areas.find((a) => a.id === areaId);
   const started = useMemo(() => Date.now(), []);
@@ -59,7 +59,7 @@ export function SparkTimer({ areaId }: { areaId: string }) {
         <div className="blob blob-a" />
         <div className="blob blob-b" />
         <div className={`blob blob-main${!bigMode && left === 0 ? ' done' : ''}`} role="timer" aria-live="off">
-          <Flame size={40} />
+          <HeatIcon level={heatOf(area).level} size={40} />
           <div className="timer-clock">{bigMode ? clock(elapsed) : clock(left)}</div>
           <div className="timer-of">
             {bigMode ? 'keeping going' : left === 0 ? 'time is up, nicely done' : `of ${minutes} minutes`}

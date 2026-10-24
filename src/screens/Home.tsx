@@ -35,7 +35,7 @@ export function Home() {
   return (
     <Screen tabs>
       <TopBar
-        initial={(mainArea?.name ?? 'E').charAt(0)} streak={streak} sparksToday={sparksToday(events, now)}
+        initial={(mainArea?.name ?? 'E').charAt(0)} streak={streak} level={heat?.level ?? 3} sparksToday={sparksToday(events, now)}
         onStreak={mainArea ? () => open(mainArea.id) : undefined}
       />
 
@@ -51,7 +51,7 @@ export function Home() {
                   name: mainArea.name, title: LEVEL_NAMES[heat.level],
                   sub: heat.level === 0 ? 'one spark warms it' : `cools in ${formatShort(heat.remainingMinutes)}`,
                 }}
-                action={<SparkButton size={64} onTap={() => openFeed(mainArea.id)} onHold={() => navigate(`/spark/${mainArea.id}`)} />}
+                action={<SparkButton size={64} level={heat.level} onTap={() => openFeed(mainArea.id)} onHold={() => navigate(`/spark/${mainArea.id}`)} />}
               />
             </div>
           </div>

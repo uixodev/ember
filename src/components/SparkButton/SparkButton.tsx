@@ -1,5 +1,6 @@
 import { useRef } from 'react';
-import fire from '../../assets/fire-3d.png';
+import type { Level } from '../../engine/heat';
+import { HeatIcon } from '../ui/HeatIcon';
 import './SparkButton.css';
 
 interface Props {
@@ -9,11 +10,13 @@ interface Props {
   /** Held for 500 ms: open the timer. */
   onHold: () => void;
   label?: string;
+  /** Heat of the area, picks the picture. */
+  level?: Level;
 }
 
 const HOLD_MS = 500;
 
-export function SparkButton({ size = 64, onTap, onHold, label = 'Feed the fire' }: Props) {
+export function SparkButton({ size = 64, onTap, onHold, label = 'Feed the fire', level = 3 }: Props) {
   const timer = useRef<number | undefined>(undefined);
   const held = useRef(false);
 
@@ -39,7 +42,7 @@ export function SparkButton({ size = 64, onTap, onHold, label = 'Feed the fire' 
       onContextMenu={(e) => e.preventDefault()}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onTap(); } }}
     >
-      <img src={fire} alt="" width={size * 0.62} height={size * 0.62} draggable={false} />
+      <HeatIcon level={level} size={size * 0.62} />
     </button>
   );
 }

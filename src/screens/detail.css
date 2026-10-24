@@ -1,5 +1,5 @@
 .detail { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
-.detail-fire { align-self: center; margin-top: 4px; }
+.detail-fire { align-self: center; margin-top: 4px; display: flex; }
 .detail-headline { text-align: center; }
 .detail-title { font: var(--t-title); font-size: 34px; letter-spacing: -.04em; }
 .detail-sub { margin-top: 4px; font: var(--t-body); color: var(--ink-2); }

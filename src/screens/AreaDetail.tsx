@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import fire from '../assets/fire-3d.png';
+import { HeatIcon } from '../components/ui/HeatIcon';
 import { formatLong, formatShort, LEVEL_NAMES } from '../engine/format';
 import type { Level, Place } from '../engine/heat';
 import { Button, IconButton } from '../components/ui/Button';
@@ -83,7 +83,7 @@ export function AreaDetail({ areaId }: { areaId: string }) {
         <span style={{ width: 44 }} />
       </div>
 
-      <img className="detail-fire" src={fire} alt="" width={140} height={140} />
+      <div className="detail-fire"><HeatIcon level={heat.level} size={140} /></div>
       <div className="detail-headline">
         <div className="detail-title">{headline}</div>
         <div className="detail-sub">{sub}</div>
