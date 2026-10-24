@@ -5,6 +5,7 @@ import {
   archive, bigSession, computeHeat, rebase, setLevel as setLevelAction, spark as sparkAction, unarchive,
   DEFAULT_MAIN_COOLING, SIDE_COOLING, type ActiveHours, type Heat, type Level, type Place,
 } from '../engine/heat';
+import { planFeed, type Effort } from '../engine/hold';
 import { currentStreak, keptDays, sparksToday } from '../model/streaks';
 import type { Area, AreaEvent, EmberData } from '../model/types';
 import { clear, emptyData, load, parseJson, save, type LoadResult } from '../storage/storage';
@@ -38,6 +39,17 @@ export interface FeedInfo {
   sparksToday: number;
   note?: string;
   minutes?: number;
+  /** How long the fire now holds before it first drops. */
+  holdMinutes: number;
+}
+
+/** What you tell the app when you feed a fire. */
+export interface FeedEntry {
+  note?: string;
+  minutes?: number;
+  effort?: Effort;
+  /** A next feeding time you chose. Leave out to use the automatic hold. */
+  nextAt?: number;
 }
 
 export interface Store {
@@ -57,8 +69,8 @@ export interface Store {
   updateArea: (id: string, patch: Partial<Pick<Area, 'name' | 'coolingMinutes' | 'sparks'>>) => void;
   moveArea: (id: string, place: Place) => void;
   deleteArea: (id: string) => void;
-  spark: (id: string, note?: string) => void;
-  big: (id: string, minutes: number, note?: string) => void;
+  spark: (id: string, entry?: FeedEntry) => void;
+  big: (id: string, entry: FeedEntry) => void;
   deleteEvent: (eventId: string) => void;
   /** Set an area's heat by hand. Not a feeding: no entry, no streak. */
   setHeat: (id: string, level: Level) => void;
@@ -103,7 +115,7 @@ function placed(area: Area, place: Place, now: number, hours: ActiveHours): Area
     alt = area.coolingMinutes;
   }
   return {
-    ...area, ...stored, place, coolingMinutes: cooling, altCoolingMinutes: alt,
+    ...area, ...stored, place, coolingMinutes: cooling, altCoolingMinutes: alt, holdMinutes: undefined, nextAt: undefined,
     archivedFrom: place === 'archive' ? (area.place as 'main' | 'side') : undefined,
   };
 }
@@ -155,20 +167,34 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const withMainDemoted = (areas: Area[], exceptId: string, t: number): Area[] =>
       areas.map((a) => (a.place === 'main' && a.id !== exceptId ? placed(a, 'side', t, hoursNow()) : a));
 
-    const log = (area: Area, e: Omit<AreaEvent, 'id' | 'areaId'>, level: Level, t: number) => {
-      const before = computeHeat(area, t, hoursNow());
+    /** Log a feeding: update the area's heat and hold, store the entry, and start the level-up animation. */
+    const feedArea = (area: Area, type: 'spark' | 'big', entry: FeedEntry) => {
+      const t = Date.now();
+      const hours = hoursNow();
+      const minutes = Math.max(1, Math.round(entry.minutes ?? (type === 'big' ? 60 : 5)));
+      const effort = entry.effort ?? 3;
+      const plan = planFeed(area, { minutes, effort, nextAt: entry.nextAt }, t, hours);
+      const stored = type === 'spark' ? sparkAction(area, t, hours, plan.holdMinutes) : bigSession(t, plan.holdMinutes);
+      const note = entry.note?.trim();
+
+      const before = computeHeat(area, t, hours);
       const prevStreak = currentStreak(keptDays(ref.current.events, area.id), t);
-      const event: AreaEvent = { ...e, id: uid(), areaId: area.id };
+      const event: AreaEvent = {
+        id: uid(), type, areaId: area.id, at: t, minutes, effort,
+        ...(note ? { note } : {}), ...(plan.custom ? { nextAt: plan.nextAt } : {}),
+      };
       const all = [...ref.current.events, event];
       update((d) => ({
         ...d,
-        areas: d.areas.map((a) => (a.id === area.id ? { ...a, level, levelSince: t } : a)),
+        areas: d.areas.map((a) => (a.id === area.id
+          ? { ...a, ...stored, nextAt: plan.custom ? plan.nextAt : undefined }
+          : a)),
         events: [...d.events, event],
       }));
       setFeed({
-        kind: e.type, areaId: area.id, name: area.name, from: before.level, to: level,
+        kind: type, areaId: area.id, name: area.name, from: before.level, to: stored.level,
         fromProgress: before.progress, prevStreak, streak: currentStreak(keptDays(all, area.id), t),
-        sparksToday: sparksToday(all, t), note: e.note, minutes: e.minutes,
+        sparksToday: sparksToday(all, t), note, minutes, holdMinutes: plan.holdMinutes,
       });
       return before.level;
     };
@@ -226,28 +252,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }));
       },
 
-      spark(id, note) {
+      spark(id, entry = {}) {
         const area = ref.current.areas.find((a) => a.id === id);
         if (!area || area.place === 'archive') return;
-        const t = Date.now();
-        const next = sparkAction(area, t, hoursNow());
-        const clean = note?.trim();
-        log(area, { type: 'spark', at: t, ...(clean ? { note: clean } : {}) }, next.level, t);
+        feedArea(area, 'spark', entry);
       },
 
-      big(id, minutes, note) {
+      big(id, entry) {
         const area = ref.current.areas.find((a) => a.id === id);
         if (!area || area.place === 'archive') return;
-        const t = Date.now();
-        const next = bigSession(t);
-        const clean = note?.trim();
-        const before = log(area, { type: 'big', at: t, minutes, ...(clean ? { note: clean } : {}) }, next.level, t);
+        const before = feedArea(area, 'big', entry);
         if (before <= 1) setCelebration({ areaId: id, name: area.name, from: before });
       },
 
       setHeat(id, level) {
         const t = Date.now();
-        update((d) => ({ ...d, areas: d.areas.map((a) => (a.id === id ? { ...a, ...setLevelAction(level, t) } : a)) }));
+        update((d) => ({ ...d, areas: d.areas.map((a) => (a.id === id ? { ...a, ...setLevelAction(level, t), holdMinutes: undefined, nextAt: undefined } : a)) }));
       },
 
       deleteEvent(eventId) {

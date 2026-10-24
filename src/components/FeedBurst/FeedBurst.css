@@ -24,6 +24,7 @@
 .burst-note { font: 500 15px/1.4 var(--font); color: var(--ink-2); font-style: italic; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .burst-streak { margin-top: 10px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font: 700 18px/1 var(--font); }
 .burst-num { display: inline-block; color: var(--sun); font: 800 34px/1 var(--font); letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.burst-hold { font: 700 15px/1.2 var(--font); color: var(--ink-2); }
 .burst-today { font: var(--t-caption); font-size: 13px; color: var(--ink-3); }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
@@ -51,7 +52,8 @@
   .burst-area { animation-delay: 1.05s; }
   .burst-note { animation-delay: 1.15s; }
   .burst-streak { animation-delay: 1.25s; }
-  .burst-today { animation-delay: 1.45s; }
+  .burst-hold { animation-delay: 1.4s; }
+  .burst-today { animation-delay: 1.55s; }
   .burst-streak img { animation: burst-flame 1.2s ease-in-out 1.4s infinite; transform-origin: 50% 90%; }
   .burst-num { animation: burst-num .5s cubic-bezier(.3, 1.8, .5, 1) both; }
 }

@@ -13,6 +13,10 @@ export interface Area {
   sparks: string[];
   level: Level;
   levelSince: number;
+  /** How long the fire holds its level after the last feeding, before the first drop. */
+  holdMinutes?: number;
+  /** A next feeding time you chose yourself. Shown in notes and on the area. */
+  nextAt?: number;
   createdAt: number;
 }
 
@@ -22,7 +26,11 @@ export interface AreaEvent {
   areaId: string;
   at: number;
   minutes?: number;
+  /** 1 (barely) to 5 (all in). */
+  effort?: number;
   note?: string;
+  /** The next time you planned when you logged this. */
+  nextAt?: number;
 }
 
 export interface Settings {

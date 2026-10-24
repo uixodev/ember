@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { HeatIcon } from '../components/ui/HeatIcon';
-import { formatLong, formatShort, LEVEL_NAMES } from '../engine/format';
+import { formatLong, formatShort, formatWhen, LEVEL_NAMES } from '../engine/format';
 import type { Level, Place } from '../engine/heat';
 import { Button, IconButton } from '../components/ui/Button';
 import { CoolingStepper } from '../components/ui/CoolingStepper';
 import { Flame } from '../components/ui/Flame';
 import { EntryList } from '../components/EntryList/EntryList';
 import { IconBack, IconEdit, IconPlus, IconTrash } from '../components/ui/Icons';
-import { BigSessionSheet, ConfirmSheet } from '../components/ui/Sheets';
+import { ConfirmSheet } from '../components/ui/Sheets';
 import { Segmented, Tabs } from '../components/ui/Tabs';
 import { currentStreak, keptDays, longestStreak } from '../model/streaks';
 import { useFeedSheet } from '../feed';
@@ -16,14 +16,14 @@ import { useStore } from '../store/store';
 import { Screen } from './Screen';
 import './detail.css';
 
-type Pending = null | { kind: 'move'; place: Place } | { kind: 'delete' } | { kind: 'big' };
+type Pending = null | { kind: 'move'; place: Place } | { kind: 'delete' };
 
 const PLACE_TABS: { value: Place; label: string }[] = [
   { value: 'main', label: 'Main' }, { value: 'side', label: 'Side' }, { value: 'archive', label: 'Archive' },
 ];
 
 export function AreaDetail({ areaId }: { areaId: string }) {
-  const { data, now, heatOf, mainArea, big, updateArea, moveArea, deleteArea, deleteEvent, setHeat } = useStore();
+  const { data, now, heatOf, mainArea, updateArea, moveArea, deleteArea, deleteEvent, setHeat } = useStore();
   const openFeed = useFeedSheet();
   const area = data.areas.find((a) => a.id === areaId);
   const [tab, setTab] = useState<'history' | 'badges'>('history');
@@ -87,6 +87,7 @@ export function AreaDetail({ areaId }: { areaId: string }) {
       <div className="detail-headline">
         <div className="detail-title">{headline}</div>
         <div className="detail-sub">{sub}</div>
+        {area.nextAt && area.nextAt > now && !archived && <div className="detail-next">Next time: {formatWhen(area.nextAt, now)}</div>}
       </div>
 
       <div className="row detail-actions">
@@ -94,7 +95,7 @@ export function AreaDetail({ areaId }: { areaId: string }) {
           ? <Button block onClick={() => moveArea(area.id, area.archivedFrom === 'main' && !mainArea ? 'main' : 'side')}>Thaw it</Button>
           : <>
             <Button block onClick={() => openFeed(area.id)}>Feed it</Button>
-            <Button variant="glass" block onClick={() => setPending({ kind: 'big' })}>Log big session</Button>
+            <Button variant="glass" block onClick={() => openFeed(area.id, { kind: 'big' })}>Log big session</Button>
           </>}
       </div>
 
@@ -173,9 +174,6 @@ export function AreaDetail({ areaId }: { areaId: string }) {
         <Segmented value={tab} onChange={setTab} options={[{ value: 'history', label: 'History' }, { value: 'badges', label: 'Badges' }]} />
       </div>
 
-      {pending?.kind === 'big' && (
-        <BigSessionSheet onClose={() => setPending(null)} onSubmit={(m, note) => { big(area.id, m, note); setPending(null); }} />
-      )}
       {pending?.kind === 'move' && mainArea && (
         <ConfirmSheet
           title={`Make ${area.name} your main fire?`}

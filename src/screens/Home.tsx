@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { formatLong, formatShort, LEVEL_NAMES } from '../engine/format';
+import { formatLong, formatShort, formatWhen, LEVEL_NAMES } from '../engine/format';
 import { FireRing } from '../components/FireRing/FireRing';
 import { SparkButton } from '../components/SparkButton/SparkButton';
 import { AreaCard } from '../components/AreaCard/AreaCard';
@@ -55,6 +55,7 @@ export function Home() {
               />
             </div>
           </div>
+          {mainArea.nextAt && mainArea.nextAt > now && <p className="home-hint home-next">Next time: {formatWhen(mainArea.nextAt, now)}</p>}
           {heat.level === 0 && mainArea.sparks[0] && <p className="home-hint">Smallest spark: {mainArea.sparks[0]}</p>}
           <WeekRow days={weekRow(events, mainArea.id, now)} />
         </>

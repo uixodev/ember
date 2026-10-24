@@ -9,3 +9,4 @@
   overflow-x: auto; scroll-snap-type: x proximity; scroll-padding-inline: 16px; margin: 0 -16px; padding: 0 16px 4px;
 }
 .side-row > * { scroll-snap-align: start; }
+.home-next { font-weight: 700; color: #fff; margin-top: -8px; }

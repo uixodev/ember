@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties } from 'react';
-import { LEVEL_NAMES } from '../../engine/format';
+import { formatSpan, LEVEL_NAMES } from '../../engine/format';
 import type { FeedInfo } from '../../store/store';
 import { FireRing } from '../FireRing/FireRing';
 import { Flame } from '../ui/Flame';
@@ -77,6 +77,7 @@ export function FeedBurst({ info, onDone }: { info: FeedInfo; onDone: () => void
             ? <span><b key={streak} className="burst-num">{streak}</b>-day streak</span>
             : <span>{info.streak}-day streak, kept alive</span>}
         </div>
+        <div className="burst-hold">The fire holds for {formatSpan(info.holdMinutes)}</div>
         <div className="burst-today">{info.sparksToday} {info.sparksToday === 1 ? 'entry' : 'entries'} today</div>
       </div>
     </div>

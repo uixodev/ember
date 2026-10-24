@@ -30,6 +30,11 @@ export interface HeatState {
   coolingMinutes: number;
   level: Level;
   levelSince: number;
+  /**
+   * How long the fire holds its level before the first drop. Later drops follow every
+   * `coolingMinutes`. Unset means one normal cooling period.
+   */
+  holdMinutes?: number;
 }
 
 export interface Heat {
@@ -106,33 +111,77 @@ export function computeHeat(state: HeatState, now: number, hours: ActiveHours): 
     return { level: state.level, remainingMinutes: 0, progress: 0, paused: true, frozen: true };
   }
   const cooling = Math.max(1, state.coolingMinutes);
+  const hold = state.holdMinutes && state.holdMinutes > 0 ? state.holdMinutes : cooling;
   const elapsed = coolingTimeBetween(state.levelSince, now, state.place, hours);
-  const drops = Math.floor(elapsed / cooling);
+
+  let drops: number;
+  let remaining: number;
+  let span: number;
+  if (elapsed < hold) {
+    drops = 0;
+    remaining = hold - elapsed;
+    span = hold;
+  } else {
+    const after = elapsed - hold;
+    drops = 1 + Math.floor(after / cooling);
+    remaining = cooling - (after % cooling);
+    span = cooling;
+  }
+
   const level = clampLevel(state.level - drops);
-  const remainingMinutes = level > 0 ? cooling - (elapsed % cooling) : 0;
   return {
     level,
-    remainingMinutes,
-    progress: level > 0 ? remainingMinutes / cooling : 0,
+    remainingMinutes: level > 0 ? remaining : 0,
+    progress: level > 0 ? remaining / span : 0,
     paused: state.place === 'main' && !isWithinActiveHours(now, hours),
     frozen: false,
   };
 }
 
+/**
+ * The moment when `minutes` of cooling time have passed since `from`.
+ * Side fires: plain wall-clock. Main fire: only minutes inside the active hours count,
+ * so the answer skips the night.
+ */
+export function advanceCoolingTime(from: number, minutes: number, place: Place, hours: ActiveHours): number {
+  if (minutes <= 0) return from;
+  if (place !== 'main' || hours.start === hours.end) return from + minutes * MIN;
+  let left = minutes;
+  let cursor = from;
+  const first = new Date(from);
+  const day = new Date(first.getFullYear(), first.getMonth(), first.getDate() - 1);
+  for (let i = 0; i < 4000; i++) {
+    for (const [ws, we] of windowsStartingOn(day, hours)) {
+      const start = Math.max(ws, cursor);
+      if (we <= start) continue;
+      const room = (we - start) / MIN;
+      if (left <= room) return start + left * MIN;
+      left -= room;
+      cursor = we;
+    }
+    day.setDate(day.getDate() + 1);
+  }
+  return from + minutes * MIN;
+}
+
 export interface Stored {
   level: Level;
   levelSince: number;
+  holdMinutes?: number;
 }
 
-/** A spark lifts the current level by one (max Hot) and refills the ring. */
-export function spark(state: HeatState, now: number, hours: ActiveHours): Stored {
+const withHold = (level: Level, levelSince: number, holdMinutes?: number): Stored =>
+  holdMinutes && holdMinutes > 0 ? { level, levelSince, holdMinutes } : { level, levelSince };
+
+/** A spark lifts the current level by one (max Hot), refills the ring and sets how long the fire holds. */
+export function spark(state: HeatState, now: number, hours: ActiveHours, holdMinutes?: number): Stored {
   const { level } = computeHeat(state, now, hours);
-  return { level: clampLevel(level + 1), levelSince: now };
+  return withHold(clampLevel(level + 1), now, holdMinutes);
 }
 
 /** A big session takes the fire straight to Hot. */
-export function bigSession(now: number): Stored {
-  return { level: HOT, levelSince: now };
+export function bigSession(now: number, holdMinutes?: number): Stored {
+  return withHold(HOT, now, holdMinutes);
 }
 
 /** Set the heat by hand: the chosen level with a full ring, not counted as feeding. */

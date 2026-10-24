@@ -19,3 +19,21 @@ export function formatLong(minutes: number): string {
   const days = `${d} ${d === 1 ? 'day' : 'days'}`;
   return h > 0 ? `${days} ${h} h` : days;
 }
+
+/** "45 min", "2 h 05", "1 day 4 h": any span of minutes, for "holds for ...". */
+export function formatSpan(minutes: number): string {
+  return minutes >= 1440 ? formatLong(minutes) : formatShort(minutes);
+}
+
+const clock = (d: Date) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+/** "today 19:05", "tomorrow 08:00", "Mon 18:00", "Oct 30, 18:00". */
+export function formatWhen(at: number, now: number): string {
+  const d = new Date(at);
+  const startOf = (t: number) => { const x = new Date(t); return new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime(); };
+  const days = Math.round((startOf(at) - startOf(now)) / 86_400_000);
+  if (days === 0) return `today ${clock(d)}`;
+  if (days === 1) return `tomorrow ${clock(d)}`;
+  if (days > 1 && days < 7) return `${d.toLocaleDateString('en', { weekday: 'short' })} ${clock(d)}`;
+  return `${d.toLocaleDateString('en', { month: 'short', day: 'numeric' })}, ${clock(d)}`;
+}

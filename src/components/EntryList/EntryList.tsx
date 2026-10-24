@@ -3,6 +3,8 @@ import { CheckBadge, IconTrash } from '../ui/Icons';
 import { Button, IconButton } from '../ui/Button';
 import { Flame } from '../ui/Flame';
 import { ConfirmSheet } from '../ui/Sheets';
+import { formatWhen } from '../../engine/format';
+import { EFFORT_LABELS, type Effort } from '../../engine/hold';
 import { dayKey } from '../../model/streaks';
 import type { Area, AreaEvent } from '../../model/types';
 
@@ -52,10 +54,13 @@ export function EntryList({ events, areas, now, onDelete }: {
                 <div className="entry-meta">
                   {[
                     time(e.at),
-                    e.type === 'big' ? `big session${e.minutes ? `, ${e.minutes} min` : ''}` : 'spark',
+                    e.type === 'big' ? 'big session' : 'spark',
+                    e.minutes ? `${e.minutes} min` : undefined,
+                    e.effort ? `effort: ${EFFORT_LABELS[e.effort as Effort].toLowerCase()}` : undefined,
                     names.get(e.areaId),
                   ].filter(Boolean).join(' · ')}
                 </div>
+                {e.nextAt && <div className="entry-next">Next time: {formatWhen(e.nextAt, e.at)}</div>}
               </div>
               <IconButton label={`Delete entry from ${time(e.at)}`} onClick={() => setAsking(e.id)}><IconTrash size={18} /></IconButton>
             </div>
