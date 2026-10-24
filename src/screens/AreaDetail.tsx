@@ -12,6 +12,7 @@ import { Segmented, Tabs } from '../components/ui/Tabs';
 import { currentStreak, keptDays, longestStreak } from '../model/streaks';
 import { useFeedSheet } from '../feed';
 import { play, playHeat } from '../sound';
+import { downloadIcs, feedEventIcs } from '../notify/ics';
 import { back, navigate } from '../router';
 import { useStore } from '../store/store';
 import { Screen } from './Screen';
@@ -88,7 +89,15 @@ export function AreaDetail({ areaId }: { areaId: string }) {
       <div className="detail-headline">
         <div className="detail-title">{headline}</div>
         <div className="detail-sub">{sub}</div>
-        {area.nextAt && area.nextAt > now && !archived && <div className="detail-next">Next time: {formatWhen(area.nextAt, now)}</div>}
+        {area.nextAt && area.nextAt > now && !archived && (
+          <>
+            <div className="detail-next">Next time: {formatWhen(area.nextAt, now)}</div>
+            <Button
+              variant="glass" small className="detail-cal"
+              onClick={() => downloadIcs(`ember-${area.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'fire'}.ics`, feedEventIcs({ id: area.id, areaName: area.name, at: area.nextAt!, suggestion: area.sparks[0] }))}
+            >Add to calendar</Button>
+          </>
+        )}
       </div>
 
       <div className="row detail-actions">

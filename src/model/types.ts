@@ -41,6 +41,8 @@ export interface Settings {
   haptics: boolean;
   /** Short sounds for presses, feeding and level ups. */
   sounds: boolean;
+  /** Reminders when a fire is about to cool and at the next time you chose. */
+  notify: { enabled: boolean; leadMinutes: number };
 }
 
 export interface EmberData {

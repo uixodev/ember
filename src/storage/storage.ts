@@ -13,7 +13,7 @@ export function emptyData(): EmberData {
     onboarded: false,
     areas: [],
     events: [],
-    settings: { activeHours: { ...DEFAULT_ACTIVE_HOURS }, ambient: false, haptics: true, sounds: true },
+    settings: { activeHours: { ...DEFAULT_ACTIVE_HOURS }, ambient: false, haptics: true, sounds: true, notify: { enabled: false, leadMinutes: 15 } },
   };
 }
 
@@ -57,9 +57,14 @@ export function parseData(value: unknown): EmberData | null {
     onboarded: o.onboarded === true,
     areas: o.areas as Area[],
     events: o.events as EmberData['events'],
-    settings: { activeHours: { start: h.start, end: h.end }, ambient: s?.ambient === true, haptics: s?.haptics !== false, sounds: s?.sounds !== false },
+    settings: { activeHours: { start: h.start, end: h.end }, ambient: s?.ambient === true, haptics: s?.haptics !== false, sounds: s?.sounds !== false, notify: parseNotify(s?.notify) },
   };
 }
+
+const parseNotify = (v: unknown): { enabled: boolean; leadMinutes: number } => {
+  const o = (v ?? {}) as Record<string, unknown>;
+  return { enabled: o.enabled === true, leadMinutes: isNum(o.leadMinutes) && o.leadMinutes >= 0 && o.leadMinutes <= 240 ? o.leadMinutes : 15 };
+};
 
 export function parseJson(text: string): EmberData | null {
   try {

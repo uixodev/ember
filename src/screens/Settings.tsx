@@ -5,16 +5,50 @@ import { ConfirmSheet } from '../components/ui/Sheets';
 import { back } from '../router';
 import { hapticsSupported, tick } from '../haptics';
 import { play, soundSupported } from '../sound';
+import {
+  notificationsSupported, permission, registerBackgroundCheck, requestPermission, showNotification, unregisterBackgroundCheck,
+} from '../notify/notify';
 import { exportJson } from '../storage/storage';
 import { useStore } from '../store/store';
 import { Screen, minutesToTime, timeToMinutes } from './Screen';
 
 export function Settings() {
-  const { data, setActiveHours, setHaptics, setSounds, importJson, resetAll } = useStore();
+  const { data, setActiveHours, setHaptics, setSounds, setNotify, importJson, resetAll } = useStore();
   const { start, end } = data.settings.activeHours;
   const file = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState('');
   const [reset, setReset] = useState(false);
+  const [notifyMsg, setNotifyMsg] = useState('');
+  const [perm, setPerm] = useState(permission());
+  const notifyOn = data.settings.notify.enabled && perm === 'granted';
+
+  const toggleNotify = async () => {
+    if (notifyOn) {
+      setNotify({ enabled: false });
+      void unregisterBackgroundCheck();
+      setNotifyMsg('');
+      play('off');
+      return;
+    }
+    const result = await requestPermission();
+    setPerm(result);
+    if (result === 'granted') {
+      setNotify({ enabled: true });
+      void registerBackgroundCheck();
+      setNotifyMsg('');
+      play('on');
+    } else {
+      setNotifyMsg(result === 'unsupported'
+        ? "This browser can't show notifications."
+        : 'Notifications are blocked for this site. Allow them in your browser or phone settings for Ember, then try again.');
+      play('error');
+    }
+  };
+
+  const sendTest = async () => {
+    const ok = await showNotification({ id: `test-${Date.now()}`, title: 'Ember reminders are on', body: 'A small spark keeps it warm. This is how a reminder looks.', path: '/' });
+    setNotifyMsg(ok ? 'Sent. Check your notifications.' : 'Could not show it. Check that notifications are allowed for Ember.');
+  };
 
   const download = () => {
     const blob = new Blob([exportJson(data)], { type: 'application/json' });
@@ -77,6 +111,36 @@ export function Settings() {
           </span>
           <span className={`switch${data.settings.sounds ? ' on' : ''}`} aria-hidden="true"><span /></span>
         </button>
+      </section>
+
+      <section className="stack">
+        <h2>Reminders</h2>
+        <button type="button" role="switch" aria-checked={notifyOn} className="switch-row" onClick={() => void toggleNotify()} disabled={!notificationsSupported()}>
+          <span>
+            <span className="switch-title">Remind me</span>
+            <span className="note switch-note">A heads-up before a fire cools to Embers or Cold, and at any next time you set.</span>
+          </span>
+          <span className={`switch${notifyOn ? ' on' : ''}`} aria-hidden="true"><span /></span>
+        </button>
+        {notifyOn && (
+          <>
+            <div>
+              <span className="field-label">Warn me this long before</span>
+              <div className="chips left" role="group" aria-label="Warning time">
+                {[5, 15, 30, 60].map((m) => (
+                  <button key={m} type="button" className={`chip${data.settings.notify.leadMinutes === m ? ' on' : ''}`} onClick={() => setNotify({ leadMinutes: m })}>{m} min</button>
+                ))}
+              </div>
+            </div>
+            <Button variant="glass" block onClick={() => void sendTest()}>Send a test notification</Button>
+          </>
+        )}
+        {notifyMsg && <p className="note" role="status">{notifyMsg}</p>}
+        <p className="note">
+          Honest note: Ember has no server, so your phone can only show these while Ember is open or was used a moment ago.
+          On Android, installing it to the home screen lets the browser wake it every few hours to check. For a reminder
+          that always rings, open an area and use <b>Add to calendar</b> next to its next time.
+        </p>
       </section>
 
       <section className="stack">

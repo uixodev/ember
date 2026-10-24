@@ -44,6 +44,14 @@ After the first visit the app works offline. Updates download in the background 
 
 Tap **Feed it**, write what you did, say how many minutes it took and how much effort it was (1 barely to 5 all in). The fire then holds its level for a while before it starts to cool, and the harder and longer you worked, the longer that is. As a guide for the main fire (cools every 2.5 h): 1 minute holds about an hour, 30 minutes a little under 3 hours, and an hour of all-in effort about 6 hours. Side fires scale with their own cooling speed. Instead of the automatic hold you can pick a next time (tonight, tomorrow, in 3 days or any date), which is saved in your notes. The formula is in `src/engine/hold.ts`.
 
+## Reminders
+
+Settings → Reminders turns on notifications: a heads-up shortly before a fire drops to Embers or Cold (never at night), and a nudge at any next time you set. They are never guilt trips, they just suggest the area's smallest spark.
+
+Ember has no server, so a phone can only show these while the app is open or was used a moment ago. On Android, an installed Ember is also woken by Chrome every few hours to check (Chrome decides when, so don't rely on it). iPhones cannot do background checks without a server. For a reminder that always rings, open an area with a next time and tap **Add to calendar**. That creates a calendar event with an alarm.
+
+Fully reliable push notifications need a small server to send them (for example a free Cloudflare Worker with web push). The plan the app prepares (`src/notify/plan.ts`) is what such a server would send.
+
 ## Your data
 
 Because data lives only in the browser on one device, use **Areas → Settings → Export a backup** now and then. **Import a backup** restores it, for example on a new phone. Clearing browser or site data deletes the app's data.

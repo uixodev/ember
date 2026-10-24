@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import { installPressHaptics } from './haptics';
+import { useNotifier } from './notify/useNotifier';
 import { scrollFor, usePath } from './router';
 import { StoreProvider, useStore } from './store/store';
 import { Button } from './components/ui/Button';
@@ -42,6 +43,7 @@ function StorageProblem() {
 }
 
 function Routes() {
+  useNotifier();
   const { data, loadStatus, celebration, dismissCelebration, feed, finishFeed } = useStore();
   const path = usePath();
   // A new page opens at the top. The tab pages go back to where you were.

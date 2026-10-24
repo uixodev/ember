@@ -79,6 +79,7 @@ export interface Store {
   setActiveHours: (h: ActiveHours) => void;
   setHaptics: (on: boolean) => void;
   setSounds: (on: boolean) => void;
+  setNotify: (patch: Partial<{ enabled: boolean; leadMinutes: number }>) => void;
   importJson: (text: string) => boolean;
   resetAll: () => void;
   startFresh: () => void;
@@ -279,6 +280,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       deleteEvent(eventId) {
         update((d) => ({ ...d, events: d.events.filter((e) => e.id !== eventId) }));
+      },
+
+      setNotify(patch) {
+        update((d) => ({ ...d, settings: { ...d.settings, notify: { ...d.settings.notify, ...patch } } }));
       },
 
       setSounds(on) {

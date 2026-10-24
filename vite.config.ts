@@ -33,6 +33,8 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,woff2,svg}'],
         navigateFallback: 'index.html',
+        // Reminders: periodic checks, tapping a notification (see public/notify-sw.js).
+        importScripts: ['notify-sw.js'],
       },
     }),
   ],
