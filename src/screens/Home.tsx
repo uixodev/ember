@@ -46,7 +46,7 @@ export function Home() {
               <FireRing
                 level={heat.level} size={250} progress={heat.progress} paused={heat.paused}
                 urgent={heat.level > 0 && heat.remainingMinutes <= 15}
-                flareKey={events.length}
+                flareKey={mainArea.levelSince}
                 label={{
                   name: mainArea.name, title: LEVEL_NAMES[heat.level],
                   sub: heat.level === 0 ? 'one spark warms it' : `cools in ${formatShort(heat.remainingMinutes)}`,

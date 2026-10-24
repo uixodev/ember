@@ -1,4 +1,4 @@
-.burst { position: fixed; inset: 0; z-index: 70; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; color: #fff; cursor: pointer; overflow: hidden; }
+.burst { position: fixed; inset: 0; z-index: 70; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 44px; color: #fff; cursor: pointer; overflow: hidden; }
 .burst-scrim { position: absolute; inset: 0; background: rgba(28, 24, 80, .92); }
 .burst-rays {
   position: absolute; left: 50%; top: 38%; width: 160vmax; height: 160vmax; margin: -80vmax 0 0 -80vmax; pointer-events: none;
@@ -9,7 +9,7 @@
 .burst.up .burst-rays { opacity: 1; }
 .burst-stage { position: relative; width: 168px; height: 168px; margin-top: -8vh; }
 .burst-ring { position: relative; z-index: 2; }
-.burst-flash { position: absolute; inset: -30%; border-radius: 50%; background: #FFF6D8; opacity: 0; z-index: 1; }
+.burst-flash { position: absolute; inset: -55%; border-radius: 50%; background: radial-gradient(circle, rgba(255, 226, 140, .85) 0%, rgba(255, 226, 140, .35) 38%, rgba(255, 226, 140, 0) 68%); opacity: 0; z-index: 1; }
 .burst-wave { position: absolute; inset: -6px; border-radius: 50%; border: 3px solid var(--fire-rim); opacity: 0; z-index: 1; }
 .burst-embers { position: absolute; left: 50%; top: 50%; z-index: 3; pointer-events: none; }
 .ember { position: absolute; left: 0; top: 0; width: var(--s); height: var(--s); border-radius: 50%; opacity: 0; }
@@ -33,34 +33,34 @@
 @keyframes burst-fade { from { opacity: 0; } }
 
 @media (prefers-reduced-motion: no-preference) {
-  .burst { animation: burst-fade .3s ease both; }
-  .burst-scrim { animation: burst-fade .35s ease both; }
+  .burst { animation: burst-fade .2s ease both; }
+  .burst-scrim { animation: burst-fade .2s ease both; }
 
-  /* 1. The fire drops in small and swells with a bounce. */
-  .burst-ring { animation: burst-in .75s cubic-bezier(.3, 1.6, .5, 1) both; }
-  /* 2. At the moment it steps up, a warm flash and three rings wash outward. */
-  .burst-flash { animation: burst-flash .9s ease-out .7s both; }
-  .burst-wave { animation: burst-wave 1.5s cubic-bezier(.15, .7, .3, 1) calc(.7s + var(--i) * .16s) both; }
-  .burst.up .burst-ring { animation: burst-in .75s cubic-bezier(.3, 1.6, .5, 1) both, burst-kick .6s cubic-bezier(.3, 1.6, .5, 1) .7s; }
-  .burst.up .burst-rays { animation: rays-in 3.4s ease-out .65s both, rays-spin 24s linear infinite; }
+  /* 1. The fire drops in small and swells with a bounce, just after the dark has settled. */
+  .burst-ring { animation: burst-in .55s cubic-bezier(.3, 1.6, .5, 1) .08s both; }
+  /* 2. As it steps up, a warm glow blooms and three rings wash outward. */
+  .burst-flash { animation: burst-flash .8s ease-out .45s both; }
+  .burst-wave { animation: burst-wave 1.3s cubic-bezier(.15, .7, .3, 1) calc(.45s + var(--i) * .14s) both; }
+  .burst.up .burst-ring { animation: burst-in .55s cubic-bezier(.3, 1.6, .5, 1) .08s both, burst-kick .5s cubic-bezier(.3, 1.6, .5, 1) .45s; }
+  .burst.up .burst-rays { animation: rays-in 3s ease-out .45s both, rays-spin 24s linear infinite; }
   /* 3. Sparks rise out of the fire. */
-  .ember { animation: ember-rise var(--t) cubic-bezier(.2, .6, .3, 1) calc(.55s + var(--d)) both; }
+  .ember { animation: ember-rise var(--t) cubic-bezier(.2, .6, .3, 1) calc(.4s + var(--d)) both; }
   /* 4. The words arrive one after another. */
-  .burst-text > * { animation: burst-text .55s cubic-bezier(.2, .8, .2, 1) both; }
-  .burst-headline { animation-name: burst-headline; animation-duration: .6s; animation-timing-function: cubic-bezier(.3, 1.5, .5, 1); animation-delay: .75s; }
-  .burst-step { animation-delay: .95s; }
-  .burst-area { animation-delay: 1.05s; }
-  .burst-note { animation-delay: 1.15s; }
-  .burst-streak { animation-delay: 1.25s; }
-  .burst-hold { animation-delay: 1.4s; }
-  .burst-today { animation-delay: 1.55s; }
-  .burst-streak img { animation: burst-flame 1.2s ease-in-out 1.4s infinite; transform-origin: 50% 90%; }
-  .burst-num { animation: burst-num .5s cubic-bezier(.3, 1.8, .5, 1) both; }
+  .burst-text > * { animation: burst-text .45s cubic-bezier(.2, .8, .2, 1) both; }
+  .burst-headline { animation-name: burst-headline; animation-duration: .5s; animation-timing-function: cubic-bezier(.3, 1.5, .5, 1); animation-delay: .55s; }
+  .burst-step { animation-delay: .7s; }
+  .burst-area { animation-delay: .78s; }
+  .burst-note { animation-delay: .86s; }
+  .burst-streak { animation-delay: .98s; }
+  .burst-hold { animation-delay: 1.1s; }
+  .burst-today { animation-delay: 1.2s; }
+  .burst-streak img { animation: burst-flame 1.2s ease-in-out 1.2s infinite; transform-origin: 50% 90%; }
+  .burst-num { animation: burst-num .45s cubic-bezier(.3, 1.8, .5, 1) both; }
 }
 
 @keyframes burst-in { from { transform: scale(.2) translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes burst-kick { 0% { transform: scale(1); } 40% { transform: scale(1.16); } 100% { transform: scale(1); } }
-@keyframes burst-flash { 0% { opacity: 0; transform: scale(.6); } 25% { opacity: .85; } 100% { opacity: 0; transform: scale(1.5); } }
+@keyframes burst-flash { 0% { opacity: 0; transform: scale(.5); } 30% { opacity: 1; } 100% { opacity: 0; transform: scale(1.25); } }
 @keyframes burst-wave { 0% { opacity: .9; transform: scale(1); } 100% { opacity: 0; transform: scale(2.6); } }
 @keyframes ember-rise {
   0% { opacity: 0; transform: translate(calc(var(--x) * .15), 20px) scale(1); }

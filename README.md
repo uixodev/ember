@@ -38,6 +38,10 @@ Open the deployed address in the phone's browser, then:
 
 After the first visit the app works offline. Updates download in the background and apply the next time you open it.
 
+## How feeding works
+
+Tap **Feed it**, write what you did, say how many minutes it took and how much effort it was (1 barely to 5 all in). The fire then holds its level for a while before it starts to cool, and the harder and longer you worked, the longer that is. As a guide for the main fire (cools every 2.5 h): 1 minute holds about an hour, 30 minutes a little under 3 hours, and an hour of all-in effort about 6 hours. Side fires scale with their own cooling speed. Instead of the automatic hold you can pick a next time (tonight, tomorrow, in 3 days or any date), which is saved in your notes. The formula is in `src/engine/hold.ts`.
+
 ## Your data
 
 Because data lives only in the browser on one device, use **Areas → Settings → Export a backup** now and then. **Import a backup** restores it, for example on a new phone. Clearing browser or site data deletes the app's data.

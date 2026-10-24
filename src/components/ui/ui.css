@@ -76,7 +76,13 @@ button.pill { cursor: pointer; }
 .sheet p { margin: 8px 0 0; font: var(--t-body); color: #4A4675; }
 .sheet .sheet-actions { display: grid; gap: 8px; margin-top: 16px; }
 @keyframes fade { from { opacity: 0; } }
-@keyframes rise { from { transform: translateY(24px); opacity: 0; } }
+@keyframes rise { from { transform: translateY(48px); } }
+@media (prefers-reduced-motion: no-preference) {
+  .sheet-scrim.closing { animation: fade-out .18s ease forwards; }
+  .sheet-scrim.closing .sheet { animation: sheet-out .18s ease-in forwards; }
+}
+@keyframes fade-out { to { opacity: 0; } }
+@keyframes sheet-out { to { transform: translateY(48px); } }
 
 /* top bar */
 .topbar { display: flex; align-items: center; gap: 8px; }

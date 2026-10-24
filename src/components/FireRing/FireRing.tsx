@@ -52,6 +52,17 @@ export function FireRing({
   const cold = level === 0;
   const p = cold ? 0 : Math.max(0, Math.min(1, progress));
 
+  // When the level changes, the old colour fades out over the new one instead of cutting.
+  const [fading, setFading] = useState<Level | null>(null);
+  const lastLevel = useRef(level);
+  useEffect(() => {
+    if (lastLevel.current === level) return;
+    setFading(lastLevel.current);
+    lastLevel.current = level;
+    const t = window.setTimeout(() => setFading(null), 550);
+    return () => window.clearTimeout(t);
+  }, [level]);
+
   // Replay the flare when flareKey changes (not on first render).
   const [flare, setFlare] = useState(false);
   const first = useRef(true);
@@ -79,11 +90,12 @@ export function FireRing({
 
   return (
     <div
-      className={`ring ring-${CLASS[level]}${urgent && !cold ? ' ring-urgent' : ''}${paused ? ' ring-paused' : ''}${flare ? ' ring-flare' : ''}`}
+      className={`ring ring-${CLASS[level]}${size >= 120 ? ' ring-big' : ''}${urgent && !cold ? ' ring-urgent' : ''}${paused ? ' ring-paused' : ''}${flare ? ' ring-flare' : ''}`}
       style={{ width: size, height: size }}
       onAnimationEnd={(e) => { if (e.target === e.currentTarget) setFlare(false); }}
     >
-      <div className="ring-core" />
+      <div className={`ring-core core-${CLASS[level]}`} />
+      {fading !== null && <div className={`ring-core ring-core-prev core-${CLASS[fading]}`} />}
       <svg className="ring-rim" width={box} height={box} viewBox={`0 0 ${box} ${box}`}
         style={{ left: -rimW, top: -rimW }} aria-hidden="true">
         <circle cx={c} cy={c} r={r} fill="none" strokeWidth={rimW} className="ring-track" />

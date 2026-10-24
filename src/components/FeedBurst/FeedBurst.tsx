@@ -26,14 +26,15 @@ export function FeedBurst({ info, onDone }: { info: FeedInfo; onDone: () => void
   const calm = reduced();
   const [level, setLevel] = useState(info.from);
   const [progress, setProgress] = useState(info.fromProgress);
-  const [streak, setStreak] = useState(info.prevStreak);
+  // Count up from the old streak; a brand new streak just pops in at its value instead of showing 0.
+  const [streak, setStreak] = useState(info.prevStreak > 0 ? info.prevStreak : info.streak);
   const levelUp = info.to > info.from;
 
   useEffect(() => {
     const t = [
-      window.setTimeout(() => { setLevel(info.to); setProgress(info.to === 0 ? 0 : 1); }, calm ? 0 : 700),
-      window.setTimeout(() => setStreak(info.streak), calm ? 0 : 1250),
-      window.setTimeout(onDone, calm ? 2000 : 3400),
+      window.setTimeout(() => { setLevel(info.to); setProgress(info.to === 0 ? 0 : 1); }, calm ? 0 : 480),
+      window.setTimeout(() => setStreak(info.streak), calm ? 0 : 1100),
+      window.setTimeout(onDone, calm ? 2000 : 3000),
     ];
     if (!calm) navigator.vibrate?.([14, 40, 24]);
     return () => t.forEach(window.clearTimeout);
