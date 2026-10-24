@@ -1,1 +1,2 @@
-declare module '*.png' { const src: string; export default src; }
+/// <reference types="vite-plugin-pwa/client" />
+declare module "*.png" { const src: string; export default src; }
