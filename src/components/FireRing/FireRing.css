@@ -1,0 +1,48 @@
+.ring { position: relative; border-radius: 50%; flex: none; color: var(--ink); }
+.ring-core { position: absolute; inset: 0; border-radius: 50%; }
+.ring-hot .ring-core { background: var(--core-hot); }
+.ring-warm .ring-core { background: var(--core-warm); }
+.ring-embers .ring-core { background: var(--core-embers); }
+.ring-cold .ring-core { background: var(--core-cold); }
+
+.ring-rim {
+  position: absolute;
+  overflow: visible;
+  pointer-events: none;
+  filter: drop-shadow(0 0 calc(var(--rim-glow, 8px)) rgba(255, 255, 255, .42));
+}
+.ring-cold .ring-rim { filter: drop-shadow(0 0 8px rgba(160, 205, 255, .45)); }
+.ring-track { stroke: var(--fire-rim); opacity: .22; }
+.ring-cold .ring-track { stroke: var(--ice-rim); opacity: 1; }
+.ring-arc { stroke: var(--fire-rim); transition: stroke-dasharray .6s ease, stroke .3s ease; }
+.ring-urgent .ring-arc { stroke: var(--sun); }
+.ring-urgent .ring-rim { filter: drop-shadow(0 0 8px rgba(255, 216, 77, .55)); }
+
+.ring-label {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; padding: 0 10%;
+}
+.ring-name { font-weight: 700; display: flex; gap: 6px; align-items: center; line-height: 1.2; }
+.ring-title { font-weight: 800; letter-spacing: -.04em; line-height: 1.05; }
+.ring-sub { font-weight: 700; display: flex; gap: 6px; align-items: center; justify-content: center; }
+.ring-warm .ring-label { color: var(--navy); }
+
+.ring-action {
+  position: absolute; left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+}
+
+/* Feed flare: rim brightens, core swells, then settles at the new level. */
+.ring-flare { animation: ring-swell .7s cubic-bezier(.3, .7, .3, 1); }
+.ring-flare .ring-rim { animation: ring-glow .7s ease-out; }
+@keyframes ring-swell { 0% { transform: scale(1); } 35% { transform: scale(1.06); } 100% { transform: scale(1); } }
+@keyframes ring-glow {
+  0%, 100% { filter: drop-shadow(0 0 8px rgba(255, 255, 255, .42)); }
+  35% { filter: drop-shadow(0 0 22px rgba(255, 255, 255, .9)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ring-flare, .ring-flare .ring-rim { animation: none; }
+  .ring-arc { transition: none; }
+}

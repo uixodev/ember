@@ -6,6 +6,8 @@ import react from '@vitejs/plugin-react';
 process.env.TZ = process.env.VITEST ? 'UTC' : process.env.TZ;
 
 export default defineConfig({
+  // GitHub Pages serves from /<repo>/, set VITE_BASE=/ember/ there.
+  base: process.env.VITE_BASE ?? '/',
   plugins: [react()],
   test: { environment: 'node', include: ['src/**/*.test.ts'] },
 });
