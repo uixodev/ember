@@ -23,7 +23,7 @@ npm run preview    # serve the production build
 
 Ember builds to a static site, so any static host works. It uses hash routes (`#/areas`), so no server rewrites are needed.
 
-**GitHub Pages (set up in this repo).** `.github/workflows/pages.yml` runs the tests, builds with `VITE_BASE=/<repo>/` and publishes on every push to `main`. In the repo go to Settings → Pages and set the source to "GitHub Actions". The app lives at `https://<user>.github.io/<repo>/`.
+**GitHub Pages (free, no Actions).** `npm run deploy` runs the tests, builds with `VITE_BASE=/<repo>/` and force-pushes the result to the `gh-pages` branch. In the repo go to Settings → Pages, choose "Deploy from a branch", branch `gh-pages`, folder `/ (root)`. The app lives at `https://<user>.github.io/<repo>/`. Run `npm run deploy` again whenever you want to publish an update.
 
 **Vercel or Netlify.** Build command `npm run build`, output directory `dist`. Leave `VITE_BASE` unset so assets load from `/`.
 
