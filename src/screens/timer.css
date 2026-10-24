@@ -1,0 +1,21 @@
+.timer { text-align: center; }
+.timer-headline { all: unset; display: block; cursor: pointer; padding: 8px 4px; border-radius: 16px; }
+.timer-headline:focus-visible { outline: 3px solid var(--sun); outline-offset: 2px; }
+.timer-title { display: block; font: var(--t-title); letter-spacing: -.03em; text-wrap: balance; }
+.timer-sub { display: block; margin-top: 8px; font: var(--t-caption); font-size: 13px; color: var(--ink-2); }
+.timer-blob-wrap { position: relative; width: min(72vw, 300px); aspect-ratio: 1; margin: 24px auto 8px; }
+.blob { position: absolute; inset: 0; }
+.blob-a { border-radius: 46% 54% 50% 50% / 52% 46% 54% 48%; background: rgba(255, 255, 255, .18); transform: rotate(18deg) scale(1.1); animation: blob-a 14s ease-in-out infinite alternate; }
+.blob-b { border-radius: 54% 46% 48% 52% / 46% 54% 46% 54%; background: rgba(255, 255, 255, .22); transform: rotate(-14deg) scale(1.04); animation: blob-b 11s ease-in-out infinite alternate; }
+.blob-main {
+  inset: 14px; border-radius: 44% 56% 48% 52% / 50% 44% 56% 50%; background: #fff; color: var(--navy);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+}
+.timer-clock { font: 800 clamp(52px, 17vw, 72px)/1 var(--font); letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.timer-of { font: var(--t-label); color: #4A4675; }
+.timer-length { display: flex; justify-content: center; margin-top: 12px; }
+.timer-link { min-height: 44px; border: 0; background: transparent; color: var(--ink-2); font: 700 14px/1 var(--font); cursor: pointer; }
+.timer-link:focus-visible { outline: 3px solid var(--sun); border-radius: 12px; }
+@keyframes blob-a { to { transform: rotate(40deg) scale(1.13); } }
+@keyframes blob-b { to { transform: rotate(-36deg) scale(1.06); } }
+@media (prefers-reduced-motion: reduce) { .blob-a, .blob-b { animation: none; } }

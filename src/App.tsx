@@ -5,6 +5,7 @@ import { Button } from './components/ui/Button';
 import { Screen } from './screens/Screen';
 import { Setup } from './screens/Setup';
 import { Home } from './screens/Home';
+import { SparkTimer } from './screens/SparkTimer';
 import { TabBar } from './components/ui/TabBar';
 
 function StorageProblem() {
@@ -39,6 +40,7 @@ function Routes() {
   const tabs = ['/', '/areas', '/history', '/badges'].includes(path);
   let view;
   if (path === '/') view = <Home />;
+  else if (path.startsWith('/spark/')) view = <SparkTimer key={path} areaId={path.slice(7)} />;
   else view = <Screen><p className="lede">Route {path} comes next.</p></Screen>;
   return <>{view}{tabs && <TabBar path={path} />}</>;
 }
