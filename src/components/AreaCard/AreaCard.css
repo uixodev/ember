@@ -1,0 +1,14 @@
+.area-card {
+  position: relative; display: flex; flex-direction: column; padding: 16px; border-radius: var(--r-card);
+  background: var(--glass); border: 1px solid var(--glass-line); min-width: 0; color: #fff;
+}
+.area-card.sunrise { background: var(--card-sunrise); border-color: transparent; }
+.area-card.sunken { background: var(--sunken); border-color: transparent; }
+.area-card-open { position: absolute; inset: 0; border: 0; background: transparent; border-radius: inherit; cursor: pointer; }
+.area-card-open:focus-visible { outline: 3px solid var(--sun); outline-offset: 2px; }
+.area-card-top { display: flex; justify-content: space-between; align-items: flex-start; padding: 4px; pointer-events: none; }
+.area-card-tag { font: var(--t-caption); font-size: 12px; opacity: .85; }
+.area-card-name { margin-top: 14px; font: 750 17px/1.15 var(--font); letter-spacing: -.02em; pointer-events: none; overflow-wrap: anywhere; }
+.area-card-status { margin: 2px 0 14px; font: var(--t-caption); font-size: 12px; opacity: .8; pointer-events: none; }
+.area-card-btn { position: relative; z-index: 1; margin-top: auto; }
+.area-card-btn:disabled { opacity: 1; color: var(--ink-2); }

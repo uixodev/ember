@@ -35,6 +35,7 @@ export function SparkButton({ size = 64, onTap, onHold, label = 'Feed the fire' 
       onPointerUp={up}
       onPointerLeave={() => { clear(); held.current = false; }}
       onPointerCancel={clear}
+      onClick={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onTap(); } }}
     >

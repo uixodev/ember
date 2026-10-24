@@ -4,6 +4,8 @@ import { StoreProvider, useStore } from './store/store';
 import { Button } from './components/ui/Button';
 import { Screen } from './screens/Screen';
 import { Setup } from './screens/Setup';
+import { Home } from './screens/Home';
+import { TabBar } from './components/ui/TabBar';
 
 function StorageProblem() {
   const { loadStatus, importJson, startFresh } = useStore();
@@ -34,7 +36,11 @@ function Routes() {
   const path = usePath();
   if (loadStatus === 'corrupt' || loadStatus === 'unavailable') return <StorageProblem />;
   if (!data.onboarded) return <Setup />;
-  return <Screen><p className="lede">Route {path} comes next.</p></Screen>;
+  const tabs = ['/', '/areas', '/history', '/badges'].includes(path);
+  let view;
+  if (path === '/') view = <Home />;
+  else view = <Screen><p className="lede">Route {path} comes next.</p></Screen>;
+  return <>{view}{tabs && <TabBar path={path} />}</>;
 }
 
 export function App() {

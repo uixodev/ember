@@ -1,0 +1,11 @@
+.home-fire { display: flex; justify-content: center; padding: 20px 0 28px; }
+.home-fire-tap { cursor: pointer; padding-bottom: 8px; }
+.home-hint { margin: 0; text-align: center; font: var(--t-body); color: var(--ink-2); }
+.home-empty { padding: 20px; color: #fff; text-align: left; display: grid; gap: 12px; }
+.add-side { cursor: pointer; font: inherit; min-height: 88px; align-items: center; }
+.add-side h2 { margin: 0; }
+.side-row {
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(150px, 1fr); gap: 12px;
+  overflow-x: auto; scroll-snap-type: x proximity; scroll-padding-inline: 16px; margin: 0 -16px; padding: 0 16px 4px;
+}
+.side-row > * { scroll-snap-align: start; }
