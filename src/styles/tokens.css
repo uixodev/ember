@@ -1,0 +1,73 @@
+/* Ember design tokens. Source of truth for colours, type, space and shape.
+   Rule: fire colours are solid (no transparency) so they render the same everywhere. */
+
+@font-face {
+  font-family: "Inter Tight";
+  src: url("/fonts/inter-tight-variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+:root {
+  /* sky world */
+  --sky-300: #8F88EC;  /* small icon buttons, minus button */
+  --sky-400: #6C64DE;
+  --sky-500: #5B53D3;
+  --sky-600: #4D45C6;
+  --sky-700: #3F38B4;
+  --sky-800: #2F2A8F;  /* tab bar, segmented control */
+  --sky-900: #241F6E;  /* darkest sunken surface */
+  --bg: radial-gradient(110% 50% at 50% 22%, #6A62DC 0%, var(--sky-500) 45%, var(--sky-600) 75%, #4139B6 100%);
+
+  /* heat, used only for fire */
+  --heat-flame: #E8553A;
+  --heat-blaze: #FF9A2E;
+  --heat-glow:  #FFD25A;
+  --heat-ember: #8A2E2A;
+  --heat-ice:   #4F8EF7;
+  --heat-frost: #A9D4FF;
+  --fire-rim:   #E6E2FF;
+  --ice-rim:    #DCEBFF;
+
+  --core-hot:    radial-gradient(circle at 50% 56%, #FFD27A 0%, #FF9A2E 24%, #E8553A 48%, #9A3A26 66%, #4A2420 84%, #2C2266 100%);
+  --core-warm:   radial-gradient(circle at 50% 54%, #FFFBE0 0%, #FFE98A 24%, #FFD25A 48%, #F2B53A 66%, #C98E2C 84%, #8A6230 100%);
+  --core-embers: radial-gradient(circle at 50% 60%, #B4483A 0%, #8A2E2A 24%, #5A2420 46%, #3A1E22 70%, #2C2266 100%);
+  --core-cold:   radial-gradient(circle at 50% 50%, #CFE8FF 0%, #8CC2FF 18%, #4F8EF7 40%, #2C5BC4 60%, #22409A 80%, #232E7E 100%);
+
+  /* accents */
+  --sun:  #FFD84D;  /* highlighted numbers and wins, yellow buttons */
+  --navy: #1C1850;  /* text on white, dark buttons on white sheets */
+  --card-sunrise: linear-gradient(180deg, #7A73E2 0%, #9A8FD6 45%, #F3C94E 85%, #FFD84D 100%);
+  --card-sky:     linear-gradient(150deg, #3E4FC0, #4C7AD6 60%, #5C8FE0);
+  --card-bonfire: radial-gradient(120% 120% at 50% 100%, #FFB03A 0%, #FF7A2E 40%, #E8553A 75%, #C8402E 100%);
+
+  /* surfaces */
+  --glass:      rgba(255, 255, 255, .13);
+  --glass-line: rgba(255, 255, 255, .20);
+  --sunken:     rgba(22, 18, 88, .42);
+  --sheet:      #FFFFFF;
+  --scrim:      rgba(28, 24, 80, .60);
+
+  /* text */
+  --ink:   #FFFFFF;
+  --ink-2: rgba(255, 255, 255, .78);
+  --ink-3: rgba(255, 255, 255, .55);
+
+  /* type: Inter Tight */
+  --font: "Inter Tight", system-ui, -apple-system, sans-serif;
+  --t-display: 800 56px/1 var(--font);     /* tracking -0.045em */
+  --t-number:  800 48px/1 var(--font);     /* tracking -0.04em, tabular-nums */
+  --t-title:   750 28px/1.1 var(--font);   /* tracking -0.03em */
+  --t-heading: 700 20px/1.2 var(--font);   /* tracking -0.02em */
+  --t-body:    450 15px/1.45 var(--font);
+  --t-label:   700 13px/1.3 var(--font);
+  --t-caption: 500 11px/1.3 var(--font);
+
+  /* space */
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 24px; --s-6: 32px; --s-7: 48px;
+
+  /* shape */
+  --r-icon: 12px;
+  --r-card: 24px;
+  --r-pill: 999px;
+}
