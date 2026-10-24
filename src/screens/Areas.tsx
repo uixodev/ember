@@ -6,6 +6,7 @@ import { Button, IconButton } from '../components/ui/Button';
 import { IconGear } from '../components/ui/Icons';
 import { Tabs } from '../components/ui/Tabs';
 import { coolingLabel, fedText, fedToday } from '../model/labels';
+import { useFeedSheet } from '../feed';
 import { navigate } from '../router';
 import { useStore } from '../store/store';
 import { Screen } from './Screen';
@@ -18,7 +19,8 @@ const EMPTY: Record<Place, string> = {
 };
 
 export function Areas() {
-  const { data, now, heatOf, spark, moveArea, mainArea } = useStore();
+  const { data, now, heatOf, moveArea, mainArea } = useStore();
+  const openFeed = useFeedSheet();
   const [place, setPlace] = useState<Place>('main');
   const list = data.areas.filter((a) => a.place === place);
 
@@ -49,7 +51,7 @@ export function Areas() {
                 variant={archived ? 'sunken' : 'glass'} action={archived ? 'thaw' : 'feed'}
                 fed={fedToday(data.events, a.id, now)}
                 onOpen={() => navigate(`/area/${a.id}`)}
-                onAction={() => (archived ? moveArea(a.id, a.archivedFrom === 'main' && !mainArea ? 'main' : 'side') : spark(a.id))}
+                onAction={() => (archived ? moveArea(a.id, a.archivedFrom === 'main' && !mainArea ? 'main' : 'side') : openFeed(a.id))}
               />
             );
           })}

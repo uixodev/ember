@@ -1,0 +1,73 @@
+.burst { position: fixed; inset: 0; z-index: 70; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; color: #fff; cursor: pointer; overflow: hidden; }
+.burst-scrim { position: absolute; inset: 0; background: rgba(28, 24, 80, .92); }
+.burst-rays {
+  position: absolute; left: 50%; top: 38%; width: 160vmax; height: 160vmax; margin: -80vmax 0 0 -80vmax; pointer-events: none;
+  background: repeating-conic-gradient(from 0deg, rgba(255, 216, 77, .13) 0deg 7deg, rgba(255, 216, 77, 0) 7deg 18deg);
+  -webkit-mask-image: radial-gradient(circle, #000 0%, rgba(0, 0, 0, 0) 38%); mask-image: radial-gradient(circle, #000 0%, rgba(0, 0, 0, 0) 38%);
+  opacity: 0;
+}
+.burst.up .burst-rays { opacity: 1; }
+.burst-stage { position: relative; width: 168px; height: 168px; margin-top: -8vh; }
+.burst-ring { position: relative; z-index: 2; }
+.burst-flash { position: absolute; inset: -30%; border-radius: 50%; background: #FFF6D8; opacity: 0; z-index: 1; }
+.burst-wave { position: absolute; inset: -6px; border-radius: 50%; border: 3px solid var(--fire-rim); opacity: 0; z-index: 1; }
+.burst-embers { position: absolute; left: 50%; top: 50%; z-index: 3; pointer-events: none; }
+.ember { position: absolute; left: 0; top: 0; width: var(--s); height: var(--s); border-radius: 50%; opacity: 0; }
+.ember.t0 { background: #FFD25A; }
+.ember.t1 { background: #FF9A2E; }
+.ember.t2 { background: #E8553A; }
+
+.burst-text { position: relative; z-index: 4; text-align: center; display: grid; gap: 6px; padding: 0 24px; max-width: 360px; }
+.burst-headline { font: 800 44px/1 var(--font); letter-spacing: -.045em; }
+.burst-step { font: 700 18px/1.2 var(--font); color: var(--ink-2); }
+.burst-area { font: 700 15px/1.2 var(--font); color: var(--ink-2); }
+.burst-note { font: 500 15px/1.4 var(--font); color: var(--ink-2); font-style: italic; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.burst-streak { margin-top: 10px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font: 700 18px/1 var(--font); }
+.burst-num { display: inline-block; color: var(--sun); font: 800 34px/1 var(--font); letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.burst-today { font: var(--t-caption); font-size: 13px; color: var(--ink-3); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Still version: a plain fade. */
+.burst { animation: burst-fade .25s ease both; }
+@keyframes burst-fade { from { opacity: 0; } }
+
+@media (prefers-reduced-motion: no-preference) {
+  .burst { animation: burst-fade .3s ease both; }
+  .burst-scrim { animation: burst-fade .35s ease both; }
+
+  /* 1. The fire drops in small and swells with a bounce. */
+  .burst-ring { animation: burst-in .75s cubic-bezier(.3, 1.6, .5, 1) both; }
+  /* 2. At the moment it steps up, a warm flash and three rings wash outward. */
+  .burst-flash { animation: burst-flash .9s ease-out .7s both; }
+  .burst-wave { animation: burst-wave 1.5s cubic-bezier(.15, .7, .3, 1) calc(.7s + var(--i) * .16s) both; }
+  .burst.up .burst-ring { animation: burst-in .75s cubic-bezier(.3, 1.6, .5, 1) both, burst-kick .6s cubic-bezier(.3, 1.6, .5, 1) .7s; }
+  .burst.up .burst-rays { animation: rays-in 3.4s ease-out .65s both, rays-spin 24s linear infinite; }
+  /* 3. Sparks rise out of the fire. */
+  .ember { animation: ember-rise var(--t) cubic-bezier(.2, .6, .3, 1) calc(.55s + var(--d)) both; }
+  /* 4. The words arrive one after another. */
+  .burst-text > * { animation: burst-text .55s cubic-bezier(.2, .8, .2, 1) both; }
+  .burst-headline { animation-name: burst-headline; animation-duration: .6s; animation-timing-function: cubic-bezier(.3, 1.5, .5, 1); animation-delay: .75s; }
+  .burst-step { animation-delay: .95s; }
+  .burst-area { animation-delay: 1.05s; }
+  .burst-note { animation-delay: 1.15s; }
+  .burst-streak { animation-delay: 1.25s; }
+  .burst-today { animation-delay: 1.45s; }
+  .burst-streak img { animation: burst-flame 1.2s ease-in-out 1.4s infinite; transform-origin: 50% 90%; }
+  .burst-num { animation: burst-num .5s cubic-bezier(.3, 1.8, .5, 1) both; }
+}
+
+@keyframes burst-in { from { transform: scale(.2) translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes burst-kick { 0% { transform: scale(1); } 40% { transform: scale(1.16); } 100% { transform: scale(1); } }
+@keyframes burst-flash { 0% { opacity: 0; transform: scale(.6); } 25% { opacity: .85; } 100% { opacity: 0; transform: scale(1.5); } }
+@keyframes burst-wave { 0% { opacity: .9; transform: scale(1); } 100% { opacity: 0; transform: scale(2.6); } }
+@keyframes ember-rise {
+  0% { opacity: 0; transform: translate(calc(var(--x) * .15), 20px) scale(1); }
+  12% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--x), calc(var(--rise) * -1)) scale(.2); }
+}
+@keyframes rays-in { from { opacity: 0; } 20% { opacity: 1; } to { opacity: 0; } }
+@keyframes rays-spin { to { rotate: 360deg; } }
+@keyframes burst-text { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes burst-headline { from { opacity: 0; transform: scale(.5); } to { opacity: 1; transform: none; } }
+@keyframes burst-flame { 0%, 100% { transform: scale(1) rotate(0); } 50% { transform: scale(1.12) rotate(-4deg); } }
+@keyframes burst-num { from { opacity: 0; transform: translateY(-14px) scale(.6); } to { opacity: 1; transform: none; } }

@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button, IconButton } from '../components/ui/Button';
 import { Flame } from '../components/ui/Flame';
 import { IconBack } from '../components/ui/Icons';
+import { BigSessionSheet } from '../components/ui/Sheets';
 import { Segmented } from '../components/ui/Tabs';
+import { useFeedSheet } from '../feed';
 import { back, navigate } from '../router';
 import { useStore } from '../store/store';
 import { Screen } from './Screen';
@@ -11,12 +13,14 @@ import './timer.css';
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
 export function SparkTimer({ areaId }: { areaId: string }) {
-  const { data, spark, big } = useStore();
+  const { data, big } = useStore();
+  const openFeed = useFeedSheet();
   const area = data.areas.find((a) => a.id === areaId);
   const started = useMemo(() => Date.now(), []);
   const [tick, setTick] = useState(started);
   const [minutes, setMinutes] = useState<'5' | '10'>('5');
   const [bigMode, setBigMode] = useState(false);
+  const [askBig, setAskBig] = useState(false);
   const [pick, setPick] = useState(() => (area ? Math.floor(Math.random() * Math.max(1, area.sparks.length)) : 0));
 
   useEffect(() => {
@@ -35,8 +39,8 @@ export function SparkTimer({ areaId }: { areaId: string }) {
   const suggestion = sparksList[pick % sparksList.length];
   const shuffle = () => setPick((p) => (sparksList.length > 1 ? (p + 1 + Math.floor(Math.random() * (sparksList.length - 1))) % sparksList.length : p));
 
-  const done = () => { spark(area.id); navigate('/', { replace: true }); };
-  const logBig = () => { big(area.id, Math.max(1, Math.round(elapsed / 60))); navigate('/', { replace: true }); };
+  const done = () => openFeed(area.id, { prefill: suggestion, onLogged: () => navigate('/', { replace: true }) });
+  const logBig = () => setAskBig(true);
 
   return (
     <Screen className="timer">
@@ -77,6 +81,13 @@ export function SparkTimer({ areaId }: { areaId: string }) {
           <Button block onClick={done}>Done, feed the fire</Button>
           <button type="button" className="timer-link" onClick={() => setBigMode(true)}>Keep going as a big session</button>
         </>
+      )}
+      {askBig && (
+        <BigSessionSheet
+          initialMinutes={Math.max(1, Math.round(elapsed / 60))}
+          onClose={() => setAskBig(false)}
+          onSubmit={(m, note) => { big(area.id, m, note); setAskBig(false); navigate('/', { replace: true }); }}
+        />
       )}
     </Screen>
   );

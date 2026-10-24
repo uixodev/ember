@@ -5,6 +5,7 @@ import {
   archive, bigSession, computeHeat, rebase, spark as sparkAction, unarchive,
   DEFAULT_MAIN_COOLING, SIDE_COOLING, type ActiveHours, type Heat, type Level, type Place,
 } from '../engine/heat';
+import { currentStreak, keptDays, sparksToday } from '../model/streaks';
 import type { Area, AreaEvent, EmberData } from '../model/types';
 import { clear, emptyData, load, parseJson, save, type LoadResult } from '../storage/storage';
 
@@ -23,6 +24,22 @@ export interface Celebration {
   from: Level;
 }
 
+/** What just happened when a fire was fed; drives the level-up animation. */
+export interface FeedInfo {
+  kind: 'spark' | 'big';
+  areaId: string;
+  name: string;
+  from: Level;
+  to: Level;
+  /** Rim fill before feeding, so the animation can refill it. */
+  fromProgress: number;
+  prevStreak: number;
+  streak: number;
+  sparksToday: number;
+  note?: string;
+  minutes?: number;
+}
+
 export interface Store {
   data: EmberData;
   /** Current time, refreshed every minute and on focus. */
@@ -31,6 +48,8 @@ export interface Store {
   saveFailed: boolean;
   celebration: Celebration | null;
   dismissCelebration: () => void;
+  feed: FeedInfo | null;
+  finishFeed: () => void;
   heatOf: (area: Area) => Heat;
   mainArea: Area | undefined;
   completeSetup: (mainName: string, sideNames: string[], hours: ActiveHours) => void;
@@ -38,8 +57,9 @@ export interface Store {
   updateArea: (id: string, patch: Partial<Pick<Area, 'name' | 'coolingMinutes' | 'sparks'>>) => void;
   moveArea: (id: string, place: Place) => void;
   deleteArea: (id: string) => void;
-  spark: (id: string) => void;
+  spark: (id: string, note?: string) => void;
   big: (id: string, minutes: number, note?: string) => void;
+  deleteEvent: (eventId: string) => void;
   setActiveHours: (h: ActiveHours) => void;
   importJson: (text: string) => boolean;
   resetAll: () => void;
@@ -95,6 +115,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [saveFailed, setSaveFailed] = useState(false);
   const [now, setNow] = useState(Date.now());
   const [celebration, setCelebration] = useState<Celebration | null>(null);
+  const [feed, setFeed] = useState<FeedInfo | null>(null);
   const ref = useRef(data);
   ref.current = data;
   // While the stored data is corrupt or storage is unavailable, don't overwrite it until the user chooses.
@@ -133,18 +154,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       areas.map((a) => (a.place === 'main' && a.id !== exceptId ? placed(a, 'side', t, hoursNow()) : a));
 
     const log = (area: Area, e: Omit<AreaEvent, 'id' | 'areaId'>, level: Level, t: number) => {
-      const before = computeHeat(area, t, hoursNow()).level;
+      const before = computeHeat(area, t, hoursNow());
+      const prevStreak = currentStreak(keptDays(ref.current.events, area.id), t);
+      const event: AreaEvent = { ...e, id: uid(), areaId: area.id };
+      const all = [...ref.current.events, event];
       update((d) => ({
         ...d,
         areas: d.areas.map((a) => (a.id === area.id ? { ...a, level, levelSince: t } : a)),
-        events: [...d.events, { ...e, id: uid(), areaId: area.id }],
+        events: [...d.events, event],
       }));
-      return before;
+      setFeed({
+        kind: e.type, areaId: area.id, name: area.name, from: before.level, to: level,
+        fromProgress: before.progress, prevStreak, streak: currentStreak(keptDays(all, area.id), t),
+        sparksToday: sparksToday(all, t), note: e.note, minutes: e.minutes,
+      });
+      return before.level;
     };
 
     return {
       data, now, loadStatus, saveFailed, celebration,
       dismissCelebration: () => setCelebration(null),
+      feed,
+      finishFeed: () => setFeed(null),
       heatOf,
       mainArea: data.areas.find((a) => a.place === 'main'),
 
@@ -193,12 +224,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }));
       },
 
-      spark(id) {
+      spark(id, note) {
         const area = ref.current.areas.find((a) => a.id === id);
         if (!area || area.place === 'archive') return;
         const t = Date.now();
         const next = sparkAction(area, t, hoursNow());
-        log(area, { type: 'spark', at: t }, next.level, t);
+        const clean = note?.trim();
+        log(area, { type: 'spark', at: t, ...(clean ? { note: clean } : {}) }, next.level, t);
       },
 
       big(id, minutes, note) {
@@ -209,6 +241,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const clean = note?.trim();
         const before = log(area, { type: 'big', at: t, minutes, ...(clean ? { note: clean } : {}) }, next.level, t);
         if (before <= 1) setCelebration({ areaId: id, name: area.name, from: before });
+      },
+
+      deleteEvent(eventId) {
+        update((d) => ({ ...d, events: d.events.filter((e) => e.id !== eventId) }));
       },
 
       setActiveHours(h) {
@@ -239,7 +275,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
     // `data`, `now` and friends change often; the memo rebuilds with them.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, now, loadStatus, saveFailed, celebration, hours, update]);
+  }, [data, now, loadStatus, saveFailed, celebration, feed, hours, update]);
 
   return <Ctx.Provider value={store}>{children}</Ctx.Provider>;
 }

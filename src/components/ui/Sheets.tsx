@@ -19,8 +19,8 @@ export function ConfirmSheet({ title, body, confirmLabel, cancelLabel = 'Keep it
 
 const QUICK = [30, 60, 90, 120];
 
-export function BigSessionSheet({ onSubmit, onClose }: { onSubmit: (minutes: number, note: string) => void; onClose: () => void }) {
-  const [minutes, setMinutes] = useState('60');
+export function BigSessionSheet({ onSubmit, onClose, initialMinutes = 60 }: { onSubmit: (minutes: number, note: string) => void; onClose: () => void; initialMinutes?: number }) {
+  const [minutes, setMinutes] = useState(String(initialMinutes));
   const [note, setNote] = useState('');
   const n = Math.round(Number(minutes));
   const valid = Number.isFinite(n) && n >= 1 && n <= 1440;
@@ -37,7 +37,7 @@ export function BigSessionSheet({ onSubmit, onClose }: { onSubmit: (minutes: num
             <button key={q} type="button" className={`chip${String(q) === minutes ? ' on' : ''}`} onClick={() => setMinutes(String(q))}>{q} min</button>
           ))}
         </div>
-        <label className="sheet-label">One line about it (optional)
+        <label className="sheet-label">What did you do? (optional)
           <input className="sheet-field" value={note} maxLength={120} onChange={(e) => setNote(e.target.value)} placeholder="Built the todo list" />
         </label>
         <Button variant="navy" block type="submit" disabled={!valid}>Log big session</Button>

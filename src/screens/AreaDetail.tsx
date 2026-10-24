@@ -5,12 +5,12 @@ import type { Place } from '../engine/heat';
 import { Button, IconButton } from '../components/ui/Button';
 import { CoolingStepper } from '../components/ui/CoolingStepper';
 import { Flame } from '../components/ui/Flame';
-import { HistoryRow } from '../components/ui/HistoryRow';
+import { EntryList } from '../components/EntryList/EntryList';
 import { IconBack, IconEdit, IconPlus, IconTrash } from '../components/ui/Icons';
 import { BigSessionSheet, ConfirmSheet } from '../components/ui/Sheets';
 import { Segmented, Tabs } from '../components/ui/Tabs';
-import { shortDate } from '../model/labels';
-import { currentStreak, dayGroups, keptDays, longestStreak } from '../model/streaks';
+import { currentStreak, keptDays, longestStreak } from '../model/streaks';
+import { useFeedSheet } from '../feed';
 import { back, navigate } from '../router';
 import { useStore } from '../store/store';
 import { Screen } from './Screen';
@@ -23,7 +23,8 @@ const PLACE_TABS: { value: Place; label: string }[] = [
 ];
 
 export function AreaDetail({ areaId }: { areaId: string }) {
-  const { data, now, heatOf, mainArea, spark, big, updateArea, moveArea, deleteArea } = useStore();
+  const { data, now, heatOf, mainArea, big, updateArea, moveArea, deleteArea, deleteEvent } = useStore();
+  const openFeed = useFeedSheet();
   const area = data.areas.find((a) => a.id === areaId);
   const [tab, setTab] = useState<'history' | 'badges'>('history');
   const [pending, setPending] = useState<Pending>(null);
@@ -39,7 +40,7 @@ export function AreaDetail({ areaId }: { areaId: string }) {
   const days = keptDays(data.events, area.id);
   const streak = currentStreak(days, now);
   const longest = longestStreak(days);
-  const groups = dayGroups(data.events, area.id);
+  const entries = data.events.filter((e) => e.areaId === area.id);
   const archived = area.place === 'archive';
 
   const changePlace = (place: Place) => {
@@ -92,7 +93,7 @@ export function AreaDetail({ areaId }: { areaId: string }) {
         {archived
           ? <Button block onClick={() => moveArea(area.id, area.archivedFrom === 'main' && !mainArea ? 'main' : 'side')}>Thaw it</Button>
           : <>
-            <Button block onClick={() => spark(area.id)}>Feed it</Button>
+            <Button block onClick={() => openFeed(area.id)}>Feed it</Button>
             <Button variant="glass" block onClick={() => setPending({ kind: 'big' })}>Log big session</Button>
           </>}
       </div>
@@ -106,6 +107,7 @@ export function AreaDetail({ areaId }: { areaId: string }) {
         <>
           <section className="stack" aria-label="Spark list">
             <h2>Spark list</h2>
+            <p className="note">These are your templates. Tap one when you feed the fire to fill in your note.</p>
             {area.sparks.length === 0 && <p className="lede">Add one tiny action, like "open the editor and write one line".</p>}
             {area.sparks.map((s, i) => (
               <div key={i} className="spark-row">
@@ -131,13 +133,8 @@ export function AreaDetail({ areaId }: { areaId: string }) {
 
           <section className="stack" aria-label="History">
             <h2>History</h2>
-            {groups.length === 0 && <p className="lede">Nothing yet. The first spark shows up here.</p>}
-            {groups.map((g) => (
-              <HistoryRow
-                key={g.key} count={g.sparks + g.big} date={shortDate(g.at)}
-                text={g.big > 0 ? (g.sparks > 0 ? `${g.sparks === 1 ? 'spark' : 'sparks'} + big session` : 'big session') : g.sparks === 1 ? 'spark' : 'sparks'}
-              />
-            ))}
+            {entries.length === 0 && <p className="lede">Nothing yet. Feed the fire and what you did shows up here.</p>}
+            <EntryList events={entries} now={now} onDelete={deleteEvent} />
           </section>
 
           <section className="stack" aria-label="Settings">

@@ -22,7 +22,7 @@ interface Props {
 }
 
 export function AreaCard({ name, heat, tag, status, variant = 'glass', fed, action = 'feed', onOpen, onAction }: Props) {
-  const label = action === 'thaw' ? 'Thaw it' : fed ? 'Fed' : 'Feed it';
+  const label = action === 'thaw' ? 'Thaw it' : fed ? 'Fed today' : 'Feed it';
   return (
     <div className={`area-card ${variant}`}>
       <button type="button" className="area-card-open" onClick={onOpen} aria-label={`Open ${name}`} />
@@ -35,7 +35,6 @@ export function AreaCard({ name, heat, tag, status, variant = 'glass', fed, acti
       {action !== 'none' && (
         <Button
           variant={variant === 'sunrise' ? 'white' : 'glass'} small block className="area-card-btn"
-          disabled={action === 'feed' && fed && variant !== 'sunrise'}
           onClick={onAction}
         >{label}</Button>
       )}

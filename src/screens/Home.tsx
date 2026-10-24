@@ -8,13 +8,15 @@ import { WeekRow } from '../components/ui/WeekRow';
 import { Button } from '../components/ui/Button';
 import { coolingLabel, fedToday } from '../model/labels';
 import { currentStreak, keptDays, sparksToday, weekRow } from '../model/streaks';
+import { useFeedSheet } from '../feed';
 import { navigate } from '../router';
 import { useStore } from '../store/store';
 import { Screen } from './Screen';
 import './home.css';
 
 export function Home() {
-  const { data, now, heatOf, mainArea, spark } = useStore();
+  const { data, now, heatOf, mainArea } = useStore();
+  const openFeed = useFeedSheet();
   const { events } = data;
 
   const sides = useMemo(() => {
@@ -49,7 +51,7 @@ export function Home() {
                   name: mainArea.name, title: LEVEL_NAMES[heat.level],
                   sub: heat.level === 0 ? 'one spark warms it' : `cools in ${formatShort(heat.remainingMinutes)}`,
                 }}
-                action={<SparkButton size={64} onTap={() => spark(mainArea.id)} onHold={() => navigate(`/spark/${mainArea.id}`)} />}
+                action={<SparkButton size={64} onTap={() => openFeed(mainArea.id)} onHold={() => navigate(`/spark/${mainArea.id}`)} />}
               />
             </div>
           </div>
@@ -75,7 +77,7 @@ export function Home() {
               key={area.id} name={area.name} heat={h} tag={coolingLabel(area)}
               status={h.level === 0 ? 'cold' : `cools in ${formatLong(h.remainingMinutes)}`}
               variant={i === 0 ? 'sunrise' : 'glass'} fed={fedToday(events, area.id, now)}
-              onOpen={() => open(area.id)} onAction={() => spark(area.id)}
+              onOpen={() => open(area.id)} onAction={() => openFeed(area.id)}
             />
           ))}
         </div>

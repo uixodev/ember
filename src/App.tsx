@@ -9,7 +9,9 @@ import { AreaDetail } from './screens/AreaDetail';
 import { Areas } from './screens/Areas';
 import { NewArea } from './screens/NewArea';
 import { Settings } from './screens/Settings';
-import { ComingSoon } from './screens/ComingSoon';
+import { Badges, History } from './screens/ComingSoon';
+import { FeedHost } from './feed';
+import { FeedBurst } from './components/FeedBurst/FeedBurst';
 import { CelebrationSheet } from './components/ui/CelebrationSheet';
 import { SparkTimer } from './screens/SparkTimer';
 import { TabBar } from './components/ui/TabBar';
@@ -39,7 +41,7 @@ function StorageProblem() {
 }
 
 function Routes() {
-  const { data, loadStatus, celebration, dismissCelebration } = useStore();
+  const { data, loadStatus, celebration, dismissCelebration, feed, finishFeed } = useStore();
   const path = usePath();
   if (loadStatus === 'corrupt' || loadStatus === 'unavailable') return <StorageProblem />;
   if (!data.onboarded) return <Setup />;
@@ -49,7 +51,8 @@ function Routes() {
   else if (path === '/areas') view = <Areas />;
   else if (path === '/new') view = <NewArea />;
   else if (path === '/settings') view = <Settings />;
-  else if (path === '/history' || path === '/badges') view = <ComingSoon kind={path.slice(1) as 'history' | 'badges'} />;
+  else if (path === '/history') view = <History />;
+  else if (path === '/badges') view = <Badges />;
   else if (path.startsWith('/spark/')) view = <SparkTimer key={path} areaId={path.slice(7)} />;
   else if (path.startsWith('/area/')) view = <AreaDetail key={path} areaId={path.slice(6)} />;
   else view = <Screen><p className="lede">That page does not exist.</p><a href="#/" style={{ color: '#fff' }}>Back to Home</a></Screen>;
@@ -57,7 +60,8 @@ function Routes() {
     <>
       {view}
       {tabs && <TabBar path={path} />}
-      {celebration && <CelebrationSheet name={celebration.name} from={celebration.from as 0 | 1} onClose={dismissCelebration} />}
+      {feed && <FeedBurst key={feed.areaId + feed.sparksToday + feed.to} info={feed} onDone={finishFeed} />}
+      {celebration && !feed && <CelebrationSheet name={celebration.name} from={celebration.from as 0 | 1} onClose={dismissCelebration} />}
     </>
   );
 }
@@ -65,7 +69,9 @@ function Routes() {
 export function App() {
   return (
     <StoreProvider>
-      <Routes />
+      <FeedHost>
+        <Routes />
+      </FeedHost>
     </StoreProvider>
   );
 }

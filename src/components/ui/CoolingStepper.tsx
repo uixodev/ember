@@ -1,9 +1,27 @@
+import { useState } from 'react';
 import type { Place } from '../../engine/heat';
-import { canStep, coolingCaption, coolingValue, SIDE_PRESETS, stepCooling } from '../../model/cooling';
+import {
+  canStep, coolingCaption, coolingValue, customHint, customToMinutes, SIDE_PRESETS, stepCooling, unitsFor,
+} from '../../model/cooling';
+import { Button } from './Button';
 import { Stepper } from './Stepper';
 
-/** Cooling speed for an area: "+" slows the cooling down, "-" speeds it up. */
+/** Cooling speed for an area: "+" makes it cool slower, "-" faster. Presets and an exact time too. */
 export function CoolingStepper({ place, minutes, onChange }: { place: Exclude<Place, 'archive'>; minutes: number; onChange: (m: number) => void }) {
+  const units = unitsFor(place);
+  const [amount, setAmount] = useState('');
+  const [unit, setUnit] = useState(units[units.length - 1].value);
+  const [error, setError] = useState(false);
+
+  const apply = () => {
+    const u = units.find((x) => x.value === unit) ?? units[0];
+    const m = customToMinutes(place, Number(amount.replace(',', '.')), u);
+    if (m === null) { setError(true); return; }
+    setError(false);
+    setAmount('');
+    onChange(m);
+  };
+
   return (
     <div className="stack">
       <Stepper
@@ -18,6 +36,22 @@ export function CoolingStepper({ place, minutes, onChange }: { place: Exclude<Pl
           ))}
         </div>
       )}
+      <details className="custom-cooling">
+        <summary>Set an exact time</summary>
+        <form className="custom-row" onSubmit={(e) => { e.preventDefault(); apply(); }}>
+          <input
+            className="field" inputMode="decimal" placeholder="e.g. 36" aria-label="Amount" value={amount}
+            onChange={(e) => { setAmount(e.target.value); setError(false); }}
+          />
+          <select className="field" aria-label="Unit" value={unit} onChange={(e) => setUnit(e.target.value)}>
+            {units.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
+          </select>
+          <Button variant="white" small type="submit" disabled={!amount.trim()}>Set</Button>
+        </form>
+        <p className={`note${error ? ' bad' : ''}`} role={error ? 'alert' : undefined}>
+          {error ? `That is out of range. ${customHint(place)}` : customHint(place)}
+        </p>
+      </details>
     </div>
   );
 }
