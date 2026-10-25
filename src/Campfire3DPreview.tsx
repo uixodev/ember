@@ -9,6 +9,7 @@ import { DEFAULT_ACTIVE_HOURS, type Level as HeatLevel } from './engine/heat';
 import { planFeed } from './engine/hold';
 import type { Area } from './model/types';
 import { CampfireWorld, type DragState, type LabelPos, type Level, type Size } from './campfire3d/world';
+import { PALETTES, PALETTE_IDS, type PaletteId } from './campfire3d/palettes';
 import { STICKS, type StickKind } from './campfire3d/sticks';
 import type { FeedEntry, FeedInfo } from './store/store';
 import './campfire.css';
@@ -19,26 +20,26 @@ import './campfire3d.css';
  * say what you did, log it, and watch it burn. Open with ?campfire3d. All data here is made up.
  */
 
-interface Fire { area: Area; level: Level; progress: number; size: Size; main?: boolean; cool: string }
+interface Fire { area: Area; level: Level; progress: number; size: Size; color: PaletteId; main?: boolean; cool: string }
 
-const mk = (id: string, name: string, level: Level, progress: number, size: Size, cool: string, main = false): Fire => ({
+const mk = (id: string, name: string, level: Level, progress: number, size: Size, cool: string, color: PaletteId, main = false): Fire => ({
   area: { id, name, place: main ? 'main' : 'side', coolingMinutes: main ? 150 : 1440, sparks: [`Spend 5 minutes on ${name}`], level, levelSince: 0, createdAt: 0 },
-  level, progress, size, main, cool,
+  level, progress, size, color, main, cool,
 });
 
 const SAMPLE: Fire[] = [
-  mk('js', 'JavaScript', 2, 0.55, 4, '1 h 20', true),
-  mk('clean', 'Cleaning', 3, 0.8, 2, '19 h'),
-  mk('read', 'Reading', 1, 0.2, 2, '5 h'),
-  mk('draw', 'Drawing', 2, 0.6, 1, '4 days'),
-  mk('guitar', 'Guitar', 0, 0, 2, 'cold'),
-  mk('piano', 'Piano', 3, 0.9, 3, '2 days'),
-  mk('run', 'Running', 1, 0.35, 2, '9 h'),
-  mk('es', 'Spanish', 2, 0.4, 3, '11 h'),
-  mk('cook', 'Cooking', 3, 0.7, 1, '3 days'),
-  mk('write', 'Writing', 0, 0, 2, 'cold'),
-  mk('med', 'Meditate', 1, 0.5, 1, '7 h'),
-  mk('garden', 'Garden', 2, 0.3, 1, '2 days'),
+  mk('js', 'JavaScript', 2, 0.55, 4, '1 h 20', 'classic', true),
+  mk('clean', 'Cleaning', 3, 0.8, 2, '19 h', 'green'),
+  mk('read', 'Reading', 1, 0.2, 2, '5 h', 'crimson'),
+  mk('draw', 'Drawing', 2, 0.6, 1, '4 days', 'gold'),
+  mk('guitar', 'Guitar', 0, 0, 2, 'cold', 'blue'),
+  mk('piano', 'Piano', 3, 0.9, 3, '2 days', 'teal'),
+  mk('run', 'Running', 1, 0.35, 2, '9 h', 'crimson'),
+  mk('es', 'Spanish', 2, 0.4, 3, '11 h', 'gold'),
+  mk('cook', 'Cooking', 3, 0.7, 1, '3 days', 'classic'),
+  mk('write', 'Writing', 0, 0, 2, 'cold', 'ice'),
+  mk('med', 'Meditate', 1, 0.5, 1, '7 h', 'green'),
+  mk('garden', 'Garden', 2, 0.3, 1, '2 days', 'teal'),
 ];
 
 const SIZE_NAMES: Record<Size, string> = { 1: 'Small', 2: 'Medium', 3: 'Large', 4: 'Huge' };
@@ -52,7 +53,11 @@ export default function Campfire3DPreview() {
   const labelRefs = useRef(new Map<string, HTMLDivElement>());
   const [failed, setFailed] = useState(false);
   const [hint, setHint] = useState(true);
-  const [spin, setSpin] = useState(false);
+  const [names, setNames] = useState(false);
+  const [held, setHeld] = useState<StickKind | null>(null);
+  const [icons, setIcons] = useState<Partial<Record<StickKind, string>>>({});
+  const viewIndex = useRef(0);
+  const stageRef = useRef<HTMLElement>(null);
   const [count, setCount] = useState(5);
   const [fires, setFires] = useState<Fire[]>(SAMPLE);
   const [sel, setSel] = useState<string | null>('js');
@@ -87,22 +92,23 @@ export default function Campfire3DPreview() {
         onSelectFire: (id) => { if (id) setSel(id); },
         onDrag: (s) => setDrag(s.dragging ? s : null),
         onDrop: (fireId, kind, stickId) => { setHint(false); setPending({ fireId, kind, stickId }); },
-        onInteract: () => setSpin(false),
+        onInteract: () => setHint(false),
         reducedMotion: reduced,
       });
       worldRef.current = world;
+      const t = window.setTimeout(() => setIcons(world.renderIcons()), 250);
       (window as unknown as { __world: CampfireWorld }).__world = world;
-      return () => { world.dispose(); worldRef.current = null; };
+      return () => { window.clearTimeout(t); world.dispose(); worldRef.current = null; };
     } catch {
       setFailed(true);
     }
   }, [onFrame]);
 
   useEffect(() => {
-    worldRef.current?.setFires(shown.map((f) => ({ id: f.area.id, level: f.level, progress: f.progress, size: f.size })));
+    worldRef.current?.setFires(shown.map((f) => ({ id: f.area.id, level: f.level, progress: f.progress, size: f.size, color: f.color })));
   }, [shown]);
   useEffect(() => { worldRef.current?.setSelected(sel); }, [sel]);
-  useEffect(() => { worldRef.current?.setAutoRotate(spin); }, [spin]);
+  useEffect(() => { worldRef.current?.setShowAllNames(names); }, [names]);
 
   const cancelPending = () => {
     if (pending?.stickId) worldRef.current?.returnStick(pending.stickId);
@@ -142,22 +148,39 @@ export default function Campfire3DPreview() {
     if (best) setSel(best.id);
   };
 
+  const recolor = (color: PaletteId) => { if (chosen) setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, color } : f))); };
   const resize = (size: Size) => { if (chosen) setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, size } : f))); };
   const shuffle = () => setFires((all) => all.map((f) => { const lv = ((Math.random() * 4) | 0) as Level; return { ...f, level: lv, progress: lv ? 0.2 + Math.random() * 0.75 : 0, cool: lv ? 'a while' : 'cold' }; }));
   const mixSizes = () => setFires((all) => all.map((f) => ({ ...f, size: (1 + ((Math.random() * 4) | 0)) as Size })));
-  const view = (v: 'front' | 'top' | 'side') => {
-    setSpin(false);
-    worldRef.current?.flyTo(v === 'front' ? { azimuth: 0, polar: 0.84 } : v === 'top' ? { azimuth: 0, polar: 0.32 } : { azimuth: Math.PI / 2, polar: 1.25 });
+  const VIEWS = [{ azimuth: 0, polar: 0.84 }, { azimuth: 0, polar: 0.3 }, { azimuth: Math.PI / 2, polar: 1.2 }];
+  const nextView = () => {
+    viewIndex.current = (viewIndex.current + 1) % VIEWS.length;
+    worldRef.current?.flyTo(VIEWS[viewIndex.current]);
+  };
+
+  // wood from the inventory: pick it up here, carry it into the scene
+  const grab = (kind: StickKind) => (e: React.PointerEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    worldRef.current?.beginTrayDrag(kind, e.clientX, e.clientY, e.pointerId);
+    setHeld(kind);
+    setHint(false);
+  };
+  const carry = (e: React.PointerEvent) => { worldRef.current?.moveTrayDrag(e.clientX, e.clientY); };
+  const release = (drop: boolean) => () => { worldRef.current?.endTrayDrag(drop); setHeld(null); };
+  const useWood = (kind: StickKind) => (e: React.KeyboardEvent) => {
+    if ((e.key === 'Enter' || e.key === ' ') && chosen) { e.preventDefault(); setPending({ fireId: chosen.area.id, kind, stickId: null }); }
   };
 
   const warm = shown.length ? Math.max(...shown.map((f) => f.level)) : 0;
+  const stageH = stageRef.current?.clientHeight ?? 480;
 
   return (
     <div className="camp-page">
       <div className="camp-banner">Design sample, not the real app yet. Drag a piece of wood onto a fire. Drag the ground to look around.</div>
       <TopBar initial="J" streak={4} sparksToday={3} level={warm as HeatLevel} />
 
-      <section className="c3-stage" aria-label="Your campfires" onPointerDown={onStageDown} onPointerUp={onStageUp}>
+      <section ref={stageRef} className="c3-stage" aria-label="Your campfires" onPointerDown={onStageDown} onPointerUp={onStageUp}>
         {failed ? (
           <div className="c3-fail"><b>3D isn't available on this device</b><span>Open the flat version instead: add ?campfire to the address.</span></div>
         ) : (
@@ -171,9 +194,12 @@ export default function Campfire3DPreview() {
               </div>
             ))}
             {shown.length === 0 && <div className="camp-empty"><b>No fires yet</b><span>Add an area to light its fire.</span></div>}
-            {hint && !drag && <div className="c3-hint" aria-hidden="true">Drag a stick onto a fire</div>}
+            {hint && !drag && <div className="c3-hint" aria-hidden="true">Drag wood from below onto a fire</div>}
+            <button type="button" className="c3-view" aria-label="Change the view" onClick={nextView}>
+              <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" /><circle cx="12" cy="12" r="3" fill="currentColor" /></svg>
+            </button>
             {drag && (
-              <div className={`c3-chip${overFire ? ' ready' : ''}`} style={{ left: drag.x, top: drag.y }} aria-hidden="true">
+              <div className={`c3-chip${overFire ? ' ready' : ''}`} style={{ left: drag.x, top: Math.min(drag.y, stageH - 28) }} aria-hidden="true">
                 <b>{STICKS[drag.kind ?? 'branch'].name}</b>
                 <span>{overFire ? `Let go to feed ${overFire.area.name}` : `${STICKS[drag.kind ?? 'branch'].blurb}, about ${STICKS[drag.kind ?? 'branch'].minutes} min`}</span>
               </div>
@@ -182,12 +208,20 @@ export default function Campfire3DPreview() {
         )}
       </section>
 
-      <div className="c3-views" role="group" aria-label="Camera">
-        <button type="button" className="chip" onClick={() => view('front')}>Front</button>
-        <button type="button" className="chip" onClick={() => view('side')}>Side</button>
-        <button type="button" className="chip" onClick={() => view('top')}>From above</button>
-        <button type="button" className={`chip${spin ? ' on' : ''}`} aria-pressed={spin} onClick={() => setSpin((s) => !s)}>Drift</button>
-      </div>
+      <section className="c3-bag" aria-label="Your wood">
+        <div className="c3-bag-head"><h2>Your wood</h2><span>Drag a piece up onto a fire</span></div>
+        <div className="c3-slots">
+          {(Object.keys(STICKS) as StickKind[]).map((k) => (
+            <button key={k} type="button" className={`c3-slot${held === k ? ' held' : ''}`}
+              aria-label={`${STICKS[k].name}, about ${STICKS[k].minutes} minutes. Drag onto a fire, or press Enter to feed the selected fire.`}
+              onPointerDown={grab(k)} onPointerMove={carry} onPointerUp={release(true)} onPointerCancel={release(false)} onKeyDown={useWood(k)}>
+              <span className="c3-slot-img">{icons[k] ? <img src={icons[k]} alt="" draggable={false} /> : <i className={`c3-slot-fallback ${k}`} />}</span>
+              <b>{STICKS[k].name}</b>
+              <span>{STICKS[k].minutes} min</span>
+            </button>
+          ))}
+        </div>
+      </section>
 
       {chosen ? (
         <section className="camp-card">
@@ -202,19 +236,19 @@ export default function Campfire3DPreview() {
               ))}
             </div>
           </div>
+          <div className="camp-size">
+            <span className="camp-size-title">Fire colour <b>{PALETTES[chosen.color].name}</b></span>
+            <div className="c3-swatches" role="radiogroup" aria-label="Fire colour">
+              {PALETTE_IDS.map((id) => (
+                <button key={id} type="button" role="radio" aria-checked={chosen.color === id} aria-label={PALETTES[id].name}
+                  className={`c3-swatch${chosen.color === id ? ' on' : ''}`} style={{ background: PALETTES[id].swatch }} onClick={() => recolor(id)} />
+              ))}
+            </div>
+          </div>
           <div className="camp-card-actions"><Button variant="white" onClick={feedWithoutWood}>Feed it</Button><Button variant="glass">Open</Button></div>
-          <p>Or drag wood onto this fire. The kind of wood suggests how long and how hard you worked.</p>
+          <p>Or drag wood from your inventory onto this fire. The kind of wood suggests how long and how hard you worked.</p>
         </section>
       ) : <p className="camp-hint">Tap a fire to see it, or drag wood onto one.</p>}
-
-      <section className="c3-wood" aria-label="The kinds of wood">
-        <h2>The wood</h2>
-        <ul>
-          {(Object.keys(STICKS) as StickKind[]).map((k) => (
-            <li key={k}><b>{STICKS[k].name}</b><span>{STICKS[k].blurb} · about {STICKS[k].minutes} min, effort {STICKS[k].effort} of 5</span></li>
-          ))}
-        </ul>
-      </section>
 
       <section className="camp-legend" aria-label="What a fire looks like">
         {([3, 2, 1, 0] as Level[]).map((l) => <span key={l}><HeatIcon level={l} size={18} />{LEVEL_NAMES[l as HeatLevel]}</span>)}
@@ -225,15 +259,18 @@ export default function Campfire3DPreview() {
         <label><span>Areas: <b>{count}</b></span>
           <input type="range" min={0} max={12} value={count} onChange={(e) => { const n = +e.target.value; setCount(n); if (sel && !fires.slice(0, n).some((f) => f.area.id === sel)) setSel(null); }} />
         </label>
+        <button type="button" role="switch" aria-checked={names} className="switch-row" onClick={() => setNames((n) => !n)}>
+          <span><span className="switch-title">Show every name</span><span className="note switch-note">Off keeps the scene calm: only the fire you pick shows its name.</span></span>
+          <span className={`switch${names ? ' on' : ''}`} aria-hidden="true"><span /></span>
+        </button>
         <div className="camp-btns">
           <Button variant="glass" small onClick={shuffle}>Shuffle the heats</Button>
           <Button variant="glass" small onClick={mixSizes}>Mix the sizes</Button>
         </div>
         <ul>
-          <li><b>Each area has its own fire</b>, with its own heat: roaring, steady, glowing coals, or cold with snow.</li>
+          <li><b>Each area has its own fire</b>, with its own heat and its own colour.</li>
           <li><b>Fire size</b> is yours to set per area.</li>
-          <li><b>Wood</b> lies on the ground in front. A burned stick is replaced by a new one.</li>
-          <li><b>Let go away from a fire</b> and the wood goes back where it was.</li>
+          <li><b>Wood</b> comes from your inventory under the scene. Let go away from a fire and it goes back.</li>
         </ul>
       </section>
 

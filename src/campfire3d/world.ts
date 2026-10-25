@@ -1,14 +1,15 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { flameGeometry } from './flame';
+import { PALETTES, type PaletteId } from './palettes';
 import { Particles } from './particles';
-import { buildStick, makeWoodMaterials, STICK_KINDS, type StickKind, type StickObj, type WoodMaterials } from './sticks';
+import { buildStick, makeWoodMaterials, STICKS, type StickKind, type StickObj, type WoodMaterials } from './sticks';
 import * as TX from './textures';
 
 export type Level = 0 | 1 | 2 | 3;
 export type Size = 1 | 2 | 3 | 4;
 
-export interface FireSpec { id: string; level: Level; progress: number; size: Size }
+export interface FireSpec { id: string; level: Level; progress: number; size: Size; color: PaletteId }
 export interface LabelPos { id: string; x: number; y: number; depth: number; visible: boolean }
 export interface CameraView { azimuth: number; polar: number; distance?: number }
 
@@ -17,7 +18,7 @@ export interface DragState {
   kind?: StickKind;
   /** The fire the stick is over, if any. */
   overFire?: string | null;
-  /** Finger position inside the canvas, in pixels. */
+  /** Finger position relative to the canvas, in pixels. */
   x: number;
   y: number;
 }
@@ -41,11 +42,10 @@ const GZ = 3.2;
 const SPARKS_PER = 12;
 const SNOW_PER = 34;
 const MAX_FIRES = 12;
-const REST_STICKS: StickKind[] = ['log', 'branch', 'kindling', 'split', 'big', 'branch', 'kindling'];
+const DECOR_KINDS: StickKind[] = ['branch', 'kindling', 'log', 'split', 'branch', 'kindling'];
 
 const rngOf = (seed: number) => { let s = seed >>> 0; return () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296; };
 const ease = (t: number) => 1 - Math.pow(1 - t, 3);
-const backOut = (t: number) => { const c = 1.9; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
 const damp = (a: number, b: number, k: number, dt: number) => a + (b - a) * (1 - Math.exp(-k * dt));
 
 /** Fire slots, the most central first, so the main area gets the middle. */
@@ -56,7 +56,7 @@ export function layoutFires(n: number): { x: number; z: number }[] {
   const slots: { x: number; z: number }[] = [];
   for (let r = 0; r < rows; r++) {
     const inRow = r < rows - 1 ? cols : n - (rows - 1) * cols;
-    for (let c = 0; c < inRow; c++) slots.push({ x: (c - (inRow - 1) / 2) * GX, z: (r - (rows - 1) / 2) * GZ - 0.5 });
+    for (let c = 0; c < inRow; c++) slots.push({ x: (c - (inRow - 1) / 2) * GX, z: (r - (rows - 1) / 2) * GZ });
   }
   return slots.sort((a, b) => Math.hypot(a.x, a.z * 1.2) - Math.hypot(b.x, b.z * 1.2));
 }
@@ -66,16 +66,17 @@ interface Tongue { mesh: THREE.Mesh; baseW: number; baseH: number; phase: number
 interface FireObj {
   id: string; spec: FireSpec; group: THREE.Group; scale: number; pos: THREE.Vector3;
   tongues: Tongue[]; coals: THREE.Mesh[]; stones: THREE.Mesh[]; hotPool: THREE.Mesh; coldPool: THREE.Mesh; ring: THREE.Mesh; hit: THREE.Mesh; ash: THREE.Mesh;
-  shownF: number; shownCoal: number; shownCold: number; flare: number; excite: number; index: number; paintedLevel: Level | null;
+  shownF: number; shownCoal: number; shownCold: number; flare: number; excite: number; index: number;
+  paintedLevel: Level | null; paintedColor: PaletteId | null;
 }
 
 type Anim =
   | { kind: 'return'; t: number; dur: number; from: THREE.Vector3; yaw0: number }
   | { kind: 'fly'; t: number; dur: number; from: THREE.Vector3; fireId: string }
   | { kind: 'burn'; t: number; dur: number; fireId: string }
-  | { kind: 'spawn'; t: number; dur: number };
+  | { kind: 'vanish'; t: number; dur: number; from: THREE.Vector3 };
 
-interface StickRun { obj: StickObj; state: 'idle' | 'drag' | 'hold' | 'anim'; anim: Anim | null; target: THREE.Vector3; tilt: number; fireId?: string; lastX: number; burnMats?: THREE.MeshStandardMaterial[] }
+interface StickRun { obj: StickObj; state: 'drag' | 'hold' | 'anim'; anim: Anim | null; target: THREE.Vector3; tilt: number; fireId?: string; burnMats?: THREE.MeshStandardMaterial[] }
 
 export class CampfireWorld {
   private readonly renderer: THREE.WebGLRenderer;
@@ -85,7 +86,9 @@ export class CampfireWorld {
   private readonly raycaster = new THREE.Raycaster();
   private readonly fires = new Map<string, FireObj>();
   private readonly sticks = new Map<number, StickRun>();
-  private readonly flameGeo = flameGeometry();
+  private readonly flameGeos = new Map<PaletteId, THREE.BufferGeometry>();
+  private readonly poolTex = new Map<PaletteId, THREE.CanvasTexture>();
+  private coldTex!: THREE.CanvasTexture;
   private readonly flameMat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
   private readonly wood: WoodMaterials;
   private readonly stoneMats: THREE.MeshStandardMaterial[];
@@ -96,8 +99,6 @@ export class CampfireWorld {
   private readonly ringGeo = new THREE.RingGeometry(1.32, 1.5, 48);
   private readonly hitGeo = new THREE.CylinderGeometry(1.25, 1.25, 2.4, 10);
   private readonly ashGeo = new THREE.SphereGeometry(0.8, 16, 8);
-  private readonly hotTex: THREE.CanvasTexture;
-  private readonly coldTex: THREE.CanvasTexture;
   private readonly ground: THREE.Mesh;
   private readonly light = new THREE.PointLight(0xff9a2e, 0, 9, 1.2);
   private readonly sparks: Particles;
@@ -111,14 +112,13 @@ export class CampfireWorld {
   private readonly disposables: { dispose: () => void }[] = [];
   private readonly textures: THREE.Texture[] = [];
   private nextStickId = 1;
-  private yardZ = 4.2;
-  private extent = 6;
-  private yardHalf = 3;
-  private depth = 5;
-  private center = new THREE.Vector3(0, 0.6, 0.6);
+  private extent = 5;
+  private depth = 4;
+  private center = new THREE.Vector3(0, 0.6, 0);
   private drag: { run: StickRun; pointer: number } | null = null;
   private hover: string | null = null;
   private selected: string | null = null;
+  private showAll = false;
   private down = { x: 0, y: 0, t: 0 };
   private fly: { from: CameraView & { distance: number }; to: CameraView & { distance: number }; t: number } | null = null;
   private baseDistance = 11;
@@ -132,26 +132,23 @@ export class CampfireWorld {
   private lightTarget = new THREE.Vector3();
   private ro: ResizeObserver;
   private io: IntersectionObserver;
-  private anchors = new Map<string, THREE.Object3D>();
 
   constructor(private readonly canvas: HTMLCanvasElement, private readonly opts: WorldOptions) {
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance', preserveDrawingBuffer: false });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.setClearColor(0x000000, 0);
 
     this.wood = makeWoodMaterials();
-    this.textures.push(this.wood.bark, this.wood.endGrain, this.wood.inner);
     const dot = TX.dotSprite();
     const glow = TX.glowSprite();
     const flake = TX.flakeSprite();
     const ground = TX.groundTexture();
-    this.hotTex = this.poolTexture(['#B4483A', '#8A3A2A', '#4A2420']);
-    this.coldTex = this.poolTexture(['#7FB4F5', '#3F63C8', '#2C3C9A']);
-    this.textures.push(dot, glow, flake, ground, this.hotTex, this.coldTex);
+    this.coldTex = this.makePool(['#7FB4F5', '#3F63C8', '#2C3C9A']);
+    this.textures.push(this.wood.bark, this.wood.endGrain, this.wood.inner, dot, glow, flake, ground, this.coldTex);
 
     this.stoneMats = [0x8f88ec, 0x7d76df, 0xa59ff2].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.9, flatShading: true }));
     this.frostMats = [0xaebbe8, 0x9aa9dc, 0xc4cff2].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.7, flatShading: true }));
-    this.disposables.push(...this.stoneMats, ...this.frostMats, this.flameGeo, this.flameMat, this.coalGeo, this.stoneGeo, this.discGeo, this.ringGeo, this.hitGeo, this.ashGeo);
+    this.disposables.push(...this.stoneMats, ...this.frostMats, this.flameMat, this.coalGeo, this.stoneGeo, this.discGeo, this.ringGeo, this.hitGeo, this.ashGeo);
 
     this.scene.add(new THREE.HemisphereLight(0xcfc9ff, 0x2c2266, 1.05));
     const sun = new THREE.DirectionalLight(0xdad5ff, 0.7);
@@ -172,11 +169,8 @@ export class CampfireWorld {
     for (let i = 0; i < this.flies.count; i++) { this.flies.size[i] = 0.4; this.flies.setColor(i, fly); }
 
     this.camera.position.set(0, 6, 11);
-    // Registered before the orbit controls, so picking up a stick can switch them off first.
     canvas.addEventListener('pointerdown', this.onDown);
-    canvas.addEventListener('pointermove', this.onMove);
     canvas.addEventListener('pointerup', this.onUp);
-    canvas.addEventListener('pointercancel', this.onCancel);
     this.controls = new OrbitControls(this.camera, canvas);
     this.controls.target.copy(this.center);
     this.controls.enablePan = false;
@@ -195,13 +189,12 @@ export class CampfireWorld {
     this.io.observe(canvas);
     document.addEventListener('visibilitychange', this.onVis);
     this.resize();
-    this.layoutYard();
     this.loop();
   }
 
-  // ---- building -------------------------------------------------------------------------------
+  // ---- palettes --------------------------------------------------------------------------------
 
-  private poolTexture(stops: string[]): THREE.CanvasTexture {
+  private makePool(stops: string[]): THREE.CanvasTexture {
     const c = document.createElement('canvas');
     c.width = c.height = 256;
     const g = c.getContext('2d')!;
@@ -216,6 +209,31 @@ export class CampfireWorld {
     t.colorSpace = THREE.SRGBColorSpace;
     return t;
   }
+
+  private flameFor(id: PaletteId): THREE.BufferGeometry {
+    let g = this.flameGeos.get(id);
+    if (!g) { g = flameGeometry(PALETTES[id].ramp); this.flameGeos.set(id, g); this.disposables.push(g); }
+    return g;
+  }
+
+  private poolFor(id: PaletteId): THREE.CanvasTexture {
+    let t = this.poolTex.get(id);
+    if (!t) { t = this.makePool(PALETTES[id].pool); this.poolTex.set(id, t); this.textures.push(t); }
+    return t;
+  }
+
+  /** Apply a fire's colour: flames, coals and the glow on the ground. */
+  private paint(f: FireObj, id: PaletteId): void {
+    const geo = this.flameFor(id);
+    f.tongues.forEach((t) => { t.mesh.geometry = geo; });
+    f.coals.forEach((c) => (c.material as THREE.MeshStandardMaterial).emissive.setHex(PALETTES[id].coal));
+    const mat = f.hotPool.material as THREE.MeshBasicMaterial;
+    mat.map = this.poolFor(id);
+    mat.needsUpdate = true;
+    f.paintedColor = id;
+  }
+
+  // ---- building -------------------------------------------------------------------------------
 
   private buildFire(spec: FireSpec, index: number): FireObj {
     const r = rngOf(100 + index * 17);
@@ -262,7 +280,7 @@ export class CampfireWorld {
     for (const [count, radius, minH, maxH] of rings) {
       for (let i = 0; i < count; i++) {
         const a = (i / count) * Math.PI * 2 + r();
-        const m = new THREE.Mesh(this.flameGeo, this.flameMat);
+        const m = new THREE.Mesh(this.flameFor(spec.color), this.flameMat);
         const baseH = minH + r() * (maxH - minH);
         const x = Math.cos(a) * radius;
         const z = Math.sin(a) * radius;
@@ -273,7 +291,7 @@ export class CampfireWorld {
       }
     }
 
-    const hotPool = new THREE.Mesh(this.discGeo, new THREE.MeshBasicMaterial({ map: this.hotTex, transparent: true, depthWrite: false, opacity: 0 }));
+    const hotPool = new THREE.Mesh(this.discGeo, new THREE.MeshBasicMaterial({ map: this.poolFor(spec.color), transparent: true, depthWrite: false, opacity: 0 }));
     const coldPool = new THREE.Mesh(this.discGeo, new THREE.MeshBasicMaterial({ map: this.coldTex, transparent: true, depthWrite: false, opacity: 0 }));
     for (const p of [hotPool, coldPool]) { p.rotation.x = -Math.PI / 2; p.position.y = 0.02; group.add(p); this.disposables.push(p.material as THREE.Material); }
 
@@ -289,15 +307,33 @@ export class CampfireWorld {
     group.add(hit);
     this.disposables.push(hit.material as THREE.Material);
 
+    // a few pieces of wood lying about, for scenery only
+    const placed = 2 + (index % 2);
+    for (let i = 0; i < placed; i++) {
+      const kind = DECOR_KINDS[(index * 2 + i) % DECOR_KINDS.length];
+      const stick = buildStick(-1 - index * 10 - i, kind, this.wood, 40 + index * 7 + i);
+      const a = Math.PI * (0.62 + 0.55 * i) + r() * 0.5 + (index % 3) * 0.7;
+      const d = 1.75 + r() * 0.35;
+      stick.group.position.set(Math.cos(a) * d, 0, Math.sin(a) * d);
+      stick.group.rotation.y = a + Math.PI / 2 + (r() - 0.5) * 0.9;
+      stick.group.scale.setScalar(0.8);
+      stick.hit.visible = false;
+      stick.shadow.position.set(stick.group.position.x, 0.015, stick.group.position.z);
+      stick.shadow.rotation.z = -stick.group.rotation.y;
+      stick.shadow.scale.multiplyScalar(0.8);
+      group.add(stick.group, stick.shadow);
+      this.disposables.push({ dispose: () => stick.mats.forEach((m) => m.dispose()) });
+    }
+
     this.scene.add(group);
-    return { id: spec.id, spec, group, scale, pos: new THREE.Vector3(), tongues, coals, stones, hotPool, coldPool, ring, hit, ash, shownF: FLAME_LEVEL[spec.level], shownCoal: COAL_GLOW[spec.level], shownCold: spec.level === 0 ? 1 : 0, flare: 0, excite: 0, index, paintedLevel: null };
+    return { id: spec.id, spec, group, scale, pos: new THREE.Vector3(), tongues, coals, stones, hotPool, coldPool, ring, hit, ash, shownF: FLAME_LEVEL[spec.level], shownCoal: COAL_GLOW[spec.level], shownCold: spec.level === 0 ? 1 : 0, flare: 0, excite: 0, index, paintedLevel: null, paintedColor: spec.color };
   }
 
   /** Create, update and arrange one campfire per area. */
   setFires(specs: FireSpec[]): void {
     const capped = specs.slice(0, MAX_FIRES);
     const ids = new Set(capped.map((s) => s.id));
-    for (const [id, f] of this.fires) if (!ids.has(id)) { this.scene.remove(f.group); this.fires.delete(id); this.anchors.delete(id); }
+    for (const [id, f] of this.fires) if (!ids.has(id)) { this.scene.remove(f.group); this.fires.delete(id); }
     const slots = layoutFires(capped.length);
     capped.forEach((spec, i) => {
       let f = this.fires.get(spec.id);
@@ -307,6 +343,7 @@ export class CampfireWorld {
       f.index = i;
       f.pos.set(slots[i].x, 0, slots[i].z);
       f.group.position.copy(f.pos);
+      if (f.paintedColor !== spec.color) this.paint(f, spec.color);
       if (f.paintedLevel !== spec.level) {
         const cold = spec.level === 0;
         f.stones.forEach((m, k) => { m.material = (cold ? this.frostMats : this.stoneMats)[k % 3]; });
@@ -314,76 +351,36 @@ export class CampfireWorld {
         f.paintedLevel = spec.level;
       }
     });
-    let maxX = 3, minZ = -3, maxZ = 0;
-    for (const f of this.fires.values()) { maxX = Math.max(maxX, Math.abs(f.pos.x) + 2.6); minZ = Math.min(minZ, f.pos.z - 2.4); maxZ = Math.max(maxZ, f.pos.z); }
-    this.yardZ = maxZ + 3.6;
-    // the wood yard is as wide as the fires, but never wider than a phone can show
-    this.yardHalf = Math.min(3.6, Math.max(2.6, maxX - 0.4));
-    this.extent = Math.max(maxX, this.yardHalf + 1.2, 4.2);
-    this.depth = (this.yardZ - minZ) / 2 + 1.3;
-    this.center.set(0, 0.6, (minZ + this.yardZ) / 2);
+    let maxX = 2.8, minZ = -2.4, maxZ = 2.4;
+    for (const f of this.fires.values()) { maxX = Math.max(maxX, Math.abs(f.pos.x) + 2.7); minZ = Math.min(minZ, f.pos.z - 2.4); maxZ = Math.max(maxZ, f.pos.z + 2.4); }
+    this.extent = maxX;
+    this.depth = (maxZ - minZ) / 2 + 0.8;
+    this.center.set(0, 0.6, (minZ + maxZ) / 2);
     this.controls.target.copy(this.center);
-    this.ground.scale.setScalar(this.extent + 3.2);
+    this.ground.scale.setScalar(Math.max(this.extent, this.depth) + 3.2);
     this.ground.position.set(0, 0, this.center.z);
-    this.layoutYard();
     this.resize();
-  }
-
-  /** Scatter the wood in a loose patch of ground in front of the fires, like it was dropped there. */
-  private layoutYard(): void {
-    if (this.sticks.size === 0) {
-      const w = this.wood;
-      REST_STICKS.forEach((kind) => this.addStick(kind, w, false));
-    }
-    const r = rngOf(55);
-    const placed: THREE.Vector3[] = [];
-    for (const run of this.sticks.values()) {
-      if (run.state !== 'idle' && run.state !== 'anim') continue;
-      const spot = this.freeSpot(r, placed, run.obj.length);
-      placed.push(spot);
-      run.obj.home.copy(spot);
-      run.obj.homeYaw = (r() - 0.5) * 2.6 + (r() > 0.5 ? 0 : Math.PI);
-      if (run.state === 'idle') { run.obj.group.position.copy(spot); run.obj.group.rotation.y = run.obj.homeYaw; }
-    }
-  }
-
-  private freeSpot(r: () => number, placed: THREE.Vector3[], len: number): THREE.Vector3 {
-    for (let tries = 0; tries < 60; tries++) {
-      const p = new THREE.Vector3((r() - 0.5) * 2 * this.yardHalf, 0, this.yardZ + (r() - 0.5) * 1.9);
-      if (placed.every((q) => Math.hypot(q.x - p.x, (q.z - p.z) * 1.3) > 1.15 + len * 0.18)) return p;
-    }
-    return new THREE.Vector3((r() - 0.5) * 6, 0, this.yardZ);
-  }
-
-  private addStick(kind: StickKind, w: WoodMaterials, pop: boolean): StickRun {
-    const id = this.nextStickId++;
-    const obj = buildStick(id, kind, w, id * 31 + 7);
-    this.scene.add(obj.group, obj.shadow);
-    this.disposables.push({ dispose: () => obj.mats.forEach((m) => m.dispose()) });
-    const run: StickRun = { obj, state: pop ? 'anim' : 'idle', anim: pop ? { kind: 'spawn', t: 0, dur: 0.6 } : null, target: new THREE.Vector3(), tilt: 0, lastX: 0 };
-    this.sticks.set(id, run);
-    return run;
   }
 
   // ---- public controls ------------------------------------------------------------------------
 
   setSelected(id: string | null): void { this.selected = id; }
+  setShowAllNames(on: boolean): void { this.showAll = on; }
   setAutoRotate(on: boolean): void { this.controls.autoRotate = on && !this.opts.reducedMotion; }
 
-  /** The fire swells and throws sparks. */
+  /** The fire swells and throws sparks, in its own colours. */
   flare(fireId: string): void {
     const f = this.fires.get(fireId);
     if (!f) return;
     f.flare = 1;
     const r = Math.random;
-    const gold = new THREE.Color('#FFD25A');
-    const orange = new THREE.Color('#FF9A2E');
+    const colors = PALETTES[f.spec.color].sparks.map((c) => new THREE.Color(c));
     for (let i = 0; i < this.burst.count; i++) {
       this.burstLife[i] = 0.8 + r() * 1.0;
       this.burst.pos.set([f.pos.x + (r() - 0.5) * 0.5, 0.7, f.pos.z + (r() - 0.5) * 0.5], i * 3);
       this.burstVel.set([(r() - 0.5) * 2.2, 2 + r() * 2.8, (r() - 0.5) * 2.2], i * 3);
       this.burst.size[i] = 0.07 + r() * 0.1;
-      this.burst.setColor(i, i % 2 ? gold : orange);
+      this.burst.setColor(i, colors[i % 3]);
     }
   }
 
@@ -395,13 +392,13 @@ export class CampfireWorld {
     run.anim = { kind: 'fly', t: 0, dur: 0.38, from: run.obj.group.position.clone(), fireId: run.fireId };
   }
 
-  /** Nothing was logged: the stick goes back where it lay. */
+  /** Nothing was logged: the stick fades away, back into the inventory. */
   returnStick(stickId: number): void {
     const run = this.sticks.get(stickId);
     if (!run) return;
     this.hover = null;
     run.state = 'anim';
-    run.anim = { kind: 'return', t: 0, dur: 0.6, from: run.obj.group.position.clone(), yaw0: run.obj.group.rotation.y };
+    run.anim = { kind: 'vanish', t: 0, dur: 0.38, from: run.obj.group.position.clone() };
   }
 
   flyTo(view: CameraView): void {
@@ -410,6 +407,58 @@ export class CampfireWorld {
     d = Math.atan2(Math.sin(d), Math.cos(d));
     this.fly = { from, to: { azimuth: from.azimuth + d, polar: view.polar, distance: view.distance ?? this.baseDistance }, t: 0 };
     this.controls.autoRotate = false;
+  }
+
+  /** Little pictures of each kind of wood, for the inventory. */
+  renderIcons(): Partial<Record<StickKind, string>> {
+    const out: Partial<Record<StickKind, string>> = {};
+    const W = 220;
+    const H = 130;
+    const rt = new THREE.WebGLRenderTarget(W, H, { samples: 4 });
+    const scene = new THREE.Scene();
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x6a5fd0, 1.6));
+    const key = new THREE.DirectionalLight(0xffffff, 1.4);
+    key.position.set(-2, 4, 3);
+    scene.add(key);
+    const cam = new THREE.OrthographicCamera(-1.35, 1.35, 0.8, -0.8, 0.1, 20);
+    cam.position.set(0, 3.2, 3.4);
+    cam.lookAt(0, 0.2, 0);
+    const buf = new Uint8Array(W * H * 4);
+    const canvas = document.createElement('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    const g = canvas.getContext('2d')!;
+    const prevTarget = this.renderer.getRenderTarget();
+    try {
+      for (const kind of Object.keys(STICKS) as StickKind[]) {
+        const s = buildStick(-999, kind, this.wood, 7);
+        s.group.children.forEach((c) => { if (c !== s.hit) c.position.x += 0; });
+        s.hit.visible = false;
+        const scale = Math.min(2.4 / s.length, 1.25);
+        s.group.scale.setScalar(scale);
+        s.group.rotation.y = -0.45;
+        s.group.position.set(0, -0.02, 0);
+        scene.add(s.group);
+        this.renderer.setRenderTarget(rt);
+        this.renderer.setClearColor(0x000000, 0);
+        this.renderer.clear();
+        this.renderer.render(scene, cam);
+        this.renderer.readRenderTargetPixels(rt, 0, 0, W, H, buf);
+        const img = g.createImageData(W, H);
+        for (let y = 0; y < H; y++) img.data.set(buf.subarray((H - 1 - y) * W * 4, (H - y) * W * 4), y * W * 4);
+        g.clearRect(0, 0, W, H);
+        g.putImageData(img, 0, 0);
+        out[kind] = canvas.toDataURL('image/png');
+        scene.remove(s.group);
+        s.mats.forEach((m) => m.dispose());
+      }
+    } catch {
+      /* icons are a nicety: the inventory falls back to plain shapes */
+    } finally {
+      this.renderer.setRenderTarget(prevTarget);
+      rt.dispose();
+    }
+    return out;
   }
 
   private current(): CameraView & { distance: number } {
@@ -423,56 +472,57 @@ export class CampfireWorld {
 
   private interacted(): void { this.opts.onInteract?.(); this.fly = null; this.controls.autoRotate = false; }
 
-  // ---- input ----------------------------------------------------------------------------------
+  // ---- dragging wood out of the inventory ------------------------------------------------------
 
-  private ndc(e: PointerEvent): THREE.Vector2 {
+  private ndcAt(clientX: number, clientY: number): THREE.Vector2 {
     const rect = this.canvas.getBoundingClientRect();
-    return new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+    // below the picture (over the inventory) the wood stays just inside the bottom edge
+    const y = Math.max(-0.86, -((clientY - rect.top) / rect.height) * 2 + 1);
+    return new THREE.Vector2(Math.max(-0.95, Math.min(0.95, ((clientX - rect.left) / rect.width) * 2 - 1)), y);
   }
 
-  private onDown = (e: PointerEvent) => {
-    this.down = { x: e.clientX, y: e.clientY, t: performance.now() };
-    this.raycaster.setFromCamera(this.ndc(e), this.camera);
-    const targets = [...this.sticks.values()].filter((s) => s.state === 'idle').map((s) => s.obj.group);
-    const hit = this.raycaster.intersectObjects(targets, true)[0];
-    if (!hit) return;
-    const id = hit.object.userData.stickId as number | undefined;
-    const run = id ? this.sticks.get(id) : undefined;
-    if (!run) return;
-    this.drag = { run, pointer: e.pointerId };
-    run.state = 'drag';
-    run.target.copy(run.obj.group.position);
-    run.lastX = run.target.x;
+  /** Pick a piece of wood up from the inventory. */
+  beginTrayDrag(kind: StickKind, clientX: number, clientY: number, pointer: number): void {
+    if (this.drag) return;
+    const id = this.nextStickId++;
+    const obj = buildStick(id, kind, this.wood, id * 31 + 7);
+    obj.shadow.visible = true;
+    this.scene.add(obj.group, obj.shadow);
+    const run: StickRun = { obj, state: 'drag', anim: null, target: new THREE.Vector3(), tilt: 0 };
+    this.sticks.set(id, run);
+    obj.group.scale.setScalar(0.35);
+    obj.group.rotation.y = -0.5;
+    this.drag = { run, pointer };
     this.controls.enabled = false;
     this.controls.autoRotate = false;
     this.fly = null;
-    try { this.canvas.setPointerCapture(e.pointerId); } catch { /* the pointer may already be gone */ }
     this.opts.onInteract?.();
-    this.moveDrag(e);
-  };
+    this.moveTrayDrag(clientX, clientY, true);
+  }
 
-  private moveDrag(e: PointerEvent): void {
+  moveTrayDrag(clientX: number, clientY: number, snap = false): void {
     if (!this.drag) return;
-    this.raycaster.setFromCamera(this.ndc(e), this.camera);
+    this.raycaster.setFromCamera(this.ndcAt(clientX, clientY), this.camera);
     const hit = new THREE.Vector3();
+    const run = this.drag.run;
     if (this.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -HOVER_HEIGHT), hit)) {
-      const lim = this.extent + 2.5;
-      this.drag.run.target.set(Math.max(-lim, Math.min(lim, hit.x)), HOVER_HEIGHT, Math.max(this.center.z - lim, Math.min(this.center.z + lim, hit.z)));
+      const lim = Math.max(this.extent, this.depth) + 2.5;
+      run.target.set(Math.max(-lim, Math.min(lim, hit.x)), HOVER_HEIGHT, Math.max(this.center.z - lim, Math.min(this.center.z + lim, hit.z)));
+      if (snap) run.obj.group.position.copy(run.target);
     }
     let over: string | null = null;
     let best = Infinity;
     for (const f of this.fires.values()) {
-      const d = Math.hypot(this.drag.run.target.x - f.pos.x, this.drag.run.target.z - f.pos.z);
+      const d = Math.hypot(run.target.x - f.pos.x, run.target.z - f.pos.z);
       if (d < 1.55 * f.scale + 0.45 && d < best) { best = d; over = f.id; }
     }
     this.hover = over;
     const rect = this.canvas.getBoundingClientRect();
-    this.opts.onDrag({ dragging: true, kind: this.drag.run.obj.kind, overFire: over, x: e.clientX - rect.left, y: e.clientY - rect.top });
+    this.opts.onDrag({ dragging: true, kind: run.obj.kind, overFire: over, x: clientX - rect.left, y: clientY - rect.top });
   }
 
-  private onMove = (e: PointerEvent) => { if (this.drag && e.pointerId === this.drag.pointer) this.moveDrag(e); };
-
-  private finishDrag(drop: boolean): void {
+  /** Let go. Over a fire it asks what you did; anywhere else the wood goes back into the inventory. */
+  endTrayDrag(drop: boolean): void {
     if (!this.drag) return;
     const { run } = this.drag;
     this.drag = null;
@@ -488,15 +538,16 @@ export class CampfireWorld {
     this.hover = null;
   }
 
+  // ---- taps on the scene ------------------------------------------------------------------------
+
+  private onDown = (e: PointerEvent) => { this.down = { x: e.clientX, y: e.clientY, t: performance.now() }; };
   private onUp = (e: PointerEvent) => {
-    if (this.drag && e.pointerId === this.drag.pointer) { this.finishDrag(true); return; }
     if (Math.hypot(e.clientX - this.down.x, e.clientY - this.down.y) > 8 || performance.now() - this.down.t > 450) return;
-    this.raycaster.setFromCamera(this.ndc(e), this.camera);
+    const rect = this.canvas.getBoundingClientRect();
+    this.raycaster.setFromCamera(new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1), this.camera);
     const hit = this.raycaster.intersectObjects([...this.fires.values()].map((f) => f.hit), false)[0];
     this.opts.onSelectFire(hit ? (hit.object.userData.fireId as string) : null);
   };
-
-  private onCancel = () => { this.finishDrag(false); };
   private onVis = () => { this.running = document.visibilityState === 'visible'; };
 
   // ---- frame ----------------------------------------------------------------------------------
@@ -509,8 +560,8 @@ export class CampfireWorld {
     this.camera.aspect = this.width / this.height;
     const vFov = (this.camera.fov * Math.PI) / 180;
     const hFov = 2 * Math.atan(Math.tan(vFov / 2) * this.camera.aspect);
-    const fit = (this.extent * 1.02) / Math.tan(hFov / 2);
-    const fitV = (this.depth * 0.78) / Math.tan(vFov / 2);
+    const fit = (this.extent * 0.88) / Math.tan(hFov / 2);
+    const fitV = (this.depth * 0.95) / Math.tan(vFov / 2);
     const first = this.baseDistance === 11;
     const next = Math.max(7, Math.min(fit, 40), fitV);
     const changed = Math.abs(next - this.baseDistance) > 0.01;
@@ -546,11 +597,11 @@ export class CampfireWorld {
       if (this.fly.t >= 1) this.fly = null;
     }
     const r = Math.random;
-    const gold = [new THREE.Color('#FFD25A'), new THREE.Color('#FF9A2E'), new THREE.Color('#FFFBE0')];
     let anyWarm = false;
 
     for (const f of this.fires.values()) {
       const lvl = f.spec.level;
+      const sparkCols = PALETTES[f.spec.color].sparks.map((c) => new THREE.Color(c));
       const target = FLAME_LEVEL[lvl] * (0.82 + 0.18 * f.spec.progress);
       f.shownF = damp(f.shownF, target, 2.4, dt);
       f.shownCoal = damp(f.shownCoal, COAL_GLOW[lvl], 2.4, dt);
@@ -583,11 +634,9 @@ export class CampfireWorld {
       f.hotPool.scale.setScalar(0.7 + F * 0.5 + f.flare * 0.15);
       (f.coldPool.material as THREE.MeshBasicMaterial).opacity = f.shownCold * 0.85;
       const ringMat = f.ring.material as THREE.MeshBasicMaterial;
-      const pulse = calm ? 0 : 0.18 * Math.sin(t * 7);
-      ringMat.opacity = over ? 0.75 + pulse : this.selected === f.id ? 0.28 : 0;
+      ringMat.opacity = over ? 0.75 + (calm ? 0 : 0.18 * Math.sin(t * 7)) : this.selected === f.id ? 0.28 : 0;
       f.ring.scale.setScalar(over ? 1.06 + (calm ? 0 : 0.04 * Math.sin(t * 7)) : 1);
 
-      // sparks of this fire
       for (let n = 0; n < SPARKS_PER; n++) {
         const i = f.index * SPARKS_PER + n;
         this.sparkLife[i] -= dt;
@@ -599,13 +648,12 @@ export class CampfireWorld {
           this.sparkVel.set([(r() - 0.5) * 0.5, 0.7 + r() * (0.8 + F), (r() - 0.5) * 0.5], i * 3);
           this.sparkLife[i] = 0.9 + r() * 1.4;
           this.sparks.size[i] = 0.04 + r() * 0.05;
-          this.sparks.setColor(i, gold[i % 3]);
+          this.sparks.setColor(i, sparkCols[i % 3]);
         }
         for (let k = 0; k < 3; k++) this.sparks.pos[i * 3 + k] += this.sparkVel[i * 3 + k] * dt;
         this.sparks.alpha[i] = Math.min(1, this.sparkLife[i] * 1.5);
       }
 
-      // snow around a cold fire
       for (let n = 0; n < SNOW_PER; n++) {
         const i = f.index * SNOW_PER + n;
         if (f.shownCold < 0.05 || n >= f.shownCold * SNOW_PER) { this.snow.alpha[i] = 0; continue; }
@@ -623,7 +671,6 @@ export class CampfireWorld {
         this.snow.alpha[i] = 0.55 + ((i * 13) % 40) / 100;
       }
     }
-    // spark slots with no fire
     for (let i = this.fires.size * SPARKS_PER; i < this.sparks.count; i++) this.sparks.alpha[i] = 0;
     for (let i = this.fires.size * SNOW_PER; i < this.snow.count; i++) this.snow.alpha[i] = 0;
     this.sparks.commit();
@@ -647,9 +694,8 @@ export class CampfireWorld {
     }
     this.flies.commit();
 
-    // one light follows the fire you are feeding or have selected
     const lit = this.fires.get(this.hover ?? this.selected ?? '');
-    if (lit) this.lightTarget.set(lit.pos.x, 1.3 * lit.scale, lit.pos.z);
+    if (lit) { this.lightTarget.set(lit.pos.x, 1.3 * lit.scale, lit.pos.z); this.light.color.set(PALETTES[lit.spec.color].swatch); }
     this.light.position.lerp(this.lightTarget, 1 - Math.exp(-dt * 6));
     const want = lit && lit.shownF > 0.05 ? (4 + lit.shownF * 16) * (calm ? 1 : 1 + 0.07 * Math.sin(t * 13)) * (1 + lit.excite * 0.4) : 0;
     this.light.intensity = damp(this.light.intensity, want, 6, dt);
@@ -662,11 +708,7 @@ export class CampfireWorld {
     for (const run of [...this.sticks.values()]) {
       const g = run.obj.group;
       const sh = run.obj.shadow;
-      if (run.state === 'idle') {
-        g.position.copy(run.obj.home);
-        g.rotation.set(0, run.obj.homeYaw, 0);
-        g.scale.setScalar(1);
-      } else if (run.state === 'drag') {
+      if (run.state === 'drag') {
         const before = g.position.x;
         g.position.x = damp(g.position.x, run.target.x, 16, dt);
         g.position.y = damp(g.position.y, run.target.y, 14, dt);
@@ -675,7 +717,7 @@ export class CampfireWorld {
         run.tilt = damp(run.tilt, Math.max(-0.5, Math.min(0.5, -vx * 0.06)), 10, dt);
         g.rotation.z = run.tilt;
         g.rotation.x = damp(g.rotation.x, calm ? 0 : Math.sin(t * 5) * 0.04, 8, dt);
-        g.scale.setScalar(damp(g.scale.x, 1.08, 10, dt));
+        g.scale.setScalar(damp(g.scale.x, 1.08, 12, dt));
       } else if (run.state === 'hold') {
         const f = this.fires.get(run.fireId ?? '');
         if (f) {
@@ -688,12 +730,11 @@ export class CampfireWorld {
       } else if (run.anim) {
         this.stepAnim(run, dt);
       }
-      // the shadow stays on the ground under the stick, smaller and fainter as it rises
+      if (!this.sticks.has(run.obj.id)) continue;
       sh.position.set(g.position.x, 0.015, g.position.z);
       sh.rotation.z = -g.rotation.y;
-      const lift = Math.max(0, g.position.y);
-      (sh.material as THREE.MeshBasicMaterial).opacity = Math.max(0.08, 0.5 - lift * 0.25);
-      sh.visible = g.visible && g.scale.x > 0.05;
+      (sh.material as THREE.MeshBasicMaterial).opacity = Math.max(0.08, 0.5 - Math.max(0, g.position.y) * 0.25);
+      sh.visible = g.scale.x > 0.05;
     }
   }
 
@@ -702,14 +743,11 @@ export class CampfireWorld {
     const g = run.obj.group;
     a.t = Math.min(a.dur, a.t + dt);
     const k = a.t / a.dur;
-    if (a.kind === 'return') {
+    if (a.kind === 'vanish') {
       const e = ease(k);
-      g.position.lerpVectors(a.from, run.obj.home, e);
-      g.position.y += Math.sin(Math.PI * k) * 0.9;
-      g.rotation.y = a.yaw0 + (run.obj.homeYaw - a.yaw0) * e;
-      g.rotation.z = (1 - e) * g.rotation.z;
-      g.scale.setScalar(1 + (1 - e) * 0.08);
-      if (k >= 1) { run.state = 'idle'; run.anim = null; }
+      g.scale.setScalar(Math.max(0.01, 1.08 * (1 - e)));
+      g.position.y = a.from.y - e * 0.5;
+      if (k >= 1) this.retire(run);
     } else if (a.kind === 'fly') {
       const f = this.fires.get(a.fireId);
       const to = f ? new THREE.Vector3(f.pos.x, 0.5 * f.scale, f.pos.z) : a.from;
@@ -731,58 +769,49 @@ export class CampfireWorld {
         run.anim = { kind: 'burn', t: 0, dur: 1.25, fireId: a.fireId };
       }
     } else if (a.kind === 'burn') {
-      const e = k;
       const char = new THREE.Color(0x140c10);
+      const fire = this.fires.get(a.fireId);
+      const glowHex = fire ? PALETTES[fire.spec.color].coal : 0xff6a2e;
       for (const m of run.burnMats ?? []) {
-        m.color.lerp(char, 0.1 + e * 0.1);
-        m.emissive.setHex(0xff6a2e);
-        m.emissiveIntensity = Math.sin(Math.PI * Math.min(1, e * 1.2)) * 1.6;
+        m.color.lerp(char, 0.1 + k * 0.1);
+        m.emissive.setHex(glowHex);
+        m.emissiveIntensity = Math.sin(Math.PI * Math.min(1, k * 1.2)) * 1.6;
       }
-      const s = 1 - ease(Math.max(0, (e - 0.25) / 0.75)) * 0.92;
+      const s = 1 - ease(Math.max(0, (k - 0.25) / 0.75)) * 0.92;
       g.scale.set(s, s, s);
       if (Math.random() < 0.5 && !this.opts.reducedMotion) {
         const i = Math.floor(Math.random() * this.burst.count);
         if (this.burstLife[i] <= 0) {
+          const cols = PALETTES[fire?.spec.color ?? 'classic'].sparks;
           this.burstLife[i] = 0.6;
           this.burst.pos.set([g.position.x + (Math.random() - 0.5) * 0.4, g.position.y + 0.2, g.position.z + (Math.random() - 0.5) * 0.4], i * 3);
           this.burstVel.set([(Math.random() - 0.5) * 0.6, 1.2 + Math.random(), (Math.random() - 0.5) * 0.6], i * 3);
           this.burst.size[i] = 0.05 + Math.random() * 0.06;
-          this.burst.setColor(i, new THREE.Color(Math.random() > 0.5 ? '#FF9A2E' : '#FFD25A'));
+          this.burst.setColor(i, new THREE.Color(cols[i % 3]));
         }
       }
       if (k >= 1) this.retire(run);
-    } else if (a.kind === 'spawn') {
-      const e = backOut(k);
-      g.position.copy(run.obj.home);
-      g.position.y = Math.max(0, (1 - k) * 1.1);
-      g.rotation.set(0, run.obj.homeYaw, 0);
-      g.scale.setScalar(Math.max(0.01, e));
-      if (k >= 1) { run.state = 'idle'; run.anim = null; }
     }
   }
 
-  /** The stick has burned away: remove it and lay a new, random one on the ground. */
+  /** The stick is gone (burned, or put back in the inventory). */
   private retire(run: StickRun): void {
     this.sticks.delete(run.obj.id);
     this.scene.remove(run.obj.group, run.obj.shadow);
     run.burnMats?.forEach((m) => m.dispose());
-    const kind = STICK_KINDS[Math.floor(Math.random() * STICK_KINDS.length)];
-    const fresh = this.addStick(kind, this.wood, true);
-    const placed = [...this.sticks.values()].filter((s) => s !== fresh).map((s) => s.obj.home);
-    fresh.obj.home.copy(this.freeSpot(Math.random, placed, fresh.obj.length));
-    fresh.obj.homeYaw = (Math.random() - 0.5) * 2.6 + (Math.random() > 0.5 ? 0 : Math.PI);
-    fresh.obj.group.position.copy(fresh.obj.home);
+    run.obj.mats.forEach((m) => m.dispose());
   }
 
   private emitLabels(): void {
     const out: LabelPos[] = [];
     const v = new THREE.Vector3();
     for (const f of this.fires.values()) {
-      // a little sign on the ground in front of the fire
+      // a small sign on the ground in front of the fire
       v.set(f.pos.x, 0.12, f.pos.z + 1.55 * f.scale);
       const dist = v.distanceTo(this.camera.position);
       v.project(this.camera);
-      out.push({ id: f.id, x: (v.x * 0.5 + 0.5) * this.width, y: (-v.y * 0.5 + 0.5) * this.height, depth: Math.max(0, Math.min(1, (dist - this.baseDistance * 0.45) / (this.baseDistance * 1.0))), visible: v.z < 1 });
+      const wanted = this.showAll || this.selected === f.id || this.hover === f.id;
+      out.push({ id: f.id, x: (v.x * 0.5 + 0.5) * this.width, y: (-v.y * 0.5 + 0.5) * this.height, depth: Math.max(0, Math.min(1, (dist - this.baseDistance * 0.45) / (this.baseDistance * 1.0))), visible: v.z < 1 && wanted });
     }
     this.opts.onFrame(out);
   }
@@ -792,7 +821,8 @@ export class CampfireWorld {
     this.ro.disconnect();
     this.io.disconnect();
     document.removeEventListener('visibilitychange', this.onVis);
-    for (const [ev, fn] of [['pointerdown', this.onDown], ['pointermove', this.onMove], ['pointerup', this.onUp], ['pointercancel', this.onCancel]] as const) this.canvas.removeEventListener(ev, fn as EventListener);
+    this.canvas.removeEventListener('pointerdown', this.onDown);
+    this.canvas.removeEventListener('pointerup', this.onUp);
     this.controls.dispose();
     this.disposables.forEach((d) => d.dispose());
     this.textures.forEach((t) => t.dispose());

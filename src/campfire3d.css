@@ -7,7 +7,6 @@
 .c3-hint { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); padding: 7px 14px; border-radius: 999px; background: rgba(36, 31, 110, .75); font: 600 12px/1 var(--font); color: var(--ink-2); white-space: nowrap; pointer-events: none; }
 .c3-fail { position: absolute; inset: 0; display: grid; place-content: center; gap: 6px; text-align: center; padding: 24px; font: 450 14px/1.4 var(--font); color: var(--ink-2); }
 .c3-fail b { font: 750 18px/1.2 var(--font); color: #fff; }
-.c3-views { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; }
 @media (prefers-reduced-motion: no-preference) {
   .c3-hint { animation: c3-hint 2.8s ease-in-out infinite; }
 }
@@ -27,3 +26,30 @@
 .c3-wood li { display: grid; gap: 1px; }
 .c3-wood li b { font: 700 14px/1.2 var(--font); }
 .c3-wood li span { font: 450 12.5px/1.35 var(--font); color: var(--ink-2); }
+
+/* quiet labels: they fade in only for the fire you pick */
+.c3-fire-label { transition: opacity .2s ease, background-color .2s ease, color .2s ease; }
+.c3-view { position: absolute; right: 10px; top: 10px; width: 44px; height: 44px; border: 0; border-radius: 50%; background: rgba(36, 31, 110, .7); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 150; }
+.c3-view:focus-visible { outline: 3px solid var(--sun); outline-offset: 2px; }
+
+/* inventory */
+.c3-bag { background: var(--sunken); border-radius: 22px; padding: 14px 12px 12px; display: grid; gap: 10px; }
+.c3-bag-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 0 4px; }
+.c3-bag-head h2 { margin: 0; font: var(--t-heading); letter-spacing: -.02em; }
+.c3-bag-head span { font: 450 12.5px/1.2 var(--font); color: var(--ink-3); }
+.c3-slots { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.c3-slot { display: grid; justify-items: center; align-content: start; gap: 2px; padding: 6px 2px 8px; border: 1px solid var(--glass-line); border-radius: 16px; background: var(--glass); color: #fff; touch-action: none; cursor: grab; transition: opacity .15s ease, transform .15s ease; -webkit-user-select: none; user-select: none; }
+.c3-slot b { font: 700 11px/1.15 var(--font); letter-spacing: -.01em; text-align: center; }
+.c3-slot > span:last-child { font: 500 10.5px/1 var(--font); color: var(--ink-2); }
+.c3-slot-img { width: 100%; aspect-ratio: 220 / 130; display: flex; align-items: center; justify-content: center; }
+.c3-slot-img img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+.c3-slot-fallback { display: block; width: 70%; height: 14px; border-radius: 99px; background: linear-gradient(#7A4A33, #3A1E22); }
+.c3-slot:active { cursor: grabbing; }
+.c3-slot.held { opacity: .4; transform: scale(.94); }
+.c3-slot:focus-visible { outline: 3px solid var(--sun); outline-offset: 2px; }
+
+/* colour picker */
+.c3-swatches { display: flex; flex-wrap: wrap; gap: 10px; padding: 2px 0; }
+.c3-swatch { width: 44px; height: 44px; border-radius: 50%; border: 3px solid rgba(255, 255, 255, .25); cursor: pointer; transition: transform .15s ease, border-color .15s ease; }
+.c3-swatch.on { border-color: #fff; transform: scale(1.08); }
+.c3-swatch:focus-visible { outline: 3px solid var(--sun); outline-offset: 2px; }
