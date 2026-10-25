@@ -201,6 +201,12 @@ export default function Campfire3DPreview() {
     setSel(SAMPLE[0].area.id); setPanel(null);
   };
   const eraseAll = () => { setFires([]); setEvents([]); setSel(null); setPanel(null); setConfirmReset(false); play('delete'); };
+  // Check for a newer version, then reload (the installed app has no reload button of its own).
+  const refresh = () => {
+    const done = () => window.location.reload();
+    const t = window.setTimeout(done, 1500);
+    navigator.serviceWorker?.getRegistration().then((r) => r?.update()).catch(() => undefined).finally(() => { window.clearTimeout(t); window.setTimeout(done, 300); });
+  };
   const removeFire = (id: string) => {
     setFires((all) => all.filter((f) => f.area.id !== id));
     setConfirmDel(null); setMenu(null); setPanel(null);
@@ -264,6 +270,9 @@ export default function Campfire3DPreview() {
       )}
 
       <div className="c3-top" ref={topRef}>
+        <button type="button" className="c3-refresh" aria-label="Refresh the app" onClick={refresh}>
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.6-5.9M20 4v4.5h-4.5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        </button>
         <header className="c3-head">
           <nav className={`c3-tools${toolsOpen ? ' open' : ''}`} aria-label="Tools">
             <button type="button" className="c3-round c3-toggle" aria-label={toolsOpen ? 'Hide tools' : 'Show tools'} aria-expanded={toolsOpen} onClick={() => setToolsOpen((o) => !o)}>

@@ -234,3 +234,9 @@ html.c3-lock body { position: fixed; inset: 0; width: 100%; }
 .c3-empty span { font: 450 14px/1.4 var(--font); color: var(--ink-2); }
 .c3-pill.danger { border-color: rgba(255,255,255,.5); }
 .c3-pill:disabled { opacity: .4; }
+
+/* Refresh bubble, left of the menu circle */
+.c3-refresh { position: absolute; right: 76px; top: calc(10px + env(safe-area-inset-top)); z-index: 140; width: 54px; height: 54px; border: 1px solid var(--glass-line); border-radius: 50%; background: rgba(36, 31, 110, .78); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; touch-action: manipulation; }
+.c3-refresh:active svg { transform: rotate(180deg); }
+.c3-refresh svg { transition: transform .3s var(--ease-out, ease-out); }
+.c3-refresh:focus-visible { outline: 3px solid var(--sun); outline-offset: 2px; }
