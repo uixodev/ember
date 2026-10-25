@@ -1,7 +1,9 @@
 import type { Area } from '../model/types';
 import { CREATURE_IDS, type CreatureId } from './creatures';
 import { PALETTES, type PaletteId } from './palettes';
-import { FIRE_STYLES, type FireStyle, type Size } from './world';
+import { computeHeat } from '../engine/heat';
+import { parseJson } from '../storage/storage';
+import { FIRE_STYLES, layoutFires, type FireStyle, type Size } from './world';
 import type { LogEvent } from './SparkLog';
 
 /**
@@ -89,3 +91,39 @@ export function save(data: Saved): boolean {
 }
 
 export const toJson = (data: Saved): string => JSON.stringify({ v: 1, ...data }, null, 2);
+
+// ---- Backups from the classic version -------------------------------------------------------------
+
+const CLASSIC_COLORS: PaletteId[] = ['classic', 'green', 'crimson', 'gold', 'sapphire', 'aurora', 'lava', 'sky', 'amber', 'ice', 'mint', 'lime'];
+const PERCENT_OF_LEVEL = [0, 15, 50, 85];
+
+/**
+ * Turn a backup exported from the classic version into campfires. Each area becomes a fire: its heat level
+ * becomes a percentage, its cooling time a cooling speed, and its sparks and big sessions go into the list.
+ * Archived areas are left out.
+ */
+export function fromClassic(text: string): Saved | null {
+  let data;
+  try { data = parseJson(text); } catch { return null; }
+  if (!data) return null;
+  const now = Date.now();
+  const areas = data.areas.filter((a) => a.place !== 'archive').sort((a, b) => (a.place === 'main' ? -1 : 0) - (b.place === 'main' ? -1 : 0)).slice(0, 12);
+  const slots = layoutFires(areas.length);
+  const fires: Fire[] = areas.map((a, i) => {
+    const heat = computeHeat(a, now, data.settings.activeHours);
+    const perDay = (100 / (3 * Math.max(60, a.coolingMinutes))) * 1440;
+    return {
+      area: { ...a, name: a.name.slice(0, 24), sparks: a.sparks.length ? a.sparks : [`Spend 5 minutes on ${a.name}`] },
+      percent: PERCENT_OF_LEVEL[heat.level] ?? 0, since: now, rate: Math.round(Math.max(5, Math.min(720, perDay))),
+      size: a.place === 'main' ? 4 : 2, color: CLASSIC_COLORS[i % CLASSIC_COLORS.length], style: 'camp', creature: 'auto',
+      main: a.place === 'main' || undefined, pos: slots[i],
+    };
+  });
+  const byId = new Map(fires.map((f) => [f.area.id, f]));
+  const events: LogEvent[] = data.events.flatMap((e, i) => {
+    const f = byId.get(e.areaId);
+    if (!f) return [];
+    return [{ id: now + i, areaId: f.area.id, areaName: f.area.name, swatch: PALETTES[f.color].swatch, at: e.at, note: (e.note ?? '').slice(0, 160), minutes: Math.round(Math.max(1, Math.min(1440, e.minutes ?? 5))), gain: e.type === 'big' ? 100 : 10 }];
+  }).slice(-2000);
+  return { fires, events };
+}

@@ -3,7 +3,7 @@ import { FeedSheet } from './components/ui/FeedSheet';
 import { play, playHeat, unlockAudio } from './sound';
 import { HeatIcon } from './components/ui/HeatIcon';
 import { Segmented } from './components/ui/Tabs';
-import { loadSaved, parseSaved, save, toJson, type Fire } from './campfire3d/saved';
+import { fromClassic, loadSaved, parseSaved, save, toJson, type Fire } from './campfire3d/saved';
 import { SparkLog, type LogEvent } from './campfire3d/SparkLog';
 import { ConfirmSheet } from './components/ui/Sheets';
 import { LEVEL_NAMES, formatSpan, formatWhen } from './engine/format';
@@ -190,8 +190,8 @@ export default function Campfire3DPreview() {
     e.target.value = '';
     if (!file) return;
     file.text().then((text) => {
-      const data = parseSaved(text);
-      if (!data) { setSaveFailed(true); window.alert('That file is not an Ember campfire backup.'); return; }
+      const data = parseSaved(text) ?? fromClassic(text);
+      if (!data) { window.alert('That file is not an Ember backup.'); return; }
       setFires(data.fires); setEvents(data.events); setSel(data.fires[0]?.area.id ?? null); setPanel(null);
     }).catch(() => window.alert('Could not read that file.'));
   };
@@ -379,7 +379,7 @@ export default function Campfire3DPreview() {
             <div className="c3-switches">
               <button type="button" role="switch" aria-checked={creaturesAll} className={`c3-pill${creaturesAll ? ' on' : ''}`} onClick={() => setCreaturesAll((n) => !n)}>Creatures everywhere</button>
               <button type="button" className="c3-pill" onClick={exportData}>Export backup</button>
-              <button type="button" className="c3-pill" onClick={() => fileRef.current?.click()}>Import backup</button>
+              <button type="button" className="c3-pill" onClick={() => fileRef.current?.click()}>Import backup (new or classic)</button>
               {fires.length === 0 && <button type="button" className="c3-pill" onClick={loadSample}>Load example fires</button>}
               <button type="button" className="c3-pill danger" disabled={fires.length === 0 && events.length === 0} onClick={() => setConfirmReset(true)}>Erase everything</button>
             </div>
