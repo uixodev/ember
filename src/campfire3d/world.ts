@@ -198,7 +198,9 @@ export class CampfireWorld {
     canvas.addEventListener('pointercancel', this.onUp);
     this.controls = new OrbitControls(this.camera, canvas);
     this.controls.target.copy(this.center);
-    this.controls.enablePan = false;
+    this.controls.enablePan = true;
+    this.controls.screenSpacePanning = false;
+    this.controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.08;
     this.controls.rotateSpeed = 0.75;
@@ -716,6 +718,11 @@ export class CampfireWorld {
     this.applyOffset();
     this.update(dt, this.elapsed);
     this.controls.update();
+    // two-finger panning stays over the fires: pull the target back and carry the camera with it
+    const t = this.controls.target;
+    const cx = Math.max(-this.extent, Math.min(this.extent, t.x));
+    const cz = Math.max(this.center.z - this.depth, Math.min(this.center.z + this.depth, t.z));
+    if (cx !== t.x || cz !== t.z) { this.camera.position.x += cx - t.x; this.camera.position.z += cz - t.z; t.x = cx; t.z = cz; }
     this.renderer.render(this.scene, this.camera);
     this.emitLabels();
   };
@@ -726,6 +733,7 @@ export class CampfireWorld {
       this.fly.t = Math.min(1, this.fly.t + dt / 0.85);
       const k = ease(this.fly.t);
       const { from, to } = this.fly;
+      this.controls.target.lerp(this.center, Math.min(1, dt * 6));
       this.place({ azimuth: from.azimuth + (to.azimuth - from.azimuth) * k, polar: from.polar + (to.polar - from.polar) * k, distance: from.distance + (to.distance - from.distance) * k });
       if (this.fly.t >= 1) this.fly = null;
     }
