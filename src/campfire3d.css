@@ -188,3 +188,9 @@ html.c3-lock body { position: fixed; inset: 0; width: 100%; }
 .c3-tools { box-sizing: border-box; width: 54px; transition: width .28s var(--ease-out, ease-out); overflow: hidden; }
 .c3-tools.open { width: 184px; }
 @media (prefers-reduced-motion: reduce) { .c3-tools { transition: none; } }
+
+/* Icon-only menu, sparks back at the top right */
+.c3-tools, .c3-tools.open { width: 54px; }
+.c3-more-in .c3-round { width: 44px; min-width: 44px; padding: 0; justify-content: center; border-radius: 50%; }
+.c3-sparks { position: absolute; right: 14px; top: calc(10px + env(safe-area-inset-top)); z-index: 140; min-height: 54px; padding: 0 16px; }
+.c3-title { margin: 0 92px; }

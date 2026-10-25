@@ -94,6 +94,7 @@ export default function Campfire3DPreview() {
   });
   const [logOpen, setLogOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
+  const [focusId, setFocusId] = useState<string | null>(null);
   const sparksToday = useMemo(() => { const d = new Date(now); return events.filter((e) => e.at >= new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()).length; }, [events, now]);
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
@@ -153,6 +154,7 @@ export default function Campfire3DPreview() {
   useEffect(() => {
     worldRef.current?.setFires(shown.map((f) => ({ id: f.area.id, level: f.level, progress: f.progress, size: f.size, color: f.color, style: f.style, creature: f.creature, pos: f.pos })));
   }, [shown]);
+  useEffect(() => { if (focusId) { worldRef.current?.focusFire(focusId); setFocusId(null); } }, [focusId, shown]);
   useEffect(() => { worldRef.current?.setMoveMode(moving); }, [moving]);
   useEffect(() => { worldRef.current?.setSelected(sel); }, [sel]);
   useEffect(() => { worldRef.current?.setCreaturesAlways(creaturesAll); }, [creaturesAll]);
@@ -202,7 +204,7 @@ export default function Campfire3DPreview() {
     f.pos = pos;
     f.creature = CREATURE_IDS[fires.length % CREATURE_IDS.length];
     setFires((all) => [...all, f]);
-    setSel(f.area.id); setTab('size'); setPanel('customise'); setHint(false);
+    setSel(f.area.id); setTab('cooling'); setPanel('customise'); setHint(false); setFocusId(f.area.id);
   };
   const nextView = () => { viewIndex.current = (viewIndex.current + 1) % VIEWS.length; worldRef.current?.flyTo(VIEWS[viewIndex.current]); };
 
@@ -251,30 +253,26 @@ export default function Campfire3DPreview() {
             <div className="c3-more"><div className="c3-more-in">
         <button type="button" className="c3-round" aria-label="Change the view" onClick={nextView}>
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" /><circle cx="12" cy="12" r="3" fill="currentColor" /></svg>
-        <span className="c3-lab">View</span>
         </button>
         <button type="button" className="c3-round" aria-label="Add an area" disabled={fires.length >= 12} onClick={addFire}>
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" fill="none" /></svg>
-        <span className="c3-lab">New area</span>
         </button>
         <button type="button" className={`c3-round${moving ? ' on' : ''}`} aria-label="Move fires" aria-pressed={moving} onClick={() => { setMoving((m) => !m); setPanel(null); setHint(false); }}>
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>
-        <span className="c3-lab">Move fires</span>
         </button>
         <button type="button" className={`c3-round${panel === 'menu' ? ' on' : ''}`} aria-label="More options" aria-expanded={panel === 'menu'} onClick={() => togglePanel('menu')}>
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" fill="none" /><circle cx="16" cy="7" r="2.4" fill="currentColor" /><circle cx="8" cy="17" r="2.4" fill="currentColor" /></svg>
-        <span className="c3-lab">Options</span>
         </button>
 
-        <button type="button" className="c3-round" onClick={() => { setPanel(null); setLogOpen(true); }} aria-label={`${sparksToday} ${sparksToday === 1 ? 'spark' : 'sparks'} today, open the list`}>
-          <HeatIcon level={3} size={22} /><span className="c3-lab">Sparks</span><span className="c3-count">{sparksToday}</span>
-        </button>
             </div></div>
           </nav>
         </header>
+        <button type="button" className="c3-sparks" onClick={() => { setPanel(null); setLogOpen(true); }} aria-label={`${sparksToday} ${sparksToday === 1 ? 'spark' : 'sparks'} today, open the list`}>
+          {sparksToday} {sparksToday === 1 ? 'spark' : 'sparks'}
+        </button>
         {chosen && (
           <div className="c3-title" aria-live="polite">
-            <h1>{chosen.area.name || 'New area'}{chosen.main ? ' · main' : ''}</h1>
+            <h1>{chosen.area.name || 'New area'}</h1>
             <span className={`c3-state lv${chosen.level}`}><HeatIcon level={chosen.level} size={18} />{LEVEL_NAMES[chosen.level as HeatLevel]} · {Math.round(chosen.pct)}%</span>
           </div>
         )}

@@ -427,6 +427,18 @@ export class CampfireWorld {
   private moveMode = false;
   private fireDrag: { id: string; pointer: number; dx: number; dz: number } | null = null;
 
+  private focusTarget: THREE.Vector3 | null = null;
+
+  /** Glide the camera in close to one fire. */
+  focusFire(id: string): void {
+    const f = this.fires.get(id);
+    if (!f) return;
+    this.focusTarget = new THREE.Vector3(f.pos.x, 0.7, f.pos.z);
+    const from = this.current();
+    this.controls.autoRotate = false;
+    this.fly = { from, to: { azimuth: from.azimuth, polar: 1.0, distance: Math.max(this.controls.minDistance, this.baseDistance * 0.5) }, t: 0 };
+  }
+
   /** While on, dragging a fire carries it across the ground instead of turning the camera. */
   setMoveMode(on: boolean): void { this.moveMode = on; }
 
@@ -519,6 +531,7 @@ export class CampfireWorld {
   }
 
   flyTo(view: CameraView): void {
+    this.focusTarget = null;
     const from = this.current();
     let d = view.azimuth - from.azimuth;
     d = Math.atan2(Math.sin(d), Math.cos(d));
@@ -587,7 +600,7 @@ export class CampfireWorld {
     this.camera.position.set(t.x + v.distance * Math.sin(v.polar) * Math.sin(v.azimuth), t.y + v.distance * Math.cos(v.polar), t.z + v.distance * Math.sin(v.polar) * Math.cos(v.azimuth));
   }
 
-  private interacted(): void { this.opts.onInteract?.(); this.fly = null; this.controls.autoRotate = false; }
+  private interacted(): void { this.opts.onInteract?.(); this.fly = null; this.focusTarget = null; this.controls.autoRotate = false; }
 
   // ---- dragging wood out of the inventory ------------------------------------------------------
 
@@ -758,7 +771,7 @@ export class CampfireWorld {
       this.fly.t = Math.min(1, this.fly.t + dt / 0.85);
       const k = ease(this.fly.t);
       const { from, to } = this.fly;
-      this.controls.target.lerp(this.center, Math.min(1, dt * 6));
+      this.controls.target.lerp(this.focusTarget ?? this.center, Math.min(1, dt * 6));
       this.place({ azimuth: from.azimuth + (to.azimuth - from.azimuth) * k, polar: from.polar + (to.polar - from.polar) * k, distance: from.distance + (to.distance - from.distance) * k });
       if (this.fly.t >= 1) this.fly = null;
     }
