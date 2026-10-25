@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { FeedSheet } from './components/ui/FeedSheet';
 import { play, playHeat, unlockAudio } from './sound';
 import { HeatIcon } from './components/ui/HeatIcon';
@@ -8,7 +8,7 @@ import { LEVEL_NAMES, formatSpan } from './engine/format';
 import { DEFAULT_ACTIVE_HOURS, type Level as HeatLevel } from './engine/heat';
 import { planFeed } from './engine/hold';
 import type { Area } from './model/types';
-import { CampfireWorld, FIRE_STYLES, type DragState, type FireStyle, type LabelPos, type Level, type Size } from './campfire3d/world';
+import { CampfireWorld, FIRE_STYLES, layoutFires, type DragState, type FireStyle, type LabelPos, type Level, type Size } from './campfire3d/world';
 import { CREATURE_IDS, CREATURE_NAMES, type CreatureId } from './campfire3d/creatures';
 import { PALETTES, PALETTE_IDS, type PaletteId } from './campfire3d/palettes';
 import { STICKS, type StickKind } from './campfire3d/sticks';
@@ -22,7 +22,7 @@ import './campfire3d.css';
  * Open with ?campfire3d. All data here is made up.
  */
 
-interface Fire { area: Area; level: Level; progress: number; size: Size; color: PaletteId; style: FireStyle; creature: CreatureId | 'auto' | 'none'; main?: boolean; cool: string }
+interface Fire { area: Area; level: Level; progress: number; size: Size; color: PaletteId; style: FireStyle; creature: CreatureId | 'auto' | 'none'; main?: boolean; cool: string; pos?: { x: number; z: number } }
 
 const mk = (id: string, name: string, level: Level, progress: number, size: Size, cool: string, color: PaletteId, style: FireStyle = 'camp', main = false): Fire => ({
   area: { id, name, place: main ? 'main' : 'side', coolingMinutes: main ? 150 : 1440, sparks: [`Spend 5 minutes on ${name}`], level, levelSince: 0, createdAt: 0 },
@@ -46,6 +46,8 @@ const SAMPLE: Fire[] = [
 // hand every area a different creature in turn, so the Hot fires don't all get the same one
 SAMPLE.forEach((f, i) => { f.creature = CREATURE_IDS[(i + 5) % CREATURE_IDS.length]; });
 
+layoutFires(SAMPLE.length).forEach((p, i) => { SAMPLE[i].pos = p; });
+
 const SIZE_NAMES: Record<Size, string> = { 1: 'Small', 2: 'Medium', 3: 'Large', 4: 'Huge' };
 const HOURS = DEFAULT_ACTIVE_HOURS;
 const VIEWS = [{ azimuth: 0, polar: 0.84 }, { azimuth: 0, polar: 0.3 }, { azimuth: Math.PI / 2, polar: 1.2 }];
@@ -66,15 +68,15 @@ export default function Campfire3DPreview() {
   const [creaturesAll, setCreaturesAll] = useState(false);
   const [held, setHeld] = useState<StickKind | null>(null);
   const [icons, setIcons] = useState<Partial<Record<StickKind, string>>>({});
-  const [count, setCount] = useState(5);
-  const [fires, setFires] = useState<Fire[]>(SAMPLE);
+  const [fires, setFires] = useState<Fire[]>(() => SAMPLE.slice(0, 5));
+  const [moving, setMoving] = useState(false);
   const [sel, setSel] = useState<string | null>('js');
   const [drag, setDrag] = useState<DragState | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
   const [panel, setPanel] = useState<Panel>(null);
   const [tab, setTab] = useState<Tab>('size');
 
-  const shown = useMemo(() => fires.slice(0, count), [fires, count]);
+  const shown = fires;
   const chosen = shown.find((f) => f.area.id === sel);
   const pendingFire = pending ? shown.find((f) => f.area.id === pending.fireId) : undefined;
   const overFire = drag?.overFire ? shown.find((f) => f.area.id === drag.overFire) : undefined;
@@ -98,6 +100,7 @@ export default function Campfire3DPreview() {
         onDrag: (s) => setDrag(s.dragging ? s : null),
         onDrop: (fireId, kind, stickId) => { play('wood'); setHint(false); setPending({ fireId, kind, stickId }); },
         onInteract: () => setHint(false),
+        onFireMoved: (id, x, z) => setFires((all) => all.map((f) => (f.area.id === id ? { ...f, pos: { x, z } } : f))),
         reducedMotion: reduced,
       });
       worldRef.current = world;
@@ -120,8 +123,9 @@ export default function Campfire3DPreview() {
   }, [failed]);
 
   useEffect(() => {
-    worldRef.current?.setFires(shown.map((f) => ({ id: f.area.id, level: f.level, progress: f.progress, size: f.size, color: f.color, style: f.style, creature: f.creature })));
+    worldRef.current?.setFires(shown.map((f) => ({ id: f.area.id, level: f.level, progress: f.progress, size: f.size, color: f.color, style: f.style, creature: f.creature, pos: f.pos })));
   }, [shown]);
+  useEffect(() => { worldRef.current?.setMoveMode(moving); }, [moving]);
   useEffect(() => { worldRef.current?.setSelected(sel); }, [sel]);
   useEffect(() => { worldRef.current?.setCreaturesAlways(creaturesAll); }, [creaturesAll]);
 
@@ -141,12 +145,24 @@ export default function Campfire3DPreview() {
     setPending(null);
   };
 
-  const feedWithoutWood = () => { if (chosen) setPending({ fireId: chosen.area.id, kind: 'branch', stickId: null }); };
 
 
+  const rename = (name: string) => { if (chosen) setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, area: { ...f.area, name, sparks: [`Spend 5 minutes on ${name || 'it'}`] } } : f))); };
   const patch = (change: Partial<Fire>) => { if (chosen) setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, ...change } : f))); };
   const shuffle = () => setFires((all) => all.map((f) => { const lv = ((Math.random() * 4) | 0) as Level; return { ...f, level: lv, progress: lv ? 0.2 + Math.random() * 0.75 : 0, cool: lv ? 'a while' : 'cold' }; }));
   const mixSizes = () => setFires((all) => all.map((f) => ({ ...f, size: (1 + ((Math.random() * 4) | 0)) as Size })));
+  const addFire = () => {
+    if (fires.length >= 12) return;
+    const spots: { x: number; z: number }[] = [];
+    for (let x = -10.5; x <= 10.5; x += 3.5) for (let z = -9.6; z <= 9.6; z += 3.2) spots.push({ x, z });
+    spots.sort((a, b) => Math.hypot(a.x, a.z * 1.2) - Math.hypot(b.x, b.z * 1.2));
+    const pos = spots.find((c) => fires.every((f) => Math.hypot(c.x - (f.pos?.x ?? 0), c.z - (f.pos?.z ?? 0)) >= 3.3)) ?? spots[0];
+    const f = mk(`new-${Date.now()}`, '', 0, 0, 2, 'cold', PALETTE_IDS[fires.length % PALETTE_IDS.length]);
+    f.pos = pos;
+    f.creature = CREATURE_IDS[fires.length % CREATURE_IDS.length];
+    setFires((all) => [...all, f]);
+    setSel(f.area.id); setTab('size'); setPanel('customise'); setHint(false);
+  };
   const nextView = () => { viewIndex.current = (viewIndex.current + 1) % VIEWS.length; worldRef.current?.flyTo(VIEWS[viewIndex.current]); };
 
   // wood from the dock: pick it up here, carry it into the scene
@@ -187,10 +203,10 @@ export default function Campfire3DPreview() {
       )}
 
       <div className="c3-top" ref={topRef}>
-        <TopBar initial="J" streak={4} sparksToday={3} level={warm as HeatLevel} />
+        <TopBar initial="J" sparksToday={3} level={warm as HeatLevel} />
         {chosen && (
           <div className="c3-title" aria-live="polite">
-            <h1>{chosen.area.name}{chosen.main ? ' · main' : ''}</h1>
+            <h1>{chosen.area.name || 'New area'}{chosen.main ? ' · main' : ''}</h1>
             <span className={`c3-state lv${chosen.level}`}><HeatIcon level={chosen.level} size={18} />{LEVEL_NAMES[chosen.level as HeatLevel]}</span>
           </div>
         )}
@@ -199,17 +215,24 @@ export default function Campfire3DPreview() {
         <button type="button" className="c3-round" aria-label="Change the view" onClick={nextView}>
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" /><circle cx="12" cy="12" r="3" fill="currentColor" /></svg>
         </button>
+        <button type="button" className="c3-round" aria-label="Add an area" disabled={fires.length >= 12} onClick={addFire}>
+          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" fill="none" /></svg>
+        </button>
+        <button type="button" className={`c3-round${moving ? ' on' : ''}`} aria-label="Move fires" aria-pressed={moving} onClick={() => { setMoving((m) => !m); setPanel(null); setHint(false); }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>
+        </button>
         <button type="button" className={`c3-round${panel === 'menu' ? ' on' : ''}`} aria-label="More options" aria-expanded={panel === 'menu'} onClick={() => togglePanel('menu')}>
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" fill="none" /><circle cx="16" cy="7" r="2.4" fill="currentColor" /><circle cx="8" cy="17" r="2.4" fill="currentColor" /></svg>
         </button>
       </div>
-      {hint && !drag && !panel && <div className="c3-hint" aria-hidden="true">Drag wood from the dock onto a fire</div>}
+      {moving && !drag && !panel && <div className="c3-hint" aria-hidden="true">Drag a fire to move it</div>}
+      {hint && !moving && !drag && !panel && <div className="c3-hint" aria-hidden="true">Drag wood from the dock onto a fire</div>}
 
       <div className="c3-bottom" ref={bottomRef}>
         {panel === 'customise' && chosen && (
           <section className="c3-panel" aria-label={`Customise ${chosen.area.name}`}>
             <div className="c3-panel-head">
-              <b>{chosen.area.name}</b>
+              <input className="c3-name" value={chosen.area.name} maxLength={24} placeholder="Name this area" aria-label="Area name" onChange={(e) => rename(e.target.value)} />
               <button type="button" className="c3-x" aria-label="Close" onClick={() => setPanel(null)}>×</button>
             </div>
             <Segmented value={tab} onChange={setTab} options={[{ value: 'size', label: 'Size' }, { value: 'colour', label: 'Colour' }, { value: 'style', label: 'Style' }, { value: 'creature', label: 'Creature' }]} />
@@ -257,9 +280,6 @@ export default function Campfire3DPreview() {
         {panel === 'menu' && (
           <section className="c3-panel" aria-label="More options">
             <div className="c3-panel-head"><b>Try it</b><button type="button" className="c3-x" aria-label="Close" onClick={() => setPanel(null)}>×</button></div>
-            <label className="c3-range"><span>Areas: <b>{count}</b></span>
-              <input type="range" min={0} max={12} value={count} onChange={(e) => { const n = +e.target.value; setCount(n); if (sel && !fires.slice(0, n).some((f) => f.area.id === sel)) setSel(null); }} />
-            </label>
             <div className="c3-switches">
               <button type="button" role="switch" aria-checked={creaturesAll} className={`c3-pill${creaturesAll ? ' on' : ''}`} onClick={() => setCreaturesAll((n) => !n)}>Creatures everywhere</button>
               <button type="button" className="c3-pill" onClick={shuffle}>Shuffle heats</button>
@@ -272,7 +292,6 @@ export default function Campfire3DPreview() {
         {chosen && !drag && (
           <div className="c3-focus">
             <div className="c3-focus-text"><b>{chosen.level === 0 ? 'One spark warms it' : `Cools in ${chosen.cool}`}</b></div>
-            <button type="button" className="c3-act primary" onClick={feedWithoutWood}>Feed it</button>
             <button type="button" className={`c3-act${panel === 'customise' ? ' on' : ''}`} aria-expanded={panel === 'customise'} onClick={() => togglePanel('customise')}>Customise</button>
           </div>
         )}

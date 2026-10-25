@@ -21,6 +21,8 @@ export interface FireSpec {
   id: string; level: Level; progress: number; size: Size; color: PaletteId; style: FireStyle;
   /** The fire creature that stands on a Hot fire: a kind, "auto" for a stable pick, or "none". */
   creature: CreatureId | 'auto' | 'none';
+  /** Where the fire sits on the ground. Left out, it takes the next free spot in the grid. */
+  pos?: { x: number; z: number };
 }
 export interface LabelPos { id: string; x: number; y: number; depth: number; visible: boolean }
 export interface CameraView { azimuth: number; polar: number; distance?: number }
@@ -42,6 +44,8 @@ export interface WorldOptions {
   onDrop: (fireId: string, kind: StickKind, stickId: number) => void;
   onDrag: (s: DragState) => void;
   onInteract?: () => void;
+  /** A fire was carried to a new spot (move mode). */
+  onFireMoved?: (id: string, x: number, z: number) => void;
   reducedMotion: boolean;
 }
 
@@ -190,6 +194,8 @@ export class CampfireWorld {
     this.camera.position.set(0, 6, 11);
     canvas.addEventListener('pointerdown', this.onDown);
     canvas.addEventListener('pointerup', this.onUp);
+    canvas.addEventListener('pointermove', this.onMove);
+    canvas.addEventListener('pointercancel', this.onUp);
     this.controls = new OrbitControls(this.camera, canvas);
     this.controls.target.copy(this.center);
     this.controls.enablePan = false;
@@ -382,7 +388,7 @@ export class CampfireWorld {
       if (!f) { f = this.buildFire(spec, i); this.fires.set(spec.id, f); }
       f.spec = spec;
       f.index = i;
-      f.pos.set(slots[i].x, 0, slots[i].z);
+      f.pos.set(spec.pos?.x ?? slots[i].x, 0, spec.pos?.z ?? slots[i].z);
       f.group.position.copy(f.pos);
       if (f.paintedColor !== spec.color) this.paint(f, spec.color);
       if (f.paintedLevel !== spec.level) {
@@ -392,6 +398,12 @@ export class CampfireWorld {
         f.paintedLevel = spec.level;
       }
     });
+    this.refit();
+    this.resize();
+  }
+
+  /** Frame the camera around wherever the fires are now. */
+  private refit(): void {
     let maxX = 2.8, minZ = -2.4, maxZ = 2.4;
     for (const f of this.fires.values()) { maxX = Math.max(maxX, Math.abs(f.pos.x) + 2.7); minZ = Math.min(minZ, f.pos.z - 2.4); maxZ = Math.max(maxZ, f.pos.z + 2.4); }
     this.extent = maxX;
@@ -401,6 +413,49 @@ export class CampfireWorld {
     this.ground.scale.setScalar(Math.max(this.extent, this.depth) + 3.2);
     this.ground.position.set(0, 0, this.center.z);
     this.resize();
+  }
+
+  // ---- moving fires -----------------------------------------------------------------------------
+
+  private moveMode = false;
+  private fireDrag: { id: string; pointer: number; dx: number; dz: number } | null = null;
+
+  /** While on, dragging a fire carries it across the ground instead of turning the camera. */
+  setMoveMode(on: boolean): void { this.moveMode = on; }
+
+  private groundAt(clientX: number, clientY: number): THREE.Vector3 | null {
+    this.raycaster.setFromCamera(this.ndcAt(clientX, clientY), this.camera);
+    const hit = new THREE.Vector3();
+    return this.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit) ? hit : null;
+  }
+
+  private onMove = (e: PointerEvent) => {
+    const d = this.fireDrag;
+    if (!d || e.pointerId !== d.pointer) return;
+    const f = this.fires.get(d.id);
+    const g = this.groundAt(e.clientX, e.clientY);
+    if (!f || !g) return;
+    let x = Math.max(-14, Math.min(14, g.x + d.dx));
+    let z = Math.max(-14, Math.min(14, g.z + d.dz));
+    for (const o of this.fires.values()) {
+      if (o === f) continue;
+      const gap = 3.1, dist = Math.hypot(x - o.pos.x, z - o.pos.z);
+      if (dist < gap) { const k = dist > 1e-3 ? gap / dist : 1; x = o.pos.x + (x - o.pos.x) * k; z = o.pos.z + (z - o.pos.z) * k; if (dist <= 1e-3) x += gap; }
+    }
+    f.pos.set(x, 0, z);
+    f.group.position.set(x, 0.22, z);
+  };
+
+  private endFireDrag(): void {
+    const d = this.fireDrag;
+    if (!d) return;
+    this.fireDrag = null;
+    this.controls.enabled = true;
+    const f = this.fires.get(d.id);
+    if (!f) return;
+    f.group.position.set(f.pos.x, 0, f.pos.z);
+    this.opts.onFireMoved?.(d.id, f.pos.x, f.pos.z);
+    this.refit();
   }
 
   // ---- public controls ------------------------------------------------------------------------
@@ -593,8 +648,27 @@ export class CampfireWorld {
 
   // ---- taps on the scene ------------------------------------------------------------------------
 
-  private onDown = (e: PointerEvent) => { this.down = { x: e.clientX, y: e.clientY, t: performance.now() }; };
+  private onDown = (e: PointerEvent) => {
+    this.down = { x: e.clientX, y: e.clientY, t: performance.now() };
+    if (!this.moveMode || this.drag) return;
+    const rect = this.canvas.getBoundingClientRect();
+    this.raycaster.setFromCamera(new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1), this.camera);
+    const hit = this.raycaster.intersectObjects([...this.fires.values()].map((f) => f.hit), false)[0];
+    if (!hit) return;
+    const id = hit.object.userData.fireId as string;
+    const f = this.fires.get(id);
+    const g = this.groundAt(e.clientX, e.clientY);
+    if (!f || !g) return;
+    this.fireDrag = { id, pointer: e.pointerId, dx: f.pos.x - g.x, dz: f.pos.z - g.z };
+    this.controls.enabled = false;
+    this.controls.autoRotate = false;
+    this.fly = null;
+    this.canvas.setPointerCapture?.(e.pointerId);
+    this.opts.onSelectFire(id);
+    this.opts.onInteract?.();
+  };
   private onUp = (e: PointerEvent) => {
+    if (this.fireDrag) { this.endFireDrag(); return; }
     if (Math.hypot(e.clientX - this.down.x, e.clientY - this.down.y) > 8 || performance.now() - this.down.t > 450) return;
     const rect = this.canvas.getBoundingClientRect();
     this.raycaster.setFromCamera(new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1), this.camera);
@@ -948,6 +1022,8 @@ export class CampfireWorld {
     document.removeEventListener('visibilitychange', this.onVis);
     this.canvas.removeEventListener('pointerdown', this.onDown);
     this.canvas.removeEventListener('pointerup', this.onUp);
+    this.canvas.removeEventListener('pointermove', this.onMove);
+    this.canvas.removeEventListener('pointercancel', this.onUp);
     this.controls.dispose();
     for (const f of this.fires.values()) this.dropCreature(f);
     this.disposables.forEach((d) => d.dispose());

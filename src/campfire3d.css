@@ -87,7 +87,7 @@ html.c3-lock body { position: fixed; inset: 0; width: 100%; }
 .c3-dock .c3-slot { padding: 4px 2px 6px; background: rgba(255, 255, 255, .08); }
 
 .c3-panel { display: grid; gap: 10px; padding: 12px; border-radius: 22px; background: rgba(36, 31, 110, .94); border: 1px solid var(--glass-line); max-height: 50dvh; overflow-y: auto; -webkit-user-select: none; user-select: none; }
-.c3-panel-head { display: flex; align-items: center; justify-content: space-between; }
+.c3-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .c3-panel-head b { font: 750 16px/1.1 var(--font); letter-spacing: -.01em; }
 .c3-x { width: 44px; height: 44px; margin: -8px -6px -8px 0; border: 0; border-radius: 50%; background: transparent; color: #fff; font: 400 28px/1 var(--font); cursor: pointer; }
 .c3-panel .seg { display: flex; width: 100%; }
@@ -114,3 +114,7 @@ html.c3-lock body { position: fixed; inset: 0; width: 100%; }
 .c3-state { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px 5px 8px; border-radius: 999px; background: rgba(36, 31, 110, .82); border: 1px solid var(--glass-line); font: 700 13px/1 var(--font); color: #fff; }
 .c3-state.lv0 { color: var(--ink-2); }
 @media (max-height: 640px) { .c3-title h1 { font-size: 22px; } }
+
+.c3-name { flex: 1; min-width: 0; height: 40px; padding: 0 12px; border: 1px solid var(--glass-line); border-radius: 12px; background: rgba(255,255,255,.1); color: #fff; font: 750 17px/1 var(--font); }
+.c3-name::placeholder { color: var(--ink-2); font-weight: 500; }
+.c3-round:disabled { opacity: .4; }
