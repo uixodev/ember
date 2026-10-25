@@ -11,7 +11,14 @@ import { CampfirePreview } from './CampfirePreview';
 const params = new URLSearchParams(location.search);
 const preview = params.has('preview');
 const campfire = params.has('campfire');
-const campfire3d = params.has('campfire3d');
+// Once you have opened the campfire app it stays your home screen (also when installed). ?classic goes back.
+let remembered = false;
+try {
+  if (params.has('classic')) window.localStorage.removeItem('ember:ui');
+  if (params.has('campfire3d')) window.localStorage.setItem('ember:ui', 'campfire');
+  remembered = window.localStorage.getItem('ember:ui') === 'campfire';
+} catch { /* storage blocked: the link still works */ }
+const campfire3d = params.has('campfire3d') || (remembered && !preview && !params.has('campfire') && !params.has('classic'));
 // three.js is large, so it only loads for the 3D sample.
 const Campfire3D = lazy(() => import('./Campfire3DPreview'));
 createRoot(document.getElementById('root')!).render(

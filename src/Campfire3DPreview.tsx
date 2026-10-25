@@ -3,13 +3,13 @@ import { FeedSheet } from './components/ui/FeedSheet';
 import { play, playHeat, unlockAudio } from './sound';
 import { HeatIcon } from './components/ui/HeatIcon';
 import { Segmented } from './components/ui/Tabs';
+import { loadSaved, parseSaved, save, toJson, type Fire } from './campfire3d/saved';
 import { SparkLog, type LogEvent } from './campfire3d/SparkLog';
 import { ConfirmSheet } from './components/ui/Sheets';
 import { LEVEL_NAMES, formatSpan, formatWhen } from './engine/format';
 import { DEFAULT_ACTIVE_HOURS, type Level as HeatLevel } from './engine/heat';
-import type { Area } from './model/types';
 import { CampfireWorld, FIRE_STYLES, layoutFires, type DragState, type FireStyle, type LabelPos, type Level, type Size } from './campfire3d/world';
-import { CREATURE_IDS, CREATURE_NAMES, type CreatureId } from './campfire3d/creatures';
+import { CREATURE_IDS, CREATURE_NAMES } from './campfire3d/creatures';
 import { PALETTES, PALETTE_IDS, type PaletteId } from './campfire3d/palettes';
 import { STICKS, type StickKind } from './campfire3d/sticks';
 import type { FeedEntry } from './store/store';
@@ -17,13 +17,11 @@ import './campfire.css';
 import './campfire3d.css';
 
 /**
- * DESIGN SAMPLE, not the real app: one fixed screen, no scrolling. Every area is its own campfire.
+ * The campfire app: one fixed screen, no scrolling, saved on this device. Every area is its own campfire.
  * Drag wood from the dock onto a fire, say what you did, log it, and watch it burn.
- * Open with ?campfire3d. All data here is made up.
+ * Open with ?campfire3d.
  */
 
-/** A fire holds a percentage of heat. It loses `rate` percent every day, and wood adds more. */
-interface Fire { area: Area; percent: number; since: number; rate: number; size: Size; color: PaletteId; style: FireStyle; creature: CreatureId | 'auto' | 'none'; main?: boolean; pos?: { x: number; z: number } }
 type Live = Fire & { pct: number; level: Level; progress: number };
 
 const levelOf = (p: number): Level => (p <= 0 ? 0 : p < 30 ? 1 : p < 70 ? 2 : 3);
@@ -77,28 +75,22 @@ export default function Campfire3DPreview() {
   const [creaturesAll, setCreaturesAll] = useState(false);
   const [held, setHeld] = useState<StickKind | null>(null);
   const [icons, setIcons] = useState<Partial<Record<StickKind, string>>>({});
-  const [fires, setFires] = useState<Fire[]>(() => SAMPLE.slice(0, 5));
+  const [stored] = useState(loadSaved);
+  const [fires, setFires] = useState<Fire[]>(() => stored.data.fires);
+  const [saveFailed, setSaveFailed] = useState(stored.problem);
+  const fileRef = useRef<HTMLInputElement>(null);
   const [moving, setMoving] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const t = window.setInterval(() => setNow(Date.now()), 10_000); return () => window.clearInterval(t); }, []);
-  const [events, setEvents] = useState<LogEvent[]>(() => {
-    const t = Date.now(), H = 3_600_000;
-    const e = (id: number, ago: number, f: Fire, note: string, minutes: number, gain: number): LogEvent => ({ id, areaId: f.area.id, areaName: f.area.name, swatch: PALETTES[f.color].swatch, at: t - ago * H, note, minutes, gain });
-    return [
-      e(1, 0.4, SAMPLE[0], 'Wrote a function that sorts the list', 30, 20),
-      e(2, 2, SAMPLE[1], 'Cleaned the kitchen', 15, 10),
-      e(3, 4, SAMPLE[5], 'Practised scales', 5, 5),
-      e(4, 27, SAMPLE[0], 'Fixed a bug in the form', 60, 30),
-      e(5, 30, SAMPLE[3], 'Sketched a portrait', 30, 20),
-    ];
-  });
+  const [events, setEvents] = useState<LogEvent[]>(() => stored.data.events);
+  useEffect(() => { setSaveFailed(!save({ fires, events })); }, [fires, events]);
   const [logOpen, setLogOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [focusId, setFocusId] = useState<string | null>(null);
   const sparksToday = useMemo(() => { const d = new Date(now); return events.filter((e) => e.at >= new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()).length; }, [events, now]);
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
-  const [sel, setSel] = useState<string | null>('js');
+  const [sel, setSel] = useState<string | null>(stored.data.fires[0]?.area.id ?? null);
   const [drag, setDrag] = useState<DragState | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
   const [panel, setPanel] = useState<Panel>(null);
@@ -186,8 +178,29 @@ export default function Campfire3DPreview() {
   };
   const setRate = (rate: number) => { if (chosen) setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, percent: chosen.pct, since: Date.now(), rate } : f))); };
   const patch = (change: Partial<Fire>) => { if (chosen) setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, ...change } : f))); };
-  const shuffle = () => setFires((all) => all.map((f) => ({ ...f, percent: Math.random() < 0.2 ? 0 : Math.round(5 + Math.random() * 95), since: Date.now() })));
-  const mixSizes = () => setFires((all) => all.map((f) => ({ ...f, size: (1 + ((Math.random() * 4) | 0)) as Size })));
+  const [confirmReset, setConfirmReset] = useState(false);
+  const exportData = () => {
+    const url = URL.createObjectURL(new Blob([toJson({ fires, events })], { type: 'application/json' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = `ember-campfires-${new Date().toISOString().slice(0, 10)}.json`; a.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  const importData = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    file.text().then((text) => {
+      const data = parseSaved(text);
+      if (!data) { setSaveFailed(true); window.alert('That file is not an Ember campfire backup.'); return; }
+      setFires(data.fires); setEvents(data.events); setSel(data.fires[0]?.area.id ?? null); setPanel(null);
+    }).catch(() => window.alert('Could not read that file.'));
+  };
+  const loadSample = () => {
+    const t = Date.now();
+    setFires(SAMPLE.slice(0, 5).map((f) => ({ ...f, since: t })));
+    setSel(SAMPLE[0].area.id); setPanel(null);
+  };
+  const eraseAll = () => { setFires([]); setEvents([]); setSel(null); setPanel(null); setConfirmReset(false); play('delete'); };
   const removeFire = (id: string) => {
     setFires((all) => all.filter((f) => f.area.id !== id));
     setConfirmDel(null); setMenu(null); setPanel(null);
@@ -234,7 +247,13 @@ export default function Campfire3DPreview() {
       ) : (
         <>
           <canvas ref={canvasRef} className="c3-canvas" aria-label="Your campfires" />
-          {shown.length === 0 && <div className="camp-empty"><b>No fires yet</b><span>Add an area to light its fire.</span></div>}
+          {shown.length === 0 && (
+            <div className="c3-empty">
+              <b>Light your first fire</b>
+              <span>Each area of your life gets its own campfire. Feed it wood when you work on it and it stays warm.</span>
+              <button type="button" className="c3-act primary" onClick={addFire}>Add an area</button>
+            </div>
+          )}
           {drag && (
             <div className={`c3-chip${overFire ? ' ready' : ''}`} style={{ left: Math.max(70, Math.min(drag.x, (stageRef.current?.clientWidth ?? 390) - 70)), top: Math.min(drag.y, stageH - 150) }} aria-hidden="true">
               <b>{STICKS[drag.kind ?? 'branch'].name}</b>
@@ -278,7 +297,7 @@ export default function Campfire3DPreview() {
         )}
       </div>
       {moving && !drag && !panel && <div className="c3-hint" aria-hidden="true">Drag a fire to move it</div>}
-      {hint && !moving && !drag && !panel && <div className="c3-hint" aria-hidden="true">Drag wood from the dock onto a fire</div>}
+      {hint && fires.length > 0 && !moving && !drag && !panel && <div className="c3-hint" aria-hidden="true">Drag wood from the dock onto a fire</div>}
 
       <div className="c3-bottom" ref={bottomRef}>
         {panel === 'customise' && chosen && (
@@ -356,13 +375,16 @@ export default function Campfire3DPreview() {
 
         {panel === 'menu' && (
           <section className="c3-panel" aria-label="More options">
-            <div className="c3-panel-head"><b>Try it</b><button type="button" className="c3-x" aria-label="Close" onClick={() => setPanel(null)}>×</button></div>
+            <div className="c3-panel-head"><b>Options</b><button type="button" className="c3-x" aria-label="Close" onClick={() => setPanel(null)}>×</button></div>
             <div className="c3-switches">
               <button type="button" role="switch" aria-checked={creaturesAll} className={`c3-pill${creaturesAll ? ' on' : ''}`} onClick={() => setCreaturesAll((n) => !n)}>Creatures everywhere</button>
-              <button type="button" className="c3-pill" onClick={shuffle}>Shuffle heats</button>
-              <button type="button" className="c3-pill" onClick={mixSizes}>Mix sizes</button>
+              <button type="button" className="c3-pill" onClick={exportData}>Export backup</button>
+              <button type="button" className="c3-pill" onClick={() => fileRef.current?.click()}>Import backup</button>
+              {fires.length === 0 && <button type="button" className="c3-pill" onClick={loadSample}>Load example fires</button>}
+              <button type="button" className="c3-pill danger" disabled={fires.length === 0 && events.length === 0} onClick={() => setConfirmReset(true)}>Erase everything</button>
             </div>
-            <span className="camp-size-note">Design sample, not the real app yet. All data is made up.</span>
+            <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={importData} />
+            <span className="camp-size-note">{saveFailed ? 'This browser is not letting the app save. Export a backup so you do not lose anything.' : 'Everything is saved on this device. Export a backup now and then.'}</span>
           </section>
         )}
 
@@ -403,6 +425,12 @@ export default function Campfire3DPreview() {
             <button type="button" className="c3-menu-item" onClick={() => { setConfirmDel(menu.id); setMenu(null); }}>Delete this fire</button>
           </div>
         </>
+      )}
+      {confirmReset && (
+        <ConfirmSheet
+          title="Erase everything?" body="All your fires and your spark history on this device will be removed. Export a backup first if you might want them back."
+          confirmLabel="Yes, erase it all" cancelLabel="Keep it" onConfirm={eraseAll} onCancel={() => setConfirmReset(false)}
+        />
       )}
       {confirmDel && (
         <ConfirmSheet
