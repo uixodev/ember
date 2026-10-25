@@ -28,7 +28,11 @@ export interface FireSpec {
   /** Mastery design, 1 to 7. */
   tier?: Tier;
 }
-export interface LabelPos { id: string; x: number; y: number; depth: number; visible: boolean }
+export interface LabelPos {
+  id: string; x: number; y: number; depth: number; visible: boolean;
+  /** Screen point straight above the middle of the fire, for things that float over it. */
+  ax: number; ay: number;
+}
 export interface CameraView { azimuth: number; polar: number; distance?: number }
 
 export interface DragState {
@@ -1071,7 +1075,8 @@ export class CampfireWorld {
       const dist = v.distanceTo(this.camera.position);
       v.project(this.camera);
       const wanted = this.showAll || this.selected === f.id || this.hover === f.id;
-      out.push({ id: f.id, x: (v.x * 0.5 + 0.5) * this.width, y: (-v.y * 0.5 + 0.5) * this.height, depth: Math.max(0, Math.min(1, (dist - this.baseDistance * 0.45) / (this.baseDistance * 1.0))), visible: v.z < 1 && wanted });
+      const top = new THREE.Vector3(f.pos.x, (2.05 + (f.tier >= 7 ? 0.55 : 0)) * f.scale, f.pos.z).project(this.camera);
+      out.push({ id: f.id, ax: (top.x * 0.5 + 0.5) * this.width, ay: (-top.y * 0.5 + 0.5) * this.height, x: (v.x * 0.5 + 0.5) * this.width, y: (-v.y * 0.5 + 0.5) * this.height, depth: Math.max(0, Math.min(1, (dist - this.baseDistance * 0.45) / (this.baseDistance * 1.0))), visible: v.z < 1 && wanted });
     }
     this.opts.onFrame(out);
   }

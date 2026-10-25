@@ -126,7 +126,7 @@ export default function Campfire3DPreview() {
     const el = popEl.current;
     if (!el || !popId.current) return;
     const l = labels.find((x) => x.id === popId.current);
-    if (l && l.visible) { el.style.transform = `translate(${l.x.toFixed(1)}px, ${(l.y - 96).toFixed(1)}px) translate(-50%, -100%)`; el.style.opacity = ''; } else el.style.opacity = '0';
+    if (l && l.visible) { el.style.transform = `translate(${l.ax.toFixed(1)}px, ${l.ay.toFixed(1)}px) translate(-50%, -100%)`; el.style.opacity = ''; } else el.style.opacity = '0';
   }, []);
   useEffect(() => {
     if (!pop) return;
