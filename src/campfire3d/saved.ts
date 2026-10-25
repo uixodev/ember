@@ -13,6 +13,8 @@ import type { LogEvent } from './SparkLog';
 export interface Fire {
   area: Area;
   percent: number;
+  /** Experience: every piece of wood adds the heat it gives. Decides the level and the look. */
+  xp: number;
   since: number;
   rate: number;
   size: Size;
@@ -42,11 +44,16 @@ function fireFrom(raw: unknown): Fire | null {
   const percent = num(r.percent, 0, 100, 0);
   return {
     area: { id: a.id, name, place: 'side', coolingMinutes: 1440, sparks: [`Spend 5 minutes on ${name || 'it'}`], level: 0, levelSince: 0, createdAt: num(a.createdAt, 0, 8.64e15, 0) },
-    percent, since: num(r.since, 0, 8.64e15, Date.now()), rate: num(r.rate, 1, 2000, 50),
+    percent, xp: Math.round(num(r.xp, 0, 1e9, -1)), since: num(r.since, 0, 8.64e15, Date.now()), rate: num(r.rate, 1, 2000, 50),
     size: Math.round(num(r.size, 1, 4, 2)) as Size, color, style, creature,
     main: r.main === true ? true : undefined,
     pos: p && typeof p.x === 'number' && typeof p.z === 'number' ? { x: num(p.x, -40, 40, 0), z: num(p.z, -40, 40, 0) } : undefined,
   };
+}
+
+/** Backups from before levels existed have no experience: earn it from the list of sparks. */
+function withXp(fires: Fire[], events: LogEvent[]): void {
+  for (const f of fires) if (f.xp < 0) f.xp = Math.round(events.filter((e) => e.areaId === f.area.id).reduce((n, e) => n + e.gain, 0));
 }
 
 function eventFrom(raw: unknown): LogEvent | null {
@@ -63,6 +70,7 @@ export function parseSaved(text: string): Saved | null {
     if (!d || typeof d !== 'object' || !Array.isArray(d.fires)) return null;
     const fires = d.fires.map(fireFrom).filter((f): f is Fire => f !== null).slice(0, 12);
     const events = (Array.isArray(d.events) ? d.events : []).map(eventFrom).filter((e): e is LogEvent => e !== null).slice(-2000);
+    withXp(fires, events);
     return { fires, events };
   } catch {
     return null;
@@ -114,7 +122,7 @@ export function fromClassic(text: string): Saved | null {
     const perDay = (100 / (3 * Math.max(60, a.coolingMinutes))) * 1440;
     return {
       area: { ...a, name: a.name.slice(0, 24), sparks: a.sparks.length ? a.sparks : [`Spend 5 minutes on ${a.name}`] },
-      percent: PERCENT_OF_LEVEL[heat.level] ?? 0, since: now, rate: Math.round(Math.max(5, Math.min(720, perDay))),
+      percent: PERCENT_OF_LEVEL[heat.level] ?? 0, xp: -1, since: now, rate: Math.round(Math.max(5, Math.min(720, perDay))),
       size: a.place === 'main' ? 4 : 2, color: CLASSIC_COLORS[i % CLASSIC_COLORS.length], style: 'camp', creature: 'auto',
       main: a.place === 'main' || undefined, pos: slots[i],
     };
@@ -125,5 +133,6 @@ export function fromClassic(text: string): Saved | null {
     if (!f) return [];
     return [{ id: now + i, areaId: f.area.id, areaName: f.area.name, swatch: PALETTES[f.color].swatch, at: e.at, note: (e.note ?? '').slice(0, 160), minutes: Math.round(Math.max(1, Math.min(1440, e.minutes ?? 5))), gain: e.type === 'big' ? 100 : 10 }];
   }).slice(-2000);
+  withXp(fires, events);
   return { fires, events };
 }

@@ -240,3 +240,21 @@ html.c3-lock body { position: fixed; inset: 0; width: 100%; }
 .c3-refresh:active svg { transform: rotate(180deg); }
 .c3-refresh svg { transition: transform .3s var(--ease-out, ease-out); }
 .c3-refresh:focus-visible { outline: 3px solid var(--sun); outline-offset: 2px; }
+
+/* Level shield that pops up over a fire */
+.c3-pop { position: absolute; left: 0; top: 0; z-index: 130; pointer-events: none; will-change: transform; }
+.c3-pop-in { display: grid; justify-items: center; gap: 4px; transform-origin: 50% 100%; animation: c3-shield 2.4s cubic-bezier(.2, .9, .3, 1.2) both; }
+.c3-pop-in.up { animation-duration: 3.2s; }
+.c3-pop-in svg { filter: none; }
+.c3-pop-name { padding: 3px 10px; border-radius: 999px; background: rgb(36, 31, 110); font: 700 12px/1.2 var(--font); color: #fff; }
+.c3-pop-up { padding: 4px 12px; border-radius: 999px; background: #fff; color: var(--navy); font: 800 13px/1.2 var(--font); }
+@keyframes c3-shield { 0% { opacity: 0; transform: translateY(14px) scale(.4); } 14% { opacity: 1; transform: translateY(0) scale(1.12); } 24% { transform: scale(1); } 82% { opacity: 1; } 100% { opacity: 0; transform: translateY(-12px) scale(.95); } }
+@media (prefers-reduced-motion: reduce) { .c3-pop-in { animation: c3-fade 2.4s ease both; } @keyframes c3-fade { 0%, 85% { opacity: 1; } 100% { opacity: 0; } } }
+
+/* Level tab */
+.c3-level { display: grid; gap: 10px; }
+.c3-level-head { display: flex; align-items: center; gap: 12px; }
+.c3-level-head b { display: block; font: 800 20px/1.1 var(--font); letter-spacing: -.02em; }
+.c3-level-head span { font: 450 13px/1.3 var(--font); color: var(--ink-2); }
+.c3-tierchip { display: inline-flex; align-items: center; gap: 6px; padding-left: 8px; }
+.c3-panel .seg-item { padding-left: 6px; padding-right: 6px; font-size: 12.5px; }

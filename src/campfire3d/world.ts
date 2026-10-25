@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { buildTier, type TierDecor } from './tiers';
+import type { Tier } from './mastery';
 import { buildCreature, autoCreature, type Creature, type CreatureId } from './creatures';
 import { flameGeometry, type FlameShape } from './flame';
 import { PALETTES, type PaletteId } from './palettes';
@@ -23,6 +25,8 @@ export interface FireSpec {
   creature: CreatureId | 'auto' | 'none';
   /** Where the fire sits on the ground. Left out, it takes the next free spot in the grid. */
   pos?: { x: number; z: number };
+  /** Mastery design, 1 to 7. */
+  tier?: Tier;
 }
 export interface LabelPos { id: string; x: number; y: number; depth: number; visible: boolean }
 export interface CameraView { azimuth: number; polar: number; distance?: number }
@@ -86,6 +90,7 @@ interface FireObj {
   tongues: Tongue[]; coals: THREE.Mesh[]; stones: THREE.Mesh[]; hotPool: THREE.Mesh; coldPool: THREE.Mesh; ring: THREE.Mesh; hit: THREE.Mesh; ash: THREE.Mesh;
   shownF: number; shownCoal: number; shownCold: number; flare: number; excite: number; index: number;
   paintedLevel: Level | null; paintedColor: PaletteId | null;
+  tier: Tier; decor: TierDecor | null;
   flames: THREE.Group; creature: { id: CreatureId; obj: Creature } | null; creatureShown: number; facing: number;
 }
 
@@ -377,21 +382,22 @@ export class CampfireWorld {
     }
 
     this.scene.add(group);
-    return { id: spec.id, spec, group, scale, flames: fireGroup, creature: null, creatureShown: 0, facing: 0, pos: new THREE.Vector3(), tongues, coals, stones, hotPool, coldPool, ring, hit, ash, shownF: FLAME_LEVEL[spec.level], shownCoal: COAL_GLOW[spec.level], shownCold: spec.level === 0 ? 1 : 0, flare: 0, excite: 0, index, paintedLevel: null, paintedColor: spec.color };
+    return { id: spec.id, spec, group, scale, flames: fireGroup, creature: null, creatureShown: 0, facing: 0, pos: new THREE.Vector3(), tongues, coals, stones, hotPool, coldPool, ring, hit, ash, shownF: FLAME_LEVEL[spec.level], shownCoal: COAL_GLOW[spec.level], shownCold: spec.level === 0 ? 1 : 0, flare: 0, excite: 0, index, paintedLevel: null, paintedColor: spec.color, tier: 1, decor: null };
   }
 
   /** Create, update and arrange one campfire per area. */
   setFires(specs: FireSpec[]): void {
     const capped = specs.slice(0, MAX_FIRES);
     const ids = new Set(capped.map((s) => s.id));
-    for (const [id, f] of this.fires) if (!ids.has(id)) { this.dropCreature(f); this.scene.remove(f.group); this.fires.delete(id); }
+    for (const [id, f] of this.fires) if (!ids.has(id)) { this.dropCreature(f); f.decor?.dispose(); this.scene.remove(f.group); this.fires.delete(id); }
     const slots = layoutFires(capped.length);
     capped.forEach((spec, i) => {
       let f = this.fires.get(spec.id);
-      if (f && (f.spec.size !== spec.size || f.spec.style !== spec.style)) { this.dropCreature(f); this.scene.remove(f.group); f = undefined; }
+      if (f && (f.spec.size !== spec.size || f.spec.style !== spec.style)) { this.dropCreature(f); f.decor?.dispose(); this.scene.remove(f.group); f = undefined; }
       if (!f) { f = this.buildFire(spec, i); this.fires.set(spec.id, f); }
       f.spec = spec;
       f.index = i;
+      this.applyTier(f, spec.tier ?? 1);
       f.pos.set(spec.pos?.x ?? slots[i].x, 0, spec.pos?.z ?? slots[i].z);
       f.group.position.copy(f.pos);
       if (f.paintedColor !== spec.color) this.paint(f, spec.color);
@@ -407,6 +413,13 @@ export class CampfireWorld {
 
   private fitSig = '';
   private sigOf(): string { return [...this.fires.values()].map((f) => `${f.id}:${f.pos.x.toFixed(2)},${f.pos.z.toFixed(2)}`).join('|'); }
+
+  private applyTier(f: FireObj, tier: Tier): void {
+    if (f.tier === tier && (f.decor || tier === 1)) return;
+    if (f.decor) { f.group.remove(f.decor.group); f.decor.dispose(); f.decor = null; }
+    f.tier = tier;
+    if (tier > 1) { f.decor = buildTier(tier); f.group.add(f.decor.group); }
+  }
 
   /** Frame the camera around wherever the fires are now. */
   private refit(keepTarget = false): void {
@@ -786,6 +799,8 @@ export class CampfireWorld {
       f.shownCoal = damp(f.shownCoal, COAL_GLOW[lvl], 2.4, dt);
       f.shownCold = damp(f.shownCold, lvl === 0 ? 1 : 0, 2.2, dt);
       f.flare = Math.max(0, f.flare - dt * 1.3);
+      if (f.decor && !this.opts.reducedMotion) f.decor.tick(t + f.index, Math.min(1, f.shownF * 1.2 + f.shownCoal * 0.15));
+      else if (f.decor) f.decor.tick(0, Math.min(1, f.shownF));
       const over = this.hover === f.id;
       f.excite = damp(f.excite, over ? 1 : 0, 8, dt);
       const F = f.shownF;
