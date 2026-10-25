@@ -56,14 +56,12 @@ type Tab = 'size' | 'colour' | 'style' | 'creature';
 export default function Campfire3DPreview() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const worldRef = useRef<CampfireWorld | null>(null);
-  const labelRefs = useRef(new Map<string, HTMLDivElement>());
   const topRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const viewIndex = useRef(0);
   const [failed, setFailed] = useState(false);
   const [hint, setHint] = useState(true);
-  const [names, setNames] = useState(false);
   const [creaturesAll, setCreaturesAll] = useState(false);
   const [held, setHeld] = useState<StickKind | null>(null);
   const [icons, setIcons] = useState<Partial<Record<StickKind, string>>>({});
@@ -86,15 +84,7 @@ export default function Campfire3DPreview() {
     return () => document.documentElement.classList.remove('c3-lock');
   }, []);
 
-  const onFrame = useCallback((labels: LabelPos[]) => {
-    for (const l of labels) {
-      const el = labelRefs.current.get(l.id);
-      if (!el) continue;
-      el.style.transform = `translate(${l.x.toFixed(1)}px, ${l.y.toFixed(1)}px) translate(-50%, -50%) scale(${(1.1 - l.depth * 0.4).toFixed(3)})`;
-      el.style.opacity = l.visible ? String(1 - l.depth * 0.4) : '0';
-      el.style.zIndex = String(Math.round((1 - l.depth) * 100));
-    }
-  }, []);
+  const onFrame = useCallback((_labels: LabelPos[]) => {}, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -132,7 +122,6 @@ export default function Campfire3DPreview() {
     worldRef.current?.setFires(shown.map((f) => ({ id: f.area.id, level: f.level, progress: f.progress, size: f.size, color: f.color, style: f.style, creature: f.creature })));
   }, [shown]);
   useEffect(() => { worldRef.current?.setSelected(sel); }, [sel]);
-  useEffect(() => { worldRef.current?.setShowAllNames(names); }, [names]);
   useEffect(() => { worldRef.current?.setCreaturesAlways(creaturesAll); }, [creaturesAll]);
 
   const cancelPending = () => {
@@ -152,21 +141,6 @@ export default function Campfire3DPreview() {
 
   const feedWithoutWood = () => { if (chosen) setPending({ fireId: chosen.area.id, kind: 'branch', stickId: null }); };
 
-  // Taps on a name tag select its fire (the tags let touches through so dragging works).
-  const tap = useRef({ x: 0, y: 0, t: 0 });
-  const onStageDown = (e: React.PointerEvent) => { tap.current = { x: e.clientX, y: e.clientY, t: performance.now() }; };
-  const onStageUp = (e: React.PointerEvent) => {
-    if (Math.hypot(e.clientX - tap.current.x, e.clientY - tap.current.y) > 8 || performance.now() - tap.current.t > 450) return;
-    let best: { id: string; z: number } | null = null;
-    for (const [id, el] of labelRefs.current) {
-      const r = el.getBoundingClientRect();
-      if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
-        const z = Number(el.style.zIndex) || 0;
-        if (!best || z > best.z) best = { id, z };
-      }
-    }
-    if (best) setSel(best.id);
-  };
 
   const patch = (change: Partial<Fire>) => { if (chosen) setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, ...change } : f))); };
   const shuffle = () => setFires((all) => all.map((f) => { const lv = ((Math.random() * 4) | 0) as Level; return { ...f, level: lv, progress: lv ? 0.2 + Math.random() * 0.75 : 0, cool: lv ? 'a while' : 'cold' }; }));
@@ -193,19 +167,12 @@ export default function Campfire3DPreview() {
   const togglePanel = (p: Exclude<Panel, null>) => setPanel((cur) => (cur === p ? null : p));
 
   return (
-    <div className="c3-app" ref={stageRef} onPointerDown={onStageDown} onPointerUp={onStageUp}>
+    <div className="c3-app" ref={stageRef}>
       {failed ? (
         <div className="c3-fail"><b>3D isn't available on this device</b><span>Open the flat version instead: add ?campfire to the address.</span></div>
       ) : (
         <>
           <canvas ref={canvasRef} className="c3-canvas" aria-label="Your campfires" />
-          {shown.map((f) => (
-            <div key={f.area.id} ref={(el) => { if (el) labelRefs.current.set(f.area.id, el); else labelRefs.current.delete(f.area.id); }}
-              className={`camp-label c3-label c3-fire-label${sel === f.area.id ? ' sel' : ''}${drag?.overFire === f.area.id ? ' over' : ''}`}>
-              <HeatIcon level={f.level} size={16} />
-              <span className="camp-label-text">{f.area.name}</span>
-            </div>
-          ))}
           {shown.length === 0 && <div className="camp-empty"><b>No fires yet</b><span>Add an area to light its fire.</span></div>}
           {drag && (
             <div className={`c3-chip${overFire ? ' ready' : ''}`} style={{ left: Math.max(70, Math.min(drag.x, (stageRef.current?.clientWidth ?? 390) - 70)), top: Math.min(drag.y, stageH - 150) }} aria-hidden="true">
@@ -218,6 +185,12 @@ export default function Campfire3DPreview() {
 
       <div className="c3-top" ref={topRef}>
         <TopBar initial="J" streak={4} sparksToday={3} level={warm as HeatLevel} />
+        {chosen && (
+          <div className="c3-title" aria-live="polite">
+            <h1>{chosen.area.name}{chosen.main ? ' · main' : ''}</h1>
+            <span className={`c3-state lv${chosen.level}`}><HeatIcon level={chosen.level} size={18} />{LEVEL_NAMES[chosen.level as HeatLevel]}</span>
+          </div>
+        )}
       </div>
       <div className="c3-side">
         <button type="button" className="c3-round" aria-label="Change the view" onClick={nextView}>
@@ -285,7 +258,6 @@ export default function Campfire3DPreview() {
               <input type="range" min={0} max={12} value={count} onChange={(e) => { const n = +e.target.value; setCount(n); if (sel && !fires.slice(0, n).some((f) => f.area.id === sel)) setSel(null); }} />
             </label>
             <div className="c3-switches">
-              <button type="button" role="switch" aria-checked={names} className={`c3-pill${names ? ' on' : ''}`} onClick={() => setNames((n) => !n)}>Show every name</button>
               <button type="button" role="switch" aria-checked={creaturesAll} className={`c3-pill${creaturesAll ? ' on' : ''}`} onClick={() => setCreaturesAll((n) => !n)}>Creatures everywhere</button>
               <button type="button" className="c3-pill" onClick={shuffle}>Shuffle heats</button>
               <button type="button" className="c3-pill" onClick={mixSizes}>Mix sizes</button>
@@ -296,8 +268,7 @@ export default function Campfire3DPreview() {
 
         {chosen && !drag && (
           <div className="c3-focus">
-            <HeatIcon level={chosen.level} size={30} />
-            <div className="c3-focus-text"><b>{chosen.area.name}{chosen.main ? ' · main' : ''}</b><span>{LEVEL_NAMES[chosen.level as HeatLevel]} · {chosen.level === 0 ? 'one spark warms it' : `cools in ${chosen.cool}`}</span></div>
+            <div className="c3-focus-text"><b>{chosen.level === 0 ? 'One spark warms it' : `Cools in ${chosen.cool}`}</b></div>
             <button type="button" className="c3-act primary" onClick={feedWithoutWood}>Feed it</button>
             <button type="button" className={`c3-act${panel === 'customise' ? ' on' : ''}`} aria-expanded={panel === 'customise'} onClick={() => togglePanel('customise')}>Customise</button>
           </div>

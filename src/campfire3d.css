@@ -69,7 +69,7 @@ html.c3-lock body { position: fixed; inset: 0; width: 100%; }
 .c3-round { width: 44px; height: 44px; border: 0; border-radius: 50%; background: rgba(36, 31, 110, .72); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; touch-action: manipulation; }
 .c3-round.on { background: #fff; color: var(--navy); }
 .c3-round:focus-visible { outline: 3px solid var(--sun); outline-offset: 2px; }
-.c3-app .c3-hint { position: absolute; left: 50%; bottom: auto; top: calc(76px + env(safe-area-inset-top)); transform: translateX(-50%); }
+.c3-app .c3-hint { position: absolute; left: 50%; bottom: auto; top: calc(150px + env(safe-area-inset-top)); transform: translateX(-50%); }
 
 /* everything at the bottom stacks: panel, the picked fire, then the wood dock */
 .c3-bottom { position: absolute; left: 0; right: 0; bottom: 0; display: grid; gap: 8px; padding: 0 10px calc(10px + env(safe-area-inset-bottom)); pointer-events: none; z-index: 120; }
@@ -107,3 +107,10 @@ html.c3-lock body { position: fixed; inset: 0; width: 100%; }
 /* a small wiggle room for small phones */
 @media (max-height: 640px) { .c3-slot b { display: none; } .c3-focus-text span { display: none; } }
 @media (prefers-reduced-motion: no-preference) { .c3-panel { animation: rise-in .25s var(--ease-out, ease-out) both; } .c3-focus { animation: rise-in .25s var(--ease-out, ease-out) both; } }
+
+/* Title and heat state of the selected fire, under the top bar */
+.c3-title { margin: 10px 56px 0; display: grid; justify-items: center; gap: 6px; text-align: center; pointer-events: none; }
+.c3-title h1 { margin: 0; max-width: 100%; font: 800 26px/1.1 var(--font); letter-spacing: -.02em; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.c3-state { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px 5px 8px; border-radius: 999px; background: rgba(36, 31, 110, .82); border: 1px solid var(--glass-line); font: 700 13px/1 var(--font); color: #fff; }
+.c3-state.lv0 { color: var(--ink-2); }
+@media (max-height: 640px) { .c3-title h1 { font-size: 22px; } }
