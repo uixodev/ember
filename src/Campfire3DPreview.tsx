@@ -396,6 +396,7 @@ export default function Campfire3DPreview() {
         <FeedSheet
           area={pendingFire.area} hours={HOURS}
           prefillMinutes={STICKS[pending.kind].minutes} prefillEffort={STICKS[pending.kind].effort}
+          simple
           footNote={<>Adds <b>+{STICKS[pending.kind].gain}%</b>: {pendingFire.area.name || 'this fire'} goes from <b>{Math.round(pendingFire.pct)}%</b> to <b>{Math.min(100, Math.round(pendingFire.pct + STICKS[pending.kind].gain))}%</b>.</>}
           onClose={cancelPending}
           onConfirm={(entry) => confirm(entry)}

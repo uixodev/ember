@@ -15,7 +15,7 @@ export type FeedKind = 'spark' | 'big';
  * the longer the fire holds. You can also pick when you plan to come back.
  * The area's spark list works as templates for the note.
  */
-export function FeedSheet({ area, hours, kind = 'spark', prefill = '', prefillMinutes, prefillEffort, footNote, onConfirm, onClose }: {
+export function FeedSheet({ area, hours, kind = 'spark', prefill = '', prefillMinutes, prefillEffort, footNote, simple = false, onConfirm, onClose }: {
   area: Area;
   /** Your active hours, used for the "next feeding" preview. */
   hours: ActiveHours;
@@ -25,6 +25,8 @@ export function FeedSheet({ area, hours, kind = 'spark', prefill = '', prefillMi
   prefillEffort?: Effort;
   /** Replaces the "fire holds for" line, for screens that model heat differently. */
   footNote?: ReactNode;
+  /** Only ask what you did: no minutes, effort or next time, and no keyboard popping up on its own. */
+  simple?: boolean;
   onConfirm: (entry: FeedEntry & { note: string }, saveAsTemplate: boolean) => void;
   onClose: () => void;
 }) {
@@ -44,7 +46,7 @@ export function FeedSheet({ area, hours, kind = 'spark', prefill = '', prefillMi
   const nextAt = nextAtOf(next);
   const plan = planFeed(area, { minutes: minsOk ? mins : 1, effort, nextAt }, now, hours);
   const autoPlan = planFeed(area, { minutes: minsOk ? mins : 1, effort }, now, hours);
-  const canSubmit = minsOk && (big || trimmed.length > 0) && !(next.kind === 'pick');
+  const canSubmit = minsOk && (big || simple || trimmed.length > 0) && !(next.kind === 'pick');
 
   return (
     <Sheet label={big ? `Log a big session for ${area.name}` : `Feed ${area.name}`} onClose={onClose}>
@@ -59,8 +61,8 @@ export function FeedSheet({ area, hours, kind = 'spark', prefill = '', prefillMi
       >
         <div className="sheet-body">
         <textarea
-          className="sheet-field feed-note" value={note} maxLength={160} autoFocus
-          placeholder={big ? 'Built the todo list (optional)' : 'Wrote a function that sorts the list'} aria-label="What did you do?"
+          className="sheet-field feed-note" value={note} maxLength={160} autoFocus={!simple}
+          placeholder={big || simple ? 'Built the todo list (optional)' : 'Wrote a function that sorts the list'} aria-label="What did you do?"
           onChange={(e) => setNote(e.target.value)}
         />
         {!big && area.sparks.length > 0 && (
@@ -73,12 +75,16 @@ export function FeedSheet({ area, hours, kind = 'spark', prefill = '', prefillMi
             </div>
           </div>
         )}
-        <MinutesField value={minutes} onChange={setMinutes} />
-        <EffortField value={effort} onChange={setEffort} />
-        <NextField
-          value={next} onChange={setNext} now={now} startMinutes={hours.start}
-          autoText={`about ${formatWhen(autoPlan.nextAt, now)}`}
-        />
+        {!simple && (
+          <>
+            <MinutesField value={minutes} onChange={setMinutes} />
+            <EffortField value={effort} onChange={setEffort} />
+            <NextField
+              value={next} onChange={setNext} now={now} startMinutes={hours.start}
+              autoText={`about ${formatWhen(autoPlan.nextAt, now)}`}
+            />
+          </>
+        )}
         {isNew && (
           <label className="feed-check">
             <input type="checkbox" checked={save} onChange={(e) => setSave(e.target.checked)} />
