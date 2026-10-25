@@ -12,21 +12,27 @@ import './campfire.css';
  * Open with ?campfire. Everything here is made-up data so you can judge the look and the feel.
  */
 
-interface Log { name: string; level: Level; progress: number; main?: boolean; cool: string }
+/** 1 small, 2 medium, 3 large, 4 huge. Bigger logs are thicker and longer, and count more toward the fire. */
+type Size = 1 | 2 | 3 | 4;
+const SIZE_NAMES: Record<Size, string> = { 1: 'Small', 2: 'Medium', 3: 'Large', 4: 'Huge' };
+const SIZE_THICK: Record<Size, number> = { 1: 0.72, 2: 1, 3: 1.32, 4: 1.7 };
+const SIZE_LONG: Record<Size, number> = { 1: 0.66, 2: 0.82, 3: 0.97, 4: 1.1 };
+
+interface Log { name: string; level: Level; progress: number; main?: boolean; cool: string; size: Size }
 
 const SAMPLE: Log[] = [
-  { name: 'JavaScript', level: 2, progress: 0.55, main: true, cool: '1 h 20' },
-  { name: 'Cleaning', level: 3, progress: 0.8, cool: '19 h' },
-  { name: 'Reading', level: 1, progress: 0.2, cool: '5 h' },
-  { name: 'Drawing', level: 2, progress: 0.6, cool: '4 days' },
-  { name: 'Guitar', level: 0, progress: 0, cool: 'cold' },
-  { name: 'Piano', level: 3, progress: 0.9, cool: '2 days' },
-  { name: 'Running', level: 1, progress: 0.35, cool: '9 h' },
-  { name: 'Spanish', level: 2, progress: 0.4, cool: '11 h' },
-  { name: 'Cooking', level: 3, progress: 0.7, cool: '3 days' },
-  { name: 'Writing', level: 0, progress: 0, cool: 'cold' },
-  { name: 'Meditate', level: 1, progress: 0.5, cool: '7 h' },
-  { name: 'Garden', level: 2, progress: 0.3, cool: '2 days' },
+  { name: 'JavaScript', level: 2, progress: 0.55, main: true, cool: '1 h 20', size: 4 },
+  { name: 'Cleaning', level: 3, progress: 0.8, cool: '19 h', size: 2 },
+  { name: 'Reading', level: 1, progress: 0.2, cool: '5 h', size: 2 },
+  { name: 'Drawing', level: 2, progress: 0.6, cool: '4 days', size: 1 },
+  { name: 'Guitar', level: 0, progress: 0, cool: 'cold', size: 2 },
+  { name: 'Piano', level: 3, progress: 0.9, cool: '2 days', size: 3 },
+  { name: 'Running', level: 1, progress: 0.35, cool: '9 h', size: 2 },
+  { name: 'Spanish', level: 2, progress: 0.4, cool: '11 h', size: 3 },
+  { name: 'Cooking', level: 3, progress: 0.7, cool: '3 days', size: 1 },
+  { name: 'Writing', level: 0, progress: 0, cool: 'cold', size: 2 },
+  { name: 'Meditate', level: 1, progress: 0.5, cool: '7 h', size: 1 },
+  { name: 'Garden', level: 2, progress: 0.3, cool: '2 days', size: 1 },
 ];
 
 // Stage geometry (viewBox 360 x 380): a flattened ring seen from slightly above.
@@ -40,12 +46,13 @@ const IN = { rx: 24, ry: 12 };
 const rad = (d: number) => (d * Math.PI) / 180;
 
 /** Main log at the front (bottom). The others spread evenly around the ring. */
-function place(count: number, i: number) {
+function place(count: number, i: number, size: Size) {
   const theta = i === 0 ? 90 : 90 + (i * 360) / count;
   const c = Math.cos(rad(theta));
   const s = Math.sin(rad(theta));
   const inner = { x: C.x + IN.rx * c, y: C.y + IN.ry * s };
-  const outer = { x: C.x + OUT.rx * c, y: C.y + OUT.ry * s };
+  const f = SIZE_LONG[size];
+  const outer = { x: C.x + OUT.rx * f * c, y: C.y + OUT.ry * f * s };
   const len = Math.hypot(outer.x - inner.x, outer.y - inner.y);
   const angle = (Math.atan2(outer.y - inner.y, outer.x - inner.x) * 180) / Math.PI;
   return { theta, c, s, inner, outer, len, angle };
@@ -59,13 +66,13 @@ function flameUp(x: number, h: number, w: number, lean = 0): string {
 
 const style = (v: Record<string, string | number>) => v as CSSProperties;
 
-/** Overall warmth, 0 to 1. The main log counts double. */
+/** Overall warmth, 0 to 1. Bigger logs count more. */
 function warmth(logs: Log[]): number {
   if (!logs.length) return 0;
   let sum = 0;
   let weight = 0;
   for (const l of logs) {
-    const w = l.main ? 2 : 1;
+    const w = l.size;
     sum += w * (l.level / 3);
     weight += w;
   }
@@ -77,7 +84,7 @@ function overallLevel(w: number): Level {
 }
 
 function LogShape({ log, p, selected, flare, onPick }: { log: Log; p: ReturnType<typeof place>; selected: boolean; flare: number; onPick: () => void }) {
-  const t = (log.main ? 22 : 15) * (0.82 + 0.32 * (p.s + 1) / 2);
+  const t = 15 * SIZE_THICK[log.size] * (0.82 + 0.32 * (p.s + 1) / 2);
   const cold = log.level === 0;
   const at = (f: number) => ({ x: p.inner.x + (p.outer.x - p.inner.x) * f, y: p.inner.y + (p.outer.y - p.inner.y) * f });
   const burn = at(0.12 + 0.76 * log.progress);
@@ -165,7 +172,7 @@ export function CampfirePreview() {
   const shown = useMemo(() => logs.slice(0, count), [logs, count]);
   const w = warmth(shown);
   const level = overallLevel(w);
-  const placed = shown.map((_, i) => place(shown.length, i));
+  const placed = shown.map((l, i) => place(shown.length, i, l.size));
   const needs = shown.filter((l) => l.level <= 1).length;
   const back = placed.map((p, i) => ({ p, i })).filter(({ p }) => p.s < -0.15).sort((a, b) => a.p.s - b.p.s);
   const front = placed.map((p, i) => ({ p, i })).filter(({ p }) => p.s >= -0.15).sort((a, b) => a.p.s - b.p.s);
@@ -178,6 +185,12 @@ export function CampfirePreview() {
     setFlare((f) => ({ ...f, [sel]: (f[sel] ?? 0) + 1 }));
     setPulse((n) => n + 1);
   };
+  const resize = (size: Size) => {
+    if (sel === null) return;
+    setLogs((all) => all.map((l, i) => (i === sel ? { ...l, size } : l)));
+    setFlare((f) => ({ ...f, [sel]: (f[sel] ?? 0) + 1 }));
+  };
+  const mixSizes = () => setLogs((all) => all.map((l) => ({ ...l, size: (1 + ((Math.random() * 4) | 0)) as Size })));
   const shuffle = () => setLogs((all) => all.map((l) => { const lv = ((Math.random() * 4) | 0) as Level; return { ...l, level: lv, progress: lv ? 0.2 + Math.random() * 0.75 : 0, cool: lv ? 'a while' : 'cold' }; }));
 
   return (
@@ -238,6 +251,19 @@ export function CampfirePreview() {
       {chosen ? (
         <section className="camp-card">
           <div className="camp-card-top"><HeatIcon level={chosen.level} size={30} /><div><b>{chosen.name}{chosen.main ? ' · main' : ''}</b><span>{LEVEL_NAMES[chosen.level]} · {chosen.level === 0 ? 'one spark warms it' : `cools in ${chosen.cool}`}</span></div></div>
+          <div className="camp-size">
+            <span className="camp-size-title">Log size <b>{SIZE_NAMES[chosen.size]}</b></span>
+            <div className="camp-size-row" role="radiogroup" aria-label="Log size">
+              {([1, 2, 3, 4] as Size[]).map((z) => (
+                <button key={z} type="button" role="radio" aria-checked={chosen.size === z} aria-label={SIZE_NAMES[z]}
+                  className={`camp-size-btn${chosen.size === z ? ' on' : ''}`} onClick={() => resize(z)}>
+                  <i style={{ height: 6 + z * 4 }} />
+                  <span>{SIZE_NAMES[z]}</span>
+                </button>
+              ))}
+            </div>
+            <span className="camp-size-note">Bigger logs are longer and thicker, and weigh more in your overall fire.</span>
+          </div>
           <div className="camp-card-actions"><Button variant="white" onClick={feed} disabled={chosen.level === 3 && chosen.progress === 1}>Feed it</Button><Button variant="glass">Open</Button></div>
           <p>Tap to feed. Hold to start the timer. The little glowing dot on the log is its countdown, creeping toward the fire.</p>
         </section>
@@ -252,11 +278,14 @@ export function CampfirePreview() {
         <label><span>Areas: <b>{count}</b></span>
           <input type="range" min={0} max={12} value={count} onChange={(e) => { setCount(+e.target.value); if (sel !== null && sel >= +e.target.value) setSel(null); }} />
         </label>
-        <Button variant="glass" small onClick={shuffle}>Shuffle the heats</Button>
+        <div className="camp-btns">
+          <Button variant="glass" small onClick={shuffle}>Shuffle the heats</Button>
+          <Button variant="glass" small onClick={mixSizes}>Mix the sizes</Button>
+        </div>
         <ul>
-          <li><b>Centre fire</b> is your overall warmth. The main log counts double.</li>
+          <li><b>Centre fire</b> is your overall warmth. Bigger logs count more.</li>
           <li><b>Logs</b> show their own heat: flames, glow, coals, frost.</li>
-          <li><b>Main</b> is the thickest log, nearest your thumb.</li>
+          <li><b>Size</b> is yours to set per area: small to huge. Main sits at the front.</li>
           <li><b>Resting</b> areas are the small stack at the corner.</li>
         </ul>
       </section>
