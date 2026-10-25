@@ -245,24 +245,26 @@ export default function Campfire3DPreview() {
             <div className="c3-more"><div className="c3-more-in">
         <button type="button" className="c3-round" aria-label="Change the view" onClick={nextView}>
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" /><circle cx="12" cy="12" r="3" fill="currentColor" /></svg>
+        <span className="c3-lab">View</span>
         </button>
         <button type="button" className="c3-round" aria-label="Add an area" disabled={fires.length >= 12} onClick={addFire}>
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" fill="none" /></svg>
+        <span className="c3-lab">New area</span>
         </button>
         <button type="button" className={`c3-round${moving ? ' on' : ''}`} aria-label="Move fires" aria-pressed={moving} onClick={() => { setMoving((m) => !m); setPanel(null); setHint(false); }}>
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>
+        <span className="c3-lab">Move fires</span>
         </button>
         <button type="button" className={`c3-round${panel === 'menu' ? ' on' : ''}`} aria-label="More options" aria-expanded={panel === 'menu'} onClick={() => togglePanel('menu')}>
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" fill="none" /><circle cx="16" cy="7" r="2.4" fill="currentColor" /><circle cx="8" cy="17" r="2.4" fill="currentColor" /></svg>
+        <span className="c3-lab">Options</span>
         </button>
 
+        <button type="button" className="c3-round" onClick={() => { setPanel(null); setLogOpen(true); }} aria-label={`${sparksToday} ${sparksToday === 1 ? 'spark' : 'sparks'} today, open the list`}>
+          <HeatIcon level={3} size={22} /><span className="c3-lab">Sparks</span><span className="c3-count">{sparksToday}</span>
+        </button>
             </div></div>
           </nav>
-          <button type="button" className="c3-sparks" onClick={() => { setPanel(null); setLogOpen(true); }} aria-label={`${sparksToday} ${sparksToday === 1 ? 'spark' : 'sparks'} today, open the list`}>
-            <HeatIcon level={3} size={20} />
-            <span>{sparksToday} {sparksToday === 1 ? 'spark' : 'sparks'}</span>
-            <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>
-          </button>
         </header>
         {chosen && (
           <div className="c3-title" aria-live="polite">

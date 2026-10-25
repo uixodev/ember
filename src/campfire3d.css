@@ -167,3 +167,24 @@ html.c3-lock body { position: fixed; inset: 0; width: 100%; }
 @media (prefers-reduced-motion: reduce) { .c3-more, .c3-tools.open .c3-more { transition: none; } }
 .c3-sparks { white-space: nowrap; flex: none; padding: 0 12px; gap: 6px; }
 .c3-head { padding: 0; }
+
+/* Menu circle at the top left; it opens downwards into a list */
+.c3-head { position: absolute; left: 14px; top: calc(10px + env(safe-area-inset-top)); z-index: 140; padding: 0; display: block; pointer-events: none; }
+.c3-head > * { pointer-events: auto; }
+.c3-tools { display: grid; grid-template-columns: auto; justify-items: start; border-radius: 28px; }
+.c3-more { display: grid; grid-template-columns: auto; grid-template-rows: 0fr; visibility: hidden; transition: grid-template-rows .28s var(--ease-out, ease-out), visibility 0s .28s; }
+.c3-tools.open .c3-more { grid-template-columns: auto; grid-template-rows: 1fr; visibility: visible; transition: grid-template-rows .28s var(--ease-out, ease-out), visibility 0s; }
+.c3-more-in { flex-direction: column; gap: 2px; min-height: 0; min-width: 0; overflow: hidden; }
+.c3-tools.open .c3-more-in { padding: 4px 0 0; }
+.c3-more-in .c3-round { width: auto; min-width: 44px; padding: 0 16px 0 12px; border-radius: 999px; justify-content: flex-start; gap: 10px; font: 700 14px/1 var(--font); white-space: nowrap; position: relative; }
+.c3-more-in .c3-round .c3-lab { padding-right: 6px; }
+.c3-count { margin-left: auto; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: rgba(255,255,255,.18); display: inline-flex; align-items: center; justify-content: center; font: 750 12px/1 var(--font); }
+.c3-more-in .c3-round.on .c3-count { background: rgba(36,31,110,.15); }
+.c3-more-in { width: 100%; }
+.c3-more-in .c3-round { width: 100%; }
+.c3-title { margin: 0 64px; }
+.c3-top { padding-top: calc(12px + env(safe-area-inset-top)); }
+.c3-tools.open { background: rgb(36, 31, 110); }
+.c3-tools { box-sizing: border-box; width: 54px; transition: width .28s var(--ease-out, ease-out); overflow: hidden; }
+.c3-tools.open { width: 184px; }
+@media (prefers-reduced-motion: reduce) { .c3-tools { transition: none; } }
