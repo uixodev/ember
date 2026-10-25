@@ -264,12 +264,12 @@ export default function Campfire3DPreview() {
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" fill="none" /><circle cx="16" cy="7" r="2.4" fill="currentColor" /><circle cx="8" cy="17" r="2.4" fill="currentColor" /></svg>
         </button>
 
+        <button type="button" className="c3-round c3-sparks-row" onClick={() => { setPanel(null); setLogOpen(true); }} aria-label={`${sparksToday} ${sparksToday === 1 ? 'spark' : 'sparks'} today, open the list`}>
+          <span>Sparks</span><span className="c3-count">{sparksToday}</span>
+        </button>
             </div></div>
           </nav>
         </header>
-        <button type="button" className="c3-sparks" onClick={() => { setPanel(null); setLogOpen(true); }} aria-label={`${sparksToday} ${sparksToday === 1 ? 'spark' : 'sparks'} today, open the list`}>
-          <span>Sparks</span><span className="c3-count">{sparksToday}</span>
-        </button>
         {chosen && (
           <div className="c3-title" aria-live="polite">
             <h1>{chosen.area.name || 'New area'}</h1>
