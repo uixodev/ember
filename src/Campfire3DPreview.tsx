@@ -3,6 +3,7 @@ import { FeedSheet } from './components/ui/FeedSheet';
 import { play, playHeat, unlockAudio } from './sound';
 import { HeatIcon } from './components/ui/HeatIcon';
 import { Segmented } from './components/ui/Tabs';
+import { SparkLog, type LogEvent } from './campfire3d/SparkLog';
 import { ConfirmSheet } from './components/ui/Sheets';
 import { LEVEL_NAMES, formatSpan, formatWhen } from './engine/format';
 import { DEFAULT_ACTIVE_HOURS, type Level as HeatLevel } from './engine/heat';
@@ -78,6 +79,21 @@ export default function Campfire3DPreview() {
   const [icons, setIcons] = useState<Partial<Record<StickKind, string>>>({});
   const [fires, setFires] = useState<Fire[]>(() => SAMPLE.slice(0, 5));
   const [moving, setMoving] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const t = window.setInterval(() => setNow(Date.now()), 10_000); return () => window.clearInterval(t); }, []);
+  const [events, setEvents] = useState<LogEvent[]>(() => {
+    const t = Date.now(), H = 3_600_000;
+    const e = (id: number, ago: number, f: Fire, note: string, minutes: number, gain: number): LogEvent => ({ id, areaId: f.area.id, areaName: f.area.name, swatch: PALETTES[f.color].swatch, at: t - ago * H, note, minutes, gain });
+    return [
+      e(1, 0.4, SAMPLE[0], 'Wrote a function that sorts the list', 30, 20),
+      e(2, 2, SAMPLE[1], 'Cleaned the kitchen', 15, 10),
+      e(3, 4, SAMPLE[5], 'Practised scales', 5, 5),
+      e(4, 27, SAMPLE[0], 'Fixed a bug in the form', 60, 30),
+      e(5, 30, SAMPLE[3], 'Sketched a portrait', 30, 20),
+    ];
+  });
+  const [logOpen, setLogOpen] = useState(false);
+  const sparksToday = useMemo(() => { const d = new Date(now); return events.filter((e) => e.at >= new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()).length; }, [events, now]);
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
   const [sel, setSel] = useState<string | null>('js');
@@ -86,8 +102,6 @@ export default function Campfire3DPreview() {
   const [panel, setPanel] = useState<Panel>(null);
   const [tab, setTab] = useState<Tab>('cooling');
 
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => { const t = window.setInterval(() => setNow(Date.now()), 10_000); return () => window.clearInterval(t); }, []);
   const shown = useMemo<Live[]>(() => fires.map((f) => { const pct = Math.max(0, f.percent - (f.rate * (now - f.since)) / DAY); return { ...f, pct, level: levelOf(pct), progress: pct / 100 }; }), [fires, now]);
   const chosen = shown.find((f) => f.area.id === sel);
   const pendingFire = pending ? shown.find((f) => f.area.id === pending.fireId) : undefined;
@@ -147,13 +161,14 @@ export default function Campfire3DPreview() {
     setPending(null);
   };
 
-  const confirm = (_entry: FeedEntry & { note: string }) => {
+  const confirm = (entry: FeedEntry & { note: string }) => {
     if (!pending || !pendingFire) return;
     const fire = pendingFire;
     const to = levelOf(Math.min(100, fire.pct + STICKS[pending.kind].gain));
     play('woodBurn'); window.setTimeout(() => playHeat(to), 450);
     if (pending.stickId) worldRef.current?.consumeStick(pending.stickId); else worldRef.current?.flare(fire.area.id);
     setFires((all) => all.map((f) => (f.area.id === fire.area.id ? { ...f, percent: Math.min(100, fire.pct + STICKS[pending.kind].gain), since: Date.now() } : f)));
+    setEvents((all) => [...all, { id: Date.now(), areaId: fire.area.id, areaName: fire.area.name, swatch: PALETTES[fire.color].swatch, at: Date.now(), note: entry.note, minutes: entry.minutes ?? 5, gain: STICKS[pending.kind].gain }]);
     setPending(null);
   };
 
@@ -222,7 +237,7 @@ export default function Campfire3DPreview() {
 
       <div className="c3-top" ref={topRef}>
         <header className="c3-head">
-          <div className="c3-tools">
+          <nav className="c3-tools" aria-label="Tools">
         <button type="button" className="c3-round" aria-label="Change the view" onClick={nextView}>
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" /><circle cx="12" cy="12" r="3" fill="currentColor" /></svg>
         </button>
@@ -235,8 +250,12 @@ export default function Campfire3DPreview() {
         <button type="button" className={`c3-round${panel === 'menu' ? ' on' : ''}`} aria-label="More options" aria-expanded={panel === 'menu'} onClick={() => togglePanel('menu')}>
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" fill="none" /><circle cx="16" cy="7" r="2.4" fill="currentColor" /><circle cx="8" cy="17" r="2.4" fill="currentColor" /></svg>
         </button>
-          </div>
-          <span className="pill">3 sparks</span>
+          </nav>
+          <button type="button" className="c3-sparks" onClick={() => { setPanel(null); setLogOpen(true); }} aria-label={`${sparksToday} ${sparksToday === 1 ? 'spark' : 'sparks'} today, open the list`}>
+            <HeatIcon level={3} size={20} />
+            <span>{sparksToday} {sparksToday === 1 ? 'spark' : 'sparks'}</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </button>
         </header>
         {chosen && (
           <div className="c3-title" aria-live="polite">
@@ -321,7 +340,7 @@ export default function Campfire3DPreview() {
 
         {chosen && !drag && (
           <div className="c3-focus">
-            <div className="c3-focus-text"><b>{Math.round(chosen.pct)}% · loses {rateText(chosen.rate)}</b>
+            <div className="c3-focus-text"><div className="c3-meter" role="progressbar" aria-label="How warm the fire is" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(chosen.pct)}><i style={{ width: `${chosen.pct}%`, background: PALETTES[chosen.color].swatch }} /></div>
               <span>{chosen.pct <= 0 ? 'Cold. Any wood lights it again' : `Fully cooled ${formatWhen(now + coldAfter(chosen.pct, chosen.rate), now)}`}</span></div>
             <button type="button" className={`c3-act${panel === 'customise' ? ' on' : ''}`} aria-expanded={panel === 'customise'} onClick={() => togglePanel('customise')}>Customise</button>
           </div>
@@ -340,6 +359,14 @@ export default function Campfire3DPreview() {
         </section>
       </div>
 
+      {logOpen && (
+        <SparkLog
+          events={events} now={now}
+          onEdit={(id, patch) => setEvents((all) => all.map((e) => (e.id === id ? { ...e, ...patch } : e)))}
+          onDelete={(id) => setEvents((all) => all.filter((e) => e.id !== id))}
+          onClose={() => setLogOpen(false)}
+        />
+      )}
       {menu && !drag && (
         <>
           <div className="c3-menu-scrim" onPointerDown={() => setMenu(null)} />
