@@ -61,3 +61,11 @@ Notifications, the History calendar, Badges, holiday mode, the evening nudge and
 ## Credits
 
 The 3D fire is from Microsoft Fluent Emoji (MIT licence). The font is Inter Tight.
+
+## Which version opens
+
+The campfire (3D) app is the main app and opens at the plain address. Your fires and sparks are saved on the device
+(`ember:campfire:v1`), with Export and Import in its Options panel (it also reads backups from the first version).
+
+- `/` opens the campfire app.
+- `/?classic` opens the first version (rings and cards). It keeps its own saved data.
