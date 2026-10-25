@@ -5,7 +5,7 @@ import { HeatIcon } from './components/ui/HeatIcon';
 import { Segmented } from './components/ui/Tabs';
 import { fromClassic, loadSaved, parseSaved, save, toJson, type Fire } from './campfire3d/saved';
 import { Shield } from './campfire3d/Shield';
-import { TIERS, levelOfXp, progressInLevel, tierOfLevel, type Tier } from './campfire3d/mastery';
+import { TIERS, tierOfLevel, type Tier } from './campfire3d/mastery';
 import { SparkLog, type LogEvent } from './campfire3d/SparkLog';
 import { ConfirmSheet } from './components/ui/Sheets';
 import { LEVEL_NAMES, formatSpan, formatWhen } from './engine/format';
@@ -33,9 +33,9 @@ const RATES = [10, 20, 35, 50, 75, 100, 150, 240, 480, 720];
 const rateText = (r: number) => (r > 100 ? `${Math.round(r / 24)}% an hour` : `${r}% a day`);
 const coldAfter = (pct: number, rate: number) => (pct / rate) * DAY;
 
-const mk = (id: string, name: string, percent: number, rate: number, size: Size, color: PaletteId, style: FireStyle = 'camp', main = false, xp = 0): Fire => ({
+const mk = (id: string, name: string, percent: number, rate: number, size: Size, color: PaletteId, style: FireStyle = 'camp', main = false, rank = 1): Fire => ({
   area: { id, name, place: main ? 'main' : 'side', coolingMinutes: main ? 150 : 1440, sparks: [`Spend 5 minutes on ${name || 'it'}`], level: levelOf(percent), levelSince: 0, createdAt: 0 },
-  percent, xp, since: Date.now(), rate, size, color, style, creature: 'auto', main,
+  percent, rank, since: Date.now(), rate, size, color, style, creature: 'auto', main,
 });
 
 const SAMPLE: Fire[] = [
@@ -53,7 +53,7 @@ const SAMPLE: Fire[] = [
   mk('garden', 'Garden', 28, 20, 1, 'lime', 'candle'),
 ];
 // hand every area a different creature in turn, so the Hot fires don't all get the same one
-[3200, 700, 120, 9000, 0, 45000, 20000, 2500, 600, 100000, 300, 1500].forEach((xp, i) => { SAMPLE[i].xp = xp; });
+[11, 5, 2, 16, 1, 43, 28, 10, 6, 61, 3, 9].forEach((rank, i) => { SAMPLE[i].rank = rank; });
 SAMPLE.forEach((f, i) => { f.creature = CREATURE_IDS[(i + 5) % CREATURE_IDS.length]; });
 
 layoutFires(SAMPLE.length).forEach((p, i) => { SAMPLE[i].pos = p; });
@@ -107,7 +107,7 @@ export default function Campfire3DPreview() {
   popId.current = pop?.id ?? null;
   const shown = useMemo<Live[]>(() => fires.map((f) => {
     const pct = Math.max(0, f.percent - (f.rate * Math.max(0, now - f.since)) / DAY);
-    const lvl = levelOfXp(f.xp);
+    const lvl = f.rank;
     const realTier = tierOfLevel(lvl).tier;
     return { ...f, pct, level: levelOf(pct), progress: pct / 100, lvl, realTier, tier: preview[f.area.id] ?? realTier };
   }), [fires, now, preview]);
@@ -190,12 +190,14 @@ export default function Campfire3DPreview() {
     play('woodBurn'); window.setTimeout(() => playHeat(to), 450);
     if (pending.stickId) worldRef.current?.consumeStick(pending.stickId); else worldRef.current?.flare(fire.area.id);
     const gain = STICKS[pending.kind].gain;
-    const lvBefore = levelOfXp(fire.xp), lvAfter = levelOfXp(fire.xp + gain);
-    if (lvAfter > lvBefore) {
-      const newDesign = tierOfLevel(lvAfter).tier > tierOfLevel(lvBefore).tier;
-      window.setTimeout(() => { play('levelUp'); setSel(fire.area.id); setPop({ id: fire.area.id, key: Date.now(), up: true, text: newDesign ? `New design: ${tierOfLevel(lvAfter).name}` : 'Level up' }); }, 1300);
+    // every time the heat reaches 100% the fire goes up a level
+    const full = fire.pct < 100 && fire.pct + gain >= 100;
+    if (full) {
+      const to = fire.rank + 1;
+      const newDesign = tierOfLevel(to).tier > tierOfLevel(fire.rank).tier;
+      window.setTimeout(() => { play('levelUp'); setSel(fire.area.id); setPop({ id: fire.area.id, key: Date.now(), up: true, text: newDesign ? `New design: ${tierOfLevel(to).name}` : 'Level up' }); }, 1300);
     }
-    setFires((all) => all.map((f) => (f.area.id === fire.area.id ? { ...f, percent: Math.min(100, fire.pct + gain), xp: f.xp + gain, since: Date.now() } : f)));
+    setFires((all) => all.map((f) => (f.area.id === fire.area.id ? { ...f, percent: Math.min(100, fire.pct + gain), rank: f.rank + (full ? 1 : 0), since: Date.now() } : f)));
     setEvents((all) => [...all, { id: Date.now(), areaId: fire.area.id, areaName: fire.area.name, swatch: PALETTES[fire.color].swatch, at: Date.now(), note: entry.note, minutes: entry.minutes ?? 5, gain: STICKS[pending.kind].gain }]);
     setPending(null);
   };
@@ -350,27 +352,24 @@ export default function Campfire3DPreview() {
             </div>
             <Segmented value={tab} onChange={setTab} options={[{ value: 'size', label: 'Size' }, { value: 'colour', label: 'Colour' }, { value: 'style', label: 'Style' }, { value: 'creature', label: 'Creature' }, { value: 'cooling', label: 'Cooling' }, { value: 'level', label: 'Level' }]} />
             <div className="c3-panel-body">
-              {tab === 'level' && (() => {
-                const pr = progressInLevel(chosen.xp);
-                return (
-                  <div className="c3-level">
-                    <div className="c3-level-head">
-                      <Shield level={pr.level} tier={chosen.tier} size={56} />
-                      <div><b>Level {pr.level}</b><span>{TIERS[chosen.tier - 1].name} design · {pr.toNext} XP to level {pr.level + 1}</span></div>
-                    </div>
-                    <div className="c3-meter" role="progressbar" aria-label="Progress to the next level" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pr.fraction * 100)}><i style={{ width: `${pr.fraction * 100}%`, background: TIERS[chosen.tier - 1].fill }} /></div>
-                    <div className="chips left" role="radiogroup" aria-label="Preview a design">
-                      {TIERS.map((t) => (
-                        <button key={t.tier} type="button" role="radio" aria-checked={chosen.tier === t.tier} className={`chip c3-tierchip${chosen.tier === t.tier ? ' on' : ''}`}
-                          onClick={() => setPreview((p) => { const n = { ...p }; if (t.tier === chosen.realTier) delete n[chosen.area.id]; else n[chosen.area.id] = t.tier; return n; })}>
-                          <Shield level={t.from} tier={t.tier} size={20} />{t.name}
-                        </button>
-                      ))}
-                    </div>
-                    <span className="camp-size-note">{chosen.tier === chosen.realTier ? `${TIERS[chosen.tier - 1].look}. Every piece of wood earns XP equal to the heat it adds.` : `Preview of ${TIERS[chosen.tier - 1].name} (level ${TIERS[chosen.tier - 1].from}+): ${TIERS[chosen.tier - 1].look}. Tap your own design to go back.`}</span>
+              {tab === 'level' && (
+                <div className="c3-level">
+                  <div className="c3-level-head">
+                    <Shield level={chosen.lvl} tier={chosen.tier} size={56} />
+                    <div><b>Level {chosen.lvl}</b><span>{TIERS[chosen.tier - 1].name} design · {chosen.pct >= 100 ? 'full, ready to level up on the next fill' : `${Math.round(100 - chosen.pct)}% of heat to the next level`}</span></div>
                   </div>
-                );
-              })()}
+                  <div className="c3-meter" role="progressbar" aria-label="Heat toward the next level" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(chosen.pct)}><i style={{ width: `${chosen.pct}%`, background: TIERS[chosen.tier - 1].fill }} /></div>
+                  <div className="chips left" role="radiogroup" aria-label="Preview a design">
+                    {TIERS.map((t) => (
+                      <button key={t.tier} type="button" role="radio" aria-checked={chosen.tier === t.tier} className={`chip c3-tierchip${chosen.tier === t.tier ? ' on' : ''}`}
+                        onClick={() => setPreview((p) => { const n = { ...p }; if (t.tier === chosen.realTier) delete n[chosen.area.id]; else n[chosen.area.id] = t.tier; return n; })}>
+                        <Shield level={t.from} tier={t.tier} size={20} />{t.name}
+                      </button>
+                    ))}
+                  </div>
+                  <span className="camp-size-note">{chosen.tier === chosen.realTier ? `${TIERS[chosen.tier - 1].look}. The fire goes up a level each time its heat reaches 100%.` : `Preview of ${TIERS[chosen.tier - 1].name} (from level ${TIERS[chosen.tier - 1].from}): ${TIERS[chosen.tier - 1].look}. Tap your own design to go back.`}</span>
+                </div>
+              )}
               {tab === 'cooling' && (
                 <>
                   <div className="chips left" role="radiogroup" aria-label="How fast it cools">
