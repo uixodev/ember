@@ -3,7 +3,7 @@ import { FeedSheet } from './components/ui/FeedSheet';
 import { play, playHeat, unlockAudio } from './sound';
 import { HeatIcon } from './components/ui/HeatIcon';
 import { Segmented } from './components/ui/Tabs';
-import { fromClassic, loadSaved, parseSaved, save, toJson, type Fire } from './campfire3d/saved';
+import { SANDBOX, fromClassic, loadSaved, parseSaved, resetSandbox, save, toJson, type Fire } from './campfire3d/saved';
 import { Shield } from './campfire3d/Shield';
 import { TIERS, tierOfLevel, type Tier } from './campfire3d/mastery';
 import { SparkLog, type LogEvent } from './campfire3d/SparkLog';
@@ -79,7 +79,7 @@ export default function Campfire3DPreview() {
   const [held, setHeld] = useState<StickKind | null>(null);
   const [icons, setIcons] = useState<Partial<Record<StickKind, string>>>({});
   const [stored] = useState(loadSaved);
-  const [fires, setFires] = useState<Fire[]>(() => stored.data.fires);
+  const [fires, setFires] = useState<Fire[]>(() => (SANDBOX && stored.data.fires.length === 0 ? SAMPLE.map((f) => ({ ...f, since: Date.now() })) : stored.data.fires));
   const [saveFailed, setSaveFailed] = useState(stored.problem);
   const fileRef = useRef<HTMLInputElement>(null);
   const [moving, setMoving] = useState(false);
@@ -93,7 +93,7 @@ export default function Campfire3DPreview() {
   const sparksToday = useMemo(() => { const d = new Date(now); return events.filter((e) => e.at >= new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()).length; }, [events, now]);
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
-  const [sel, setSel] = useState<string | null>(stored.data.fires[0]?.area.id ?? null);
+  const [sel, setSel] = useState<string | null>(stored.data.fires[0]?.area.id ?? (SANDBOX ? SAMPLE[0].area.id : null));
   const [drag, setDrag] = useState<DragState | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
   const [panel, setPanel] = useState<Panel>(null);
@@ -446,7 +446,12 @@ export default function Campfire3DPreview() {
               <button type="button" className="c3-pill danger" disabled={fires.length === 0 && events.length === 0} onClick={() => setConfirmReset(true)}>Erase everything</button>
             </div>
             <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={importData} />
-            <span className="camp-size-note">{saveFailed ? 'This browser is not letting the app save. Export a backup so you do not lose anything.' : 'Everything is saved on this device. Export a backup now and then.'}</span>
+            {SANDBOX && (
+              <div className="c3-switches">
+                <button type="button" className="c3-pill" onClick={() => { resetSandbox(); window.location.reload(); }}>Reset the test copy</button>
+              </div>
+            )}
+            <span className="camp-size-note">{SANDBOX ? 'Test copy: it started as a copy of your data. Nothing here changes your real fires.' : saveFailed ? 'This browser is not letting the app save. Export a backup so you do not lose anything.' : 'Everything is saved on this device. Export a backup now and then.'}</span>
           </section>
         )}
 
@@ -472,6 +477,7 @@ export default function Campfire3DPreview() {
         </section>
       </div>
 
+      {SANDBOX && <div className="c3-testtag" aria-label="Test copy, your real data is safe">Test copy</div>}
       {pop && (() => { const f = shown.find((x) => x.area.id === pop.id); if (!f) return null; const info = TIERS[f.tier - 1]; return (
         <div className="c3-pop" ref={popEl} aria-hidden="true">
           <div className={`c3-pop-in${pop.up ? ' up' : ''}`} key={pop.key}>

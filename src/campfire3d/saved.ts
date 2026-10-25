@@ -27,7 +27,16 @@ export interface Fire {
 
 export interface Saved { fires: Fire[]; events: LogEvent[] }
 
-const KEY = 'ember:campfire:v1';
+const REAL_KEY = 'ember:campfire:v1';
+const TEST_KEY = 'ember:campfire:test:v1';
+/** ?test opens a sandbox: it starts as a copy of your data and keeps its own, so testing never touches the real thing. */
+export const SANDBOX = typeof location !== 'undefined' && new URLSearchParams(location.search).has('test');
+const KEY = SANDBOX ? TEST_KEY : REAL_KEY;
+
+/** Throw the test copy away; the next ?test visit copies your real data again. */
+export function resetSandbox(): void {
+  try { window.localStorage.removeItem(TEST_KEY); } catch { /* nothing to remove */ }
+}
 const num = (v: unknown, lo: number, hi: number, fallback: number): number => (typeof v === 'number' && Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : fallback);
 const str = (v: unknown, fallback = ''): string => (typeof v === 'string' ? v.slice(0, 80) : fallback);
 
@@ -79,7 +88,11 @@ export function parseSaved(text: string): Saved | null {
 
 export function loadSaved(): { data: Saved; problem: boolean } {
   try {
-    const text = window.localStorage.getItem(KEY);
+    let text = window.localStorage.getItem(KEY);
+    if (text === null && SANDBOX) {
+      text = window.localStorage.getItem(REAL_KEY);
+      if (text !== null) window.localStorage.setItem(TEST_KEY, text);
+    }
     if (text === null) return { data: { fires: [], events: [] }, problem: false };
     const data = parseSaved(text);
     return data ? { data, problem: false } : { data: { fires: [], events: [] }, problem: true };

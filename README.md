@@ -69,3 +69,8 @@ The campfire (3D) app is the main app and opens at the plain address. Your fires
 
 - `/` opens the campfire app.
 - `/?classic` opens the first version (rings and cards). It keeps its own saved data.
+
+## Test copy
+
+`/?test` opens the campfire app on a copy of your data. It keeps its own save (`ember:campfire:test:v1`), so you can try
+anything without touching the real fires. If you have no data yet it starts with example fires. Options has "Reset the test copy".
