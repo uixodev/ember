@@ -62,7 +62,7 @@ const HOURS = DEFAULT_ACTIVE_HOURS;
 const VIEWS = [{ azimuth: 0, polar: 0.84 }, { azimuth: 0, polar: 0.3 }, { azimuth: Math.PI / 2, polar: 1.2 }];
 
 interface Pending { fireId: string; kind: StickKind; stickId: number | null }
-type Panel = null | 'customise' | 'menu';
+type Panel = null | 'customise' | 'menu' | 'cool';
 type Tab = 'cooling' | 'size' | 'colour' | 'style' | 'creature';
 
 export default function Campfire3DPreview() {
@@ -103,7 +103,7 @@ export default function Campfire3DPreview() {
   const [panel, setPanel] = useState<Panel>(null);
   const [tab, setTab] = useState<Tab>('cooling');
 
-  const shown = useMemo<Live[]>(() => fires.map((f) => { const pct = Math.max(0, f.percent - (f.rate * (now - f.since)) / DAY); return { ...f, pct, level: levelOf(pct), progress: pct / 100 }; }), [fires, now]);
+  const shown = useMemo<Live[]>(() => fires.map((f) => { const pct = Math.max(0, f.percent - (f.rate * Math.max(0, now - f.since)) / DAY); return { ...f, pct, level: levelOf(pct), progress: pct / 100 }; }), [fires, now]);
   const chosen = shown.find((f) => f.area.id === sel);
   const pendingFire = pending ? shown.find((f) => f.area.id === pending.fireId) : undefined;
   const overFire = drag?.overFire ? shown.find((f) => f.area.id === drag.overFire) : undefined;
@@ -176,6 +176,12 @@ export default function Campfire3DPreview() {
 
 
   const rename = (name: string) => { if (chosen) setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, area: { ...f.area, name, sparks: [`Spend 5 minutes on ${name || 'it'}`] } } : f))); };
+  const setHeat = (pct: number) => {
+    if (!chosen) return;
+    const next = Math.max(0, Math.min(100, Math.round(pct)));
+    if (levelOf(next) < chosen.level) playHeat(levelOf(next));
+    setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, percent: next, since: Date.now() } : f)));
+  };
   const setRate = (rate: number) => { if (chosen) setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, percent: chosen.pct, since: Date.now(), rate } : f))); };
   const patch = (change: Partial<Fire>) => { if (chosen) setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, ...change } : f))); };
   const shuffle = () => setFires((all) => all.map((f) => ({ ...f, percent: Math.random() < 0.2 ? 0 : Math.round(5 + Math.random() * 95), since: Date.now() })));
@@ -335,6 +341,21 @@ export default function Campfire3DPreview() {
           </section>
         )}
 
+        {panel === 'cool' && chosen && (
+          <section className="c3-panel" aria-label={`Cool down ${chosen.area.name}`}>
+            <div className="c3-panel-head"><b>Cool down {chosen.area.name || 'this fire'}</b><button type="button" className="c3-x" aria-label="Close" onClick={() => setPanel(null)}>×</button></div>
+            <div className="chips left" role="group" aria-label="Quick cool down">
+              {[10, 25, 50].map((d) => (
+                <button key={d} type="button" className="chip" disabled={chosen.pct <= 0} onClick={() => setHeat(chosen.pct - d)}>Cool by {d}%</button>
+              ))}
+              <button type="button" className="chip" disabled={chosen.pct <= 0} onClick={() => setHeat(0)}>Put it out</button>
+            </div>
+            <label className="c3-range"><span>Set the heat: <b>{Math.round(chosen.pct)}%</b></span>
+              <input type="range" min={0} max={100} value={Math.round(chosen.pct)} onChange={(e) => setHeat(+e.target.value)} />
+            </label>
+          </section>
+        )}
+
         {panel === 'menu' && (
           <section className="c3-panel" aria-label="More options">
             <div className="c3-panel-head"><b>Try it</b><button type="button" className="c3-x" aria-label="Close" onClick={() => setPanel(null)}>×</button></div>
@@ -351,6 +372,7 @@ export default function Campfire3DPreview() {
           <div className="c3-focus">
             <div className="c3-focus-text"><div className="c3-meter" role="progressbar" aria-label="How warm the fire is" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(chosen.pct)}><i style={{ width: `${chosen.pct}%`, background: PALETTES[chosen.color].swatch }} /></div>
               <span>{chosen.pct <= 0 ? 'Cold. Any wood lights it again' : `Fully cooled ${formatWhen(now + coldAfter(chosen.pct, chosen.rate), now)}`}</span></div>
+            <button type="button" className={`c3-act${panel === 'cool' ? ' on' : ''}`} aria-expanded={panel === 'cool'} onClick={() => togglePanel('cool')}>Cool</button>
             <button type="button" className={`c3-act${panel === 'customise' ? ' on' : ''}`} aria-expanded={panel === 'customise'} onClick={() => togglePanel('customise')}>Customise</button>
           </div>
         )}
