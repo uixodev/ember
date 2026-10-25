@@ -93,6 +93,7 @@ export default function Campfire3DPreview() {
     ];
   });
   const [logOpen, setLogOpen] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
   const sparksToday = useMemo(() => { const d = new Date(now); return events.filter((e) => e.at >= new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()).length; }, [events, now]);
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
@@ -237,7 +238,11 @@ export default function Campfire3DPreview() {
 
       <div className="c3-top" ref={topRef}>
         <header className="c3-head">
-          <nav className="c3-tools" aria-label="Tools">
+          <nav className={`c3-tools${toolsOpen ? ' open' : ''}`} aria-label="Tools">
+            <button type="button" className="c3-round c3-toggle" aria-label={toolsOpen ? 'Hide tools' : 'Show tools'} aria-expanded={toolsOpen} onClick={() => setToolsOpen((o) => !o)}>
+              <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" fill="none" /></svg>
+            </button>
+            <div className="c3-more"><div className="c3-more-in">
         <button type="button" className="c3-round" aria-label="Change the view" onClick={nextView}>
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" /><circle cx="12" cy="12" r="3" fill="currentColor" /></svg>
         </button>
@@ -250,6 +255,8 @@ export default function Campfire3DPreview() {
         <button type="button" className={`c3-round${panel === 'menu' ? ' on' : ''}`} aria-label="More options" aria-expanded={panel === 'menu'} onClick={() => togglePanel('menu')}>
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" fill="none" /><circle cx="16" cy="7" r="2.4" fill="currentColor" /><circle cx="8" cy="17" r="2.4" fill="currentColor" /></svg>
         </button>
+
+            </div></div>
           </nav>
           <button type="button" className="c3-sparks" onClick={() => { setPanel(null); setLogOpen(true); }} aria-label={`${sparksToday} ${sparksToday === 1 ? 'spark' : 'sparks'} today, open the list`}>
             <HeatIcon level={3} size={20} />

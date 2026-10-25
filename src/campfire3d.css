@@ -154,3 +154,16 @@ html.c3-lock body { position: fixed; inset: 0; width: 100%; }
 .log-edit input { min-height: 44px; padding: 0 12px; border: 1px solid #CFC8EE; border-radius: 12px; background: #fff; color: var(--navy); font: 500 15px/1 var(--font); width: 100%; box-sizing: border-box; }
 .log-edit label { display: flex; align-items: center; gap: 8px; font: 600 13px/1 var(--font); color: #4A4675; }
 .log-edit label input { width: 90px; }
+
+/* One circle that opens the tools to its right */
+.c3-tools { align-items: center; gap: 0; }
+.c3-toggle svg { transition: transform .25s var(--ease-out, ease-out); }
+.c3-tools.open .c3-toggle { background: #fff; color: var(--navy); }
+.c3-more { display: grid; grid-template-columns: 0fr; visibility: hidden; transition: grid-template-columns .28s var(--ease-out, ease-out), visibility 0s .28s; }
+.c3-tools.open .c3-more { grid-template-columns: 1fr; visibility: visible; transition: grid-template-columns .28s var(--ease-out, ease-out), visibility 0s; }
+.c3-more-in { display: flex; gap: 2px; min-width: 0; overflow: hidden; }
+.c3-tools.open .c3-more-in { padding-left: 4px; }
+.c3-tools:not(.open) { padding: 4px; }
+@media (prefers-reduced-motion: reduce) { .c3-more, .c3-tools.open .c3-more { transition: none; } }
+.c3-sparks { white-space: nowrap; flex: none; padding: 0 12px; gap: 6px; }
+.c3-head { padding: 0; }
