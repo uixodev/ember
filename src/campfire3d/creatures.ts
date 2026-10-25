@@ -15,6 +15,8 @@ export const CREATURE_NAMES: Record<CreatureId, string> = {
 
 export interface Creature {
   group: THREE.Group;
+  /** Swap the flame colouring for another material (the Mythic rainbow), or back with null. */
+  setMaterial: (m: THREE.Material | null) => void;
   tick: (t: number) => void;
   dispose: () => void;
 }
@@ -82,6 +84,7 @@ class Builder {
     }
     return {
       group: this.group,
+      setMaterial: (m) => { for (const mesh of this.body) mesh.material = m ?? this.flameMat; },
       tick,
       dispose: () => { this.geos.forEach((g) => g.dispose()); this.flameMat.dispose(); this.eyeMat.dispose(); this.whiteMat.dispose(); },
     };

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { holoMaterial } from './holo';
 import { buildTier, type TierDecor } from './tiers';
 import type { Tier } from './mastery';
 import { buildCreature, autoCreature, type Creature, type CreatureId } from './creatures';
@@ -119,6 +120,7 @@ export class CampfireWorld {
   private readonly poolTex = new Map<PaletteId, THREE.CanvasTexture>();
   private coldTex!: THREE.CanvasTexture;
   private readonly flameMat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
+  private readonly holoMat = holoMaterial();
   private readonly wood: WoodMaterials;
   private readonly stoneMats: THREE.MeshStandardMaterial[];
   private readonly frostMats: THREE.MeshStandardMaterial[];
@@ -182,7 +184,7 @@ export class CampfireWorld {
 
     this.stoneMats = [0x8f88ec, 0x7d76df, 0xa59ff2].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.9, flatShading: true }));
     this.frostMats = [0xaebbe8, 0x9aa9dc, 0xc4cff2].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.7, flatShading: true }));
-    this.disposables.push(...this.stoneMats, ...this.frostMats, this.flameMat, this.coalGeo, this.stoneGeo, this.discGeo, this.ringGeo, this.hitGeo, this.ashGeo);
+    this.disposables.push(...this.stoneMats, ...this.frostMats, this.flameMat, this.holoMat, this.coalGeo, this.stoneGeo, this.discGeo, this.ringGeo, this.hitGeo, this.ashGeo);
 
     this.scene.add(new THREE.HemisphereLight(0xcfc9ff, 0x2c2266, 1.05));
     const sun = new THREE.DirectionalLight(0xdad5ff, 0.7);
@@ -422,6 +424,8 @@ export class CampfireWorld {
     if (f.tier === tier && (f.decor || tier === 1)) return;
     if (f.decor) { f.group.remove(f.decor.group); f.decor.dispose(); f.decor = null; }
     f.tier = tier;
+    for (const tg of f.tongues) tg.mesh.material = tier >= 8 ? this.holoMat : this.flameMat;
+    if (tier < 8) f.coals.forEach((c) => (c.material as THREE.MeshStandardMaterial).emissive.setHex(PALETTES[f.spec.color].coal));
     if (tier > 1) { f.decor = buildTier(tier); f.group.add(f.decor.group); }
   }
 
@@ -771,6 +775,7 @@ export class CampfireWorld {
     this.insetTop = damp(this.insetTop, this.targetTop, 7, dt);
     this.insetBottom = damp(this.insetBottom, this.targetBottom, 7, dt);
     this.applyOffset();
+    this.holoMat.uniforms.uTime.value = this.elapsed;
     this.update(dt, this.elapsed);
     this.controls.update();
     // two-finger panning stays over the fires: pull the target back and carry the camera with it
@@ -842,6 +847,7 @@ export class CampfireWorld {
         const m = c.material as THREE.MeshStandardMaterial;
         const pulse = calm ? 0.5 : Math.sin(t * (lvl === 1 ? 2.2 : 3.2) + i * 1.7) * 0.5 + 0.5;
         m.emissiveIntensity = f.shownCoal * (0.6 + 0.6 * pulse) * (1 + f.flare * 0.8);
+        if (f.tier >= 8) m.emissive.setHSL((t * 0.07 + i / 7) % 1, 0.6, 0.62);
       });
       (f.hotPool.material as THREE.MeshBasicMaterial).opacity = Math.min(1, F * 1.1 + (lvl === 1 ? 0.3 : 0));
       f.hotPool.scale.setScalar(0.7 + F * 0.5 + f.flare * 0.15);
@@ -943,6 +949,7 @@ export class CampfireWorld {
       this.flare(f.id);
     }
     if (!f.creature) return;
+    f.creature.obj.setMaterial(f.tier >= 8 ? this.holoMat : null);
     if (!want && f.creatureShown < 0.01) { this.dropCreature(f); return; }
     const show = f.creatureShown;
     const F0 = f.shownF;

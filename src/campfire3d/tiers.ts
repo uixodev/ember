@@ -11,7 +11,7 @@ import type { Tier } from './mastery';
  *   5 Forge     the pillars joined by a glowing iron ring with rune lights
  *   6 Inferno   as 5, with embers orbiting the fire
  *   7 Legend    gold pillars, a crown ring of light and sparkles
- *   8 Mythic    as 7, but everything shimmers through the rainbow (red to blue, no pinks or purples), over a turning prism ring
+ *   8 Mythic    as 7, but everything drifts softly through the rainbow like a holographic card, over a turning prism ring
  * Solid colours only.
  */
 export interface TierDecor {
@@ -27,8 +27,8 @@ const IRON = 0x3a3670;
 const WOOD = 0x6b4226;
 const GOLD = 0xf2b21e;
 
-/** Hue for the shimmer: sweeps orange, yellow, green, cyan, blue and back, so it never turns pink or purple. */
-const holoHue = (phase: number): number => { const p = ((phase % 1) + 1) % 1; return 0.04 + (p < 0.5 ? p * 2 : 2 - p * 2) * 0.56; };
+/** Hue for the shimmer: round the whole spectrum, softly (pastels, like a holographic card). */
+const holoHue = (phase: number): number => ((phase % 1) + 1) % 1;
 
 function prismTexture(): THREE.CanvasTexture {
   const size = 256, c = document.createElement('canvas');
@@ -40,7 +40,7 @@ function prismTexture(): THREE.CanvasTexture {
     x.moveTo(size / 2, size / 2);
     x.arc(size / 2, size / 2, size, (i / wedges) * Math.PI * 2, ((i + 1.5) / wedges) * Math.PI * 2);
     x.closePath();
-    x.fillStyle = `hsl(${holoHue(i / wedges) * 360}, 90%, 62%)`;
+    x.fillStyle = `hsl(${holoHue(i / wedges) * 360}, 72%, 80%)`;
     x.fill();
   }
   const t = new THREE.CanvasTexture(c);
@@ -68,7 +68,7 @@ export function buildTier(tier: Tier): TierDecor {
   if (tier >= 2) {
     const stoneGeo = g(new THREE.DodecahedronGeometry(0.2, 0));
     const stoneMat = lit(goldLook ? GOLD : STONE);
-    if (holo) shimmer.push({ m: stoneMat, off: 0, light: 0.4 });
+    if (holo) shimmer.push({ m: stoneMat, off: 0, light: 0.58 });
     const n = 15;
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2;
@@ -130,7 +130,7 @@ export function buildTier(tier: Tier): TierDecor {
     const cap = g(new THREE.BoxGeometry(0.36, 0.1, 0.36));
     const bodyMat = lit(gold ? GOLD : STONE);
     const capMat = lit(gold ? 0xffd84d : STONE_LIGHT);
-    if (holo) { shimmer.push({ m: bodyMat, off: 0.1, light: 0.45 }, { m: capMat, off: 0.2, light: 0.65 }); }
+    if (holo) { shimmer.push({ m: bodyMat, off: 0.1, light: 0.62 }, { m: capMat, off: 0.2, light: 0.74 }); }
     const flameA = g(new THREE.ConeGeometry(0.11, 0.3, 7)); flameA.translate(0, 0.15, 0);
     const flameB = g(new THREE.ConeGeometry(0.06, 0.2, 7)); flameB.translate(0, 0.1, 0);
     for (let i = 0; i < 4; i++) {
@@ -140,8 +140,10 @@ export function buildTier(tier: Tier): TierDecor {
       p.rotation.y = -a;
       const b = new THREE.Mesh(body, bodyMat); b.position.y = 0.575;
       const c = new THREE.Mesh(cap, capMat); c.position.y = 1.2;
-      const fa = new THREE.Mesh(flameA, basic(0xff9a2e)); fa.position.y = 1.25;
-      const fb = new THREE.Mesh(flameB, basic(0xffe98a)); fb.position.y = 1.27;
+      const faMat = basic(0xff9a2e), fbMat = basic(0xffe98a);
+      if (holo) shimmer.push({ m: faMat, off: i / 4, light: 0.66 }, { m: fbMat, off: i / 4 + 0.15, light: 0.78 });
+      const fa = new THREE.Mesh(flameA, faMat); fa.position.y = 1.25;
+      const fb = new THREE.Mesh(flameB, fbMat); fb.position.y = 1.27;
       flames.push(fa, fb);
       p.add(b, c, fa, fb);
       group.add(p);
@@ -152,7 +154,7 @@ export function buildTier(tier: Tier): TierDecor {
   if (tier >= 5) {
     const gold = goldLook;
     const ironMat = lit(gold ? GOLD : IRON, false);
-    if (holo) shimmer.push({ m: ironMat, off: 0.3, light: 0.5 });
+    if (holo) shimmer.push({ m: ironMat, off: 0.3, light: 0.64 });
     const ring = new THREE.Mesh(g(new THREE.TorusGeometry(1.62, 0.05, 8, 48)), ironMat);
     ring.rotation.x = Math.PI / 2;
     ring.position.y = 0.75;
@@ -163,6 +165,7 @@ export function buildTier(tier: Tier): TierDecor {
       const a = (i / n) * Math.PI * 2;
       const mat = new THREE.MeshBasicMaterial({ color: i % 2 ? 0xffd25a : 0xff9a2e });
       mats.push(mat);
+      if (holo) shimmer.push({ m: mat, off: i / 12, light: 0.7 });
       const m = new THREE.Mesh(dot, mat);
       m.position.set(Math.cos(a) * 1.62, 0.75, Math.sin(a) * 1.62);
       m.rotation.set(0.6, a, 0.6);
@@ -233,7 +236,10 @@ export function buildTier(tier: Tier): TierDecor {
     group,
     tick: (t, litness) => {
       if (holo) {
-        for (const s of shimmer) s.m.color.setHSL(holoHue(t * 0.12 + s.off), 0.85, s.light);
+        for (const s of shimmer) {
+          s.m.color.setHSL(holoHue(t * 0.06 + s.off), 0.7, Math.min(0.9, s.light + 0.16));
+          if (s.m instanceof THREE.MeshStandardMaterial) s.m.emissive.copy(s.m.color).multiplyScalar(0.6);
+        }
         if (prism) prism.mesh.rotation.z = t * 0.35;
       }
       for (const s of spin) s.o.rotation.y = t * s.speed;

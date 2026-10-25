@@ -15,13 +15,13 @@ export function Shield({ level, tier, size = 32 }: { level: number; tier?: Tier;
     <svg className="shield" width={size} height={size * 1.08} viewBox="0 0 24 26" role="img" aria-label={`Level ${level}, ${t.name}`}>
       {holo && (
         <defs>
-          {/* red, yellow, green, cyan, blue and back again: shimmers without ever turning pink or purple */}
+          {/* soft holographic colours, the same colour at both ends so the movement has no seam */}
           <linearGradient id={id} x1="0" y1="0" x2="1" y2="0.6" spreadMethod="repeat">
-            {['#FF7A3D', '#FFD84D', '#6FE36F', '#3FD8E8', '#4F8EF7', '#3FD8E8', '#6FE36F', '#FFD84D', '#FF7A3D'].map((c, i, a) => <stop key={i} offset={i / (a.length - 1)} stopColor={c} />)}
+            {['#FFB8DC', '#D9C6FF', '#A9DCFF', '#B4F5E4', '#FFF2B0', '#FFD0B8', '#FFB8DC'].map((c, i, a) => <stop key={i} offset={i / (a.length - 1)} stopColor={c} />)}
             {!calm && <animateTransform attributeName="gradientTransform" type="translate" from="0 0" to="1 0" dur="3.2s" repeatCount="indefinite" />}
           </linearGradient>
           <linearGradient id={`${id}r`} x1="1" y1="0" x2="0" y2="1" spreadMethod="repeat">
-            {['#4F8EF7', '#3FD8E8', '#6FE36F', '#FFD84D', '#FF7A3D', '#FFD84D', '#6FE36F', '#3FD8E8', '#4F8EF7'].map((c, i, a) => <stop key={i} offset={i / (a.length - 1)} stopColor={c} />)}
+            {['#A9DCFF', '#B4F5E4', '#FFF2B0', '#FFD0B8', '#FFB8DC', '#D9C6FF', '#A9DCFF'].map((c, i, a) => <stop key={i} offset={i / (a.length - 1)} stopColor={c} />)}
             {!calm && <animateTransform attributeName="gradientTransform" type="translate" from="0 0" to="-1 0" dur="4.4s" repeatCount="indefinite" />}
           </linearGradient>
         </defs>
