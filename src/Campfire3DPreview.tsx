@@ -3,7 +3,7 @@ import { FeedSheet } from './components/ui/FeedSheet';
 import { play, playHeat, unlockAudio } from './sound';
 import { HeatIcon } from './components/ui/HeatIcon';
 import { Segmented } from './components/ui/Tabs';
-import { TopBar } from './components/ui/TopBar';
+import { ConfirmSheet } from './components/ui/Sheets';
 import { LEVEL_NAMES, formatSpan, formatWhen } from './engine/format';
 import { DEFAULT_ACTIVE_HOURS, type Level as HeatLevel } from './engine/heat';
 import type { Area } from './model/types';
@@ -78,6 +78,8 @@ export default function Campfire3DPreview() {
   const [icons, setIcons] = useState<Partial<Record<StickKind, string>>>({});
   const [fires, setFires] = useState<Fire[]>(() => SAMPLE.slice(0, 5));
   const [moving, setMoving] = useState(false);
+  const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [confirmDel, setConfirmDel] = useState<string | null>(null);
   const [sel, setSel] = useState<string | null>('js');
   const [drag, setDrag] = useState<DragState | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
@@ -110,6 +112,7 @@ export default function Campfire3DPreview() {
         onDrag: (s) => setDrag(s.dragging ? s : null),
         onDrop: (fireId, kind, stickId) => { play('wood'); setHint(false); setPending({ fireId, kind, stickId }); },
         onInteract: () => setHint(false),
+        onFireHold: (id, x, y) => { setSel(id); setMenu({ id, x, y }); },
         onFireMoved: (id, x, z) => setFires((all) => all.map((f) => (f.area.id === id ? { ...f, pos: { x, z } } : f))),
         reducedMotion: reduced,
       });
@@ -161,6 +164,12 @@ export default function Campfire3DPreview() {
   const patch = (change: Partial<Fire>) => { if (chosen) setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, ...change } : f))); };
   const shuffle = () => setFires((all) => all.map((f) => ({ ...f, percent: Math.random() < 0.2 ? 0 : Math.round(5 + Math.random() * 95), since: Date.now() })));
   const mixSizes = () => setFires((all) => all.map((f) => ({ ...f, size: (1 + ((Math.random() * 4) | 0)) as Size })));
+  const removeFire = (id: string) => {
+    setFires((all) => all.filter((f) => f.area.id !== id));
+    setConfirmDel(null); setMenu(null); setPanel(null);
+    setSel((cur) => (cur === id ? fires.find((f) => f.area.id !== id)?.area.id ?? null : cur));
+    play('delete');
+  };
   const addFire = () => {
     if (fires.length >= 12) return;
     const spots: { x: number; z: number }[] = [];
@@ -191,7 +200,6 @@ export default function Campfire3DPreview() {
     if ((e.key === 'Enter' || e.key === ' ') && chosen) { e.preventDefault(); setPending({ fireId: chosen.area.id, kind, stickId: null }); }
   };
 
-  const warm = shown.length ? Math.max(...shown.map((f) => f.level)) : 0;
   const stageH = stageRef.current?.clientHeight ?? 700;
   const togglePanel = (p: Exclude<Panel, null>) => setPanel((cur) => (cur === p ? null : p));
 
@@ -213,15 +221,8 @@ export default function Campfire3DPreview() {
       )}
 
       <div className="c3-top" ref={topRef}>
-        <TopBar initial="J" sparksToday={3} level={warm as HeatLevel} />
-        {chosen && (
-          <div className="c3-title" aria-live="polite">
-            <h1>{chosen.area.name || 'New area'}{chosen.main ? ' · main' : ''}</h1>
-            <span className={`c3-state lv${chosen.level}`}><HeatIcon level={chosen.level} size={18} />{LEVEL_NAMES[chosen.level as HeatLevel]} · {Math.round(chosen.pct)}%</span>
-          </div>
-        )}
-      </div>
-      <div className="c3-side">
+        <header className="c3-head">
+          <div className="c3-tools">
         <button type="button" className="c3-round" aria-label="Change the view" onClick={nextView}>
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" /><circle cx="12" cy="12" r="3" fill="currentColor" /></svg>
         </button>
@@ -234,6 +235,15 @@ export default function Campfire3DPreview() {
         <button type="button" className={`c3-round${panel === 'menu' ? ' on' : ''}`} aria-label="More options" aria-expanded={panel === 'menu'} onClick={() => togglePanel('menu')}>
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" fill="none" /><circle cx="16" cy="7" r="2.4" fill="currentColor" /><circle cx="8" cy="17" r="2.4" fill="currentColor" /></svg>
         </button>
+          </div>
+          <span className="pill">3 sparks</span>
+        </header>
+        {chosen && (
+          <div className="c3-title" aria-live="polite">
+            <h1>{chosen.area.name || 'New area'}{chosen.main ? ' · main' : ''}</h1>
+            <span className={`c3-state lv${chosen.level}`}><HeatIcon level={chosen.level} size={18} />{LEVEL_NAMES[chosen.level as HeatLevel]} · {Math.round(chosen.pct)}%</span>
+          </div>
+        )}
       </div>
       {moving && !drag && !panel && <div className="c3-hint" aria-hidden="true">Drag a fire to move it</div>}
       {hint && !moving && !drag && !panel && <div className="c3-hint" aria-hidden="true">Drag wood from the dock onto a fire</div>}
@@ -330,6 +340,22 @@ export default function Campfire3DPreview() {
         </section>
       </div>
 
+      {menu && !drag && (
+        <>
+          <div className="c3-menu-scrim" onPointerDown={() => setMenu(null)} />
+          <div className="c3-menu" style={{ left: Math.max(70, Math.min(menu.x, (stageRef.current?.clientWidth ?? 390) - 70)), top: Math.max(120, menu.y - 20) }}>
+            <button type="button" className="c3-menu-item" onClick={() => { setConfirmDel(menu.id); setMenu(null); }}>Delete this fire</button>
+          </div>
+        </>
+      )}
+      {confirmDel && (
+        <ConfirmSheet
+          title={`Delete ${fires.find((f) => f.area.id === confirmDel)?.area.name || 'this area'}?`}
+          body="Are you sure you want to delete it? Its fire and history go away for good."
+          confirmLabel="Yes, delete it" cancelLabel="Keep it"
+          onConfirm={() => removeFire(confirmDel)} onCancel={() => setConfirmDel(null)}
+        />
+      )}
       {pending && pendingFire && (
         <FeedSheet
           area={pendingFire.area} hours={HOURS}

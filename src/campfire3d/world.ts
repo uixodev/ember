@@ -45,6 +45,8 @@ export interface WorldOptions {
   onDrag: (s: DragState) => void;
   onInteract?: () => void;
   /** A fire was carried to a new spot (move mode). */
+  /** A fire was pressed and held without moving: where on the canvas, in pixels. */
+  onFireHold?: (id: string, x: number, y: number) => void;
   onFireMoved?: (id: string, x: number, z: number) => void;
   reducedMotion: boolean;
 }
@@ -434,7 +436,9 @@ export class CampfireWorld {
     return this.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit) ? hit : null;
   }
 
+  private lastPointer = { x: 0, y: 0 };
   private onMove = (e: PointerEvent) => {
+    this.lastPointer = { x: e.clientX, y: e.clientY };
     const d = this.fireDrag;
     if (!d || e.pointerId !== d.pointer) return;
     const f = this.fires.get(d.id);
@@ -653,12 +657,29 @@ export class CampfireWorld {
 
   // ---- taps on the scene ------------------------------------------------------------------------
 
+  private holdTimer = 0;
+  private clearHold(): void { window.clearTimeout(this.holdTimer); this.holdTimer = 0; }
+
   private onDown = (e: PointerEvent) => {
     this.down = { x: e.clientX, y: e.clientY, t: performance.now() };
-    if (!this.moveMode || this.drag) return;
+    this.lastPointer = { x: e.clientX, y: e.clientY };
+    if (!e.isPrimary) this.clearHold();
+    if (this.drag) return;
     const rect = this.canvas.getBoundingClientRect();
     this.raycaster.setFromCamera(new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1), this.camera);
     const hit = this.raycaster.intersectObjects([...this.fires.values()].map((f) => f.hit), false)[0];
+    if (!this.moveMode) {
+      this.clearHold();
+      if (hit && e.isPrimary) {
+        const fireId = hit.object.userData.fireId as string;
+        const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+        this.holdTimer = window.setTimeout(() => {
+          this.holdTimer = 0;
+          if (Math.hypot(this.lastPointer.x - e.clientX, this.lastPointer.y - e.clientY) < 10 && !this.drag) this.opts.onFireHold?.(fireId, sx, sy);
+        }, 550);
+      }
+      return;
+    }
     if (!hit) return;
     const id = hit.object.userData.fireId as string;
     const f = this.fires.get(id);
@@ -673,6 +694,7 @@ export class CampfireWorld {
     this.opts.onInteract?.();
   };
   private onUp = (e: PointerEvent) => {
+    this.clearHold();
     if (this.fireDrag) { this.endFireDrag(); return; }
     if (Math.hypot(e.clientX - this.down.x, e.clientY - this.down.y) > 8 || performance.now() - this.down.t > 450) return;
     const rect = this.canvas.getBoundingClientRect();
@@ -1030,6 +1052,7 @@ export class CampfireWorld {
     cancelAnimationFrame(this.raf);
     this.ro.disconnect();
     this.io.disconnect();
+    this.clearHold();
     document.removeEventListener('visibilitychange', this.onVis);
     this.canvas.removeEventListener('pointerdown', this.onDown);
     this.canvas.removeEventListener('pointerup', this.onUp);
