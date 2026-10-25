@@ -270,12 +270,6 @@ export default function Campfire3DPreview() {
         <button type="button" className="c3-sparks" onClick={() => { setPanel(null); setLogOpen(true); }} aria-label={`${sparksToday} ${sparksToday === 1 ? 'spark' : 'sparks'} today, open the list`}>
           {sparksToday} {sparksToday === 1 ? 'spark' : 'sparks'}
         </button>
-        {chosen && (
-          <div className="c3-title" aria-live="polite">
-            <h1>{chosen.area.name || 'New area'}</h1>
-            <span className={`c3-state lv${chosen.level}`}><HeatIcon level={chosen.level} size={18} />{LEVEL_NAMES[chosen.level as HeatLevel]} · {Math.round(chosen.pct)}%</span>
-          </div>
-        )}
       </div>
       {moving && !drag && !panel && <div className="c3-hint" aria-hidden="true">Drag a fire to move it</div>}
       {hint && !moving && !drag && !panel && <div className="c3-hint" aria-hidden="true">Drag wood from the dock onto a fire</div>}
@@ -366,6 +360,12 @@ export default function Campfire3DPreview() {
           </section>
         )}
 
+        {chosen && !drag && !panel && (
+          <div className="c3-title" aria-live="polite">
+            <h1>{chosen.area.name || 'New area'}</h1>
+            <span className={`c3-state lv${chosen.level}`}><HeatIcon level={chosen.level} size={18} />{LEVEL_NAMES[chosen.level as HeatLevel]} · {Math.round(chosen.pct)}%</span>
+          </div>
+        )}
         {chosen && !drag && (
           <div className="c3-focus">
             <div className="c3-focus-text"><div className="c3-meter" role="progressbar" aria-label="How warm the fire is" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(chosen.pct)}><i style={{ width: `${chosen.pct}%`, background: PALETTES[chosen.color].swatch }} /></div>

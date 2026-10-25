@@ -194,3 +194,5 @@ html.c3-lock body { position: fixed; inset: 0; width: 100%; }
 .c3-more-in .c3-round { width: 44px; min-width: 44px; padding: 0; justify-content: center; border-radius: 50%; }
 .c3-sparks { position: absolute; right: 14px; top: calc(10px + env(safe-area-inset-top)); z-index: 140; min-height: 54px; padding: 0 16px; }
 .c3-title { margin: 0 92px; }
+.c3-title { margin: 0; pointer-events: none; }
+.c3-title h1 { font-size: 22px; text-shadow: 0 1px 8px rgba(24, 20, 80, .55); }
