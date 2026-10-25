@@ -126,10 +126,12 @@ export default function Campfire3DPreview() {
       });
       worldRef.current = world;
       (window as unknown as { __world: CampfireWorld }).__world = world;
+      window.requestAnimationFrame(() => window.requestAnimationFrame(() => window.dispatchEvent(new Event('ember-ready'))));
       const t = window.setTimeout(() => setIcons(world.renderIcons()), 250);
       return () => { window.clearTimeout(t); world.dispose(); worldRef.current = null; };
     } catch {
       setFailed(true);
+      window.dispatchEvent(new Event('ember-ready'));
     }
   }, [onFrame]);
 
