@@ -1,4 +1,4 @@
-.c3-stage { position: relative; width: 100%; max-width: 460px; margin: 0 auto; height: min(74dvh, 560px); min-height: 380px; border-radius: 24px; overflow: hidden; touch-action: none; }
+.c3-stage { position: relative; isolation: isolate; z-index: 0; width: 100%; max-width: 460px; margin: 0 auto; height: min(58dvh, 500px); min-height: 360px; border-radius: 24px; overflow: hidden; touch-action: none; }
 .c3-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; outline: none; }
 .c3-canvas:active { cursor: grabbing; }
 /* Name tags let touches through, so a drag that starts on one still turns the fire. Taps on them are found in code. */
@@ -12,3 +12,18 @@
   .c3-hint { animation: c3-hint 2.8s ease-in-out infinite; }
 }
 @keyframes c3-hint { 0%, 100% { opacity: .75; } 50% { opacity: 1; } }
+
+/* drag chip that follows your finger */
+.c3-chip { position: absolute; transform: translate(-50%, -150%); display: grid; gap: 2px; padding: 8px 12px; border-radius: 14px; background: rgba(36, 31, 110, .92); border: 1px solid var(--glass-line); text-align: center; pointer-events: none; z-index: 200; white-space: nowrap; }
+.c3-chip b { font: 750 14px/1.1 var(--font); }
+.c3-chip span { font: 500 12px/1.2 var(--font); color: var(--ink-2); }
+.c3-chip.ready { background: #fff; border-color: #fff; }
+.c3-chip.ready b, .c3-chip.ready span { color: var(--navy); }
+.c3-fire-label { padding-right: 12px; }
+.c3-fire-label.over { background: #fff; color: var(--navy); }
+.c3-wood { background: var(--sunken); border-radius: 22px; padding: 16px; display: grid; gap: 10px; }
+.c3-wood h2 { margin: 0; font: var(--t-heading); letter-spacing: -.02em; }
+.c3-wood ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.c3-wood li { display: grid; gap: 1px; }
+.c3-wood li b { font: 700 14px/1.2 var(--font); }
+.c3-wood li span { font: 450 12.5px/1.35 var(--font); color: var(--ink-2); }

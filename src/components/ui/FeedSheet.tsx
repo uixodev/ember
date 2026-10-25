@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import { formatSpan, formatWhen } from '../../engine/format';
+import type { ActiveHours } from '../../engine/heat';
 import { planFeed, type Effort } from '../../engine/hold';
 import type { Area } from '../../model/types';
-import { useStore, type FeedEntry } from '../../store/store';
+import type { FeedEntry } from '../../store/store';
 import { Button } from './Button';
 import { EffortField, MinutesField, NextField, nextAtOf, type NextChoice } from './FeedFields';
 import { Sheet } from './Sheet';
@@ -14,19 +15,21 @@ export type FeedKind = 'spark' | 'big';
  * the longer the fire holds. You can also pick when you plan to come back.
  * The area's spark list works as templates for the note.
  */
-export function FeedSheet({ area, kind = 'spark', prefill = '', prefillMinutes, onConfirm, onClose }: {
+export function FeedSheet({ area, hours, kind = 'spark', prefill = '', prefillMinutes, prefillEffort, onConfirm, onClose }: {
   area: Area;
+  /** Your active hours, used for the "next feeding" preview. */
+  hours: ActiveHours;
   kind?: FeedKind;
   prefill?: string;
   prefillMinutes?: number;
+  prefillEffort?: Effort;
   onConfirm: (entry: FeedEntry & { note: string }, saveAsTemplate: boolean) => void;
   onClose: () => void;
 }) {
-  const { data } = useStore();
   const big = kind === 'big';
   const [note, setNote] = useState(prefill);
   const [minutes, setMinutes] = useState(String(prefillMinutes ?? (big ? 60 : 5)));
-  const [effort, setEffort] = useState<Effort>(3);
+  const [effort, setEffort] = useState<Effort>(prefillEffort ?? 3);
   const [next, setNext] = useState<NextChoice>({ kind: 'auto' });
   const [save, setSave] = useState(false);
   const now = useMemo(() => Date.now(), []);
@@ -35,7 +38,6 @@ export function FeedSheet({ area, kind = 'spark', prefill = '', prefillMinutes, 
   const mins = Math.round(Number(minutes));
   const minsOk = Number.isFinite(mins) && mins >= 1 && mins <= 1440;
   const isNew = !big && trimmed.length > 0 && !area.sparks.includes(trimmed);
-  const hours = data.settings.activeHours;
 
   const nextAt = nextAtOf(next);
   const plan = planFeed(area, { minutes: minsOk ? mins : 1, effort, nextAt }, now, hours);

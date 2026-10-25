@@ -35,7 +35,7 @@ export function FeedHost({ children }: { children: ReactNode }) {
       {children}
       {req && area && area.place !== 'archive' && (
         <FeedSheet
-          area={area} kind={req.kind} prefill={req.prefill} prefillMinutes={req.minutes} onClose={() => setReq(null)}
+          area={area} hours={data.settings.activeHours} kind={req.kind} prefill={req.prefill} prefillMinutes={req.minutes} onClose={() => setReq(null)}
           onConfirm={(entry, saveTemplate) => {
             if (saveTemplate) updateArea(area.id, { sparks: [...area.sparks, entry.note] });
             if (req.kind === 'big') big(area.id, entry);

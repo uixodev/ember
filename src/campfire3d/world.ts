@@ -1,0 +1,802 @@
+import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { flameGeometry } from './flame';
+import { Particles } from './particles';
+import { buildStick, makeWoodMaterials, STICK_KINDS, type StickKind, type StickObj, type WoodMaterials } from './sticks';
+import * as TX from './textures';
+
+export type Level = 0 | 1 | 2 | 3;
+export type Size = 1 | 2 | 3 | 4;
+
+export interface FireSpec { id: string; level: Level; progress: number; size: Size }
+export interface LabelPos { id: string; x: number; y: number; depth: number; visible: boolean }
+export interface CameraView { azimuth: number; polar: number; distance?: number }
+
+export interface DragState {
+  dragging: boolean;
+  kind?: StickKind;
+  /** The fire the stick is over, if any. */
+  overFire?: string | null;
+  /** Finger position inside the canvas, in pixels. */
+  x: number;
+  y: number;
+}
+
+export interface WorldOptions {
+  onFrame: (labels: LabelPos[]) => void;
+  onSelectFire: (id: string | null) => void;
+  /** A stick was let go over a fire: ask what you did. */
+  onDrop: (fireId: string, kind: StickKind, stickId: number) => void;
+  onDrag: (s: DragState) => void;
+  onInteract?: () => void;
+  reducedMotion: boolean;
+}
+
+const FIRE_SCALE: Record<Size, number> = { 1: 0.78, 2: 0.92, 3: 1.08, 4: 1.28 };
+const FLAME_LEVEL: Record<Level, number> = { 3: 1, 2: 0.6, 1: 0.16, 0: 0 };
+const COAL_GLOW: Record<Level, number> = { 3: 1.1, 2: 0.75, 1: 1.45, 0: 0 };
+const HOVER_HEIGHT = 0.95;
+const GX = 3.5;
+const GZ = 3.2;
+const SPARKS_PER = 12;
+const SNOW_PER = 34;
+const MAX_FIRES = 12;
+const REST_STICKS: StickKind[] = ['log', 'branch', 'kindling', 'split', 'big', 'branch', 'kindling'];
+
+const rngOf = (seed: number) => { let s = seed >>> 0; return () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296; };
+const ease = (t: number) => 1 - Math.pow(1 - t, 3);
+const backOut = (t: number) => { const c = 1.9; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
+const damp = (a: number, b: number, k: number, dt: number) => a + (b - a) * (1 - Math.exp(-k * dt));
+
+/** Fire slots, the most central first, so the main area gets the middle. */
+export function layoutFires(n: number): { x: number; z: number }[] {
+  if (n === 0) return [];
+  const cols = n <= 3 ? n : n <= 6 ? 3 : 4;
+  const rows = Math.ceil(n / cols);
+  const slots: { x: number; z: number }[] = [];
+  for (let r = 0; r < rows; r++) {
+    const inRow = r < rows - 1 ? cols : n - (rows - 1) * cols;
+    for (let c = 0; c < inRow; c++) slots.push({ x: (c - (inRow - 1) / 2) * GX, z: (r - (rows - 1) / 2) * GZ - 0.5 });
+  }
+  return slots.sort((a, b) => Math.hypot(a.x, a.z * 1.2) - Math.hypot(b.x, b.z * 1.2));
+}
+
+interface Tongue { mesh: THREE.Mesh; baseW: number; baseH: number; phase: number; speed: number; need: number; x: number; z: number }
+
+interface FireObj {
+  id: string; spec: FireSpec; group: THREE.Group; scale: number; pos: THREE.Vector3;
+  tongues: Tongue[]; coals: THREE.Mesh[]; stones: THREE.Mesh[]; hotPool: THREE.Mesh; coldPool: THREE.Mesh; ring: THREE.Mesh; hit: THREE.Mesh; ash: THREE.Mesh;
+  shownF: number; shownCoal: number; shownCold: number; flare: number; excite: number; index: number; paintedLevel: Level | null;
+}
+
+type Anim =
+  | { kind: 'return'; t: number; dur: number; from: THREE.Vector3; yaw0: number }
+  | { kind: 'fly'; t: number; dur: number; from: THREE.Vector3; fireId: string }
+  | { kind: 'burn'; t: number; dur: number; fireId: string }
+  | { kind: 'spawn'; t: number; dur: number };
+
+interface StickRun { obj: StickObj; state: 'idle' | 'drag' | 'hold' | 'anim'; anim: Anim | null; target: THREE.Vector3; tilt: number; fireId?: string; lastX: number; burnMats?: THREE.MeshStandardMaterial[] }
+
+export class CampfireWorld {
+  private readonly renderer: THREE.WebGLRenderer;
+  private readonly scene = new THREE.Scene();
+  private readonly camera = new THREE.PerspectiveCamera(38, 1, 0.1, 80);
+  private readonly controls: OrbitControls;
+  private readonly raycaster = new THREE.Raycaster();
+  private readonly fires = new Map<string, FireObj>();
+  private readonly sticks = new Map<number, StickRun>();
+  private readonly flameGeo = flameGeometry();
+  private readonly flameMat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
+  private readonly wood: WoodMaterials;
+  private readonly stoneMats: THREE.MeshStandardMaterial[];
+  private readonly frostMats: THREE.MeshStandardMaterial[];
+  private readonly coalGeo = new THREE.IcosahedronGeometry(0.17, 0);
+  private readonly stoneGeo = new THREE.IcosahedronGeometry(0.28, 1);
+  private readonly discGeo = new THREE.CircleGeometry(2.3, 36);
+  private readonly ringGeo = new THREE.RingGeometry(1.32, 1.5, 48);
+  private readonly hitGeo = new THREE.CylinderGeometry(1.25, 1.25, 2.4, 10);
+  private readonly ashGeo = new THREE.SphereGeometry(0.8, 16, 8);
+  private readonly hotTex: THREE.CanvasTexture;
+  private readonly coldTex: THREE.CanvasTexture;
+  private readonly ground: THREE.Mesh;
+  private readonly light = new THREE.PointLight(0xff9a2e, 0, 9, 1.2);
+  private readonly sparks: Particles;
+  private readonly burst: Particles;
+  private readonly flies: Particles;
+  private readonly snow: Particles;
+  private readonly sparkLife = new Float32Array(MAX_FIRES * SPARKS_PER);
+  private readonly sparkVel = new Float32Array(MAX_FIRES * SPARKS_PER * 3);
+  private readonly burstLife = new Float32Array(90);
+  private readonly burstVel = new Float32Array(90 * 3);
+  private readonly disposables: { dispose: () => void }[] = [];
+  private readonly textures: THREE.Texture[] = [];
+  private nextStickId = 1;
+  private yardZ = 4.2;
+  private extent = 6;
+  private yardHalf = 3;
+  private depth = 5;
+  private center = new THREE.Vector3(0, 0.6, 0.6);
+  private drag: { run: StickRun; pointer: number } | null = null;
+  private hover: string | null = null;
+  private selected: string | null = null;
+  private down = { x: 0, y: 0, t: 0 };
+  private fly: { from: CameraView & { distance: number }; to: CameraView & { distance: number }; t: number } | null = null;
+  private baseDistance = 11;
+  private raf = 0;
+  private last = performance.now();
+  private elapsed = 0;
+  private running = true;
+  private visible = true;
+  private width = 1;
+  private height = 1;
+  private lightTarget = new THREE.Vector3();
+  private ro: ResizeObserver;
+  private io: IntersectionObserver;
+  private anchors = new Map<string, THREE.Object3D>();
+
+  constructor(private readonly canvas: HTMLCanvasElement, private readonly opts: WorldOptions) {
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer.setClearColor(0x000000, 0);
+
+    this.wood = makeWoodMaterials();
+    this.textures.push(this.wood.bark, this.wood.endGrain, this.wood.inner);
+    const dot = TX.dotSprite();
+    const glow = TX.glowSprite();
+    const flake = TX.flakeSprite();
+    const ground = TX.groundTexture();
+    this.hotTex = this.poolTexture(['#B4483A', '#8A3A2A', '#4A2420']);
+    this.coldTex = this.poolTexture(['#7FB4F5', '#3F63C8', '#2C3C9A']);
+    this.textures.push(dot, glow, flake, ground, this.hotTex, this.coldTex);
+
+    this.stoneMats = [0x8f88ec, 0x7d76df, 0xa59ff2].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.9, flatShading: true }));
+    this.frostMats = [0xaebbe8, 0x9aa9dc, 0xc4cff2].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.7, flatShading: true }));
+    this.disposables.push(...this.stoneMats, ...this.frostMats, this.flameGeo, this.flameMat, this.coalGeo, this.stoneGeo, this.discGeo, this.ringGeo, this.hitGeo, this.ashGeo);
+
+    this.scene.add(new THREE.HemisphereLight(0xcfc9ff, 0x2c2266, 1.05));
+    const sun = new THREE.DirectionalLight(0xdad5ff, 0.7);
+    sun.position.set(-4, 8, 6);
+    this.scene.add(sun, this.light);
+
+    this.ground = new THREE.Mesh(new THREE.CircleGeometry(1, 56), new THREE.MeshBasicMaterial({ map: ground, transparent: true, depthWrite: false }));
+    this.ground.rotation.x = -Math.PI / 2;
+    this.scene.add(this.ground);
+
+    this.sparks = new Particles(MAX_FIRES * SPARKS_PER, dot);
+    this.burst = new Particles(90, dot);
+    this.flies = new Particles(14, glow);
+    this.snow = new Particles(MAX_FIRES * SNOW_PER, flake);
+    for (const p of [this.sparks, this.burst, this.flies, this.snow]) this.scene.add(p.points);
+    this.disposables.push(this.sparks, this.burst, this.flies, this.snow);
+    const fly = new THREE.Color('#FFE98A');
+    for (let i = 0; i < this.flies.count; i++) { this.flies.size[i] = 0.4; this.flies.setColor(i, fly); }
+
+    this.camera.position.set(0, 6, 11);
+    // Registered before the orbit controls, so picking up a stick can switch them off first.
+    canvas.addEventListener('pointerdown', this.onDown);
+    canvas.addEventListener('pointermove', this.onMove);
+    canvas.addEventListener('pointerup', this.onUp);
+    canvas.addEventListener('pointercancel', this.onCancel);
+    this.controls = new OrbitControls(this.camera, canvas);
+    this.controls.target.copy(this.center);
+    this.controls.enablePan = false;
+    this.controls.enableDamping = true;
+    this.controls.dampingFactor = 0.08;
+    this.controls.rotateSpeed = 0.75;
+    this.controls.zoomSpeed = 0.8;
+    this.controls.minPolarAngle = 0.22;
+    this.controls.maxPolarAngle = 1.42;
+    this.controls.autoRotate = false;
+    this.controls.addEventListener('start', () => this.interacted());
+
+    this.ro = new ResizeObserver(() => this.resize());
+    this.ro.observe(canvas.parentElement ?? canvas);
+    this.io = new IntersectionObserver(([e]) => { this.visible = e.isIntersecting; });
+    this.io.observe(canvas);
+    document.addEventListener('visibilitychange', this.onVis);
+    this.resize();
+    this.layoutYard();
+    this.loop();
+  }
+
+  // ---- building -------------------------------------------------------------------------------
+
+  private poolTexture(stops: string[]): THREE.CanvasTexture {
+    const c = document.createElement('canvas');
+    c.width = c.height = 256;
+    const g = c.getContext('2d')!;
+    const gr = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+    gr.addColorStop(0, stops[0]);
+    gr.addColorStop(0.3, stops[1]);
+    gr.addColorStop(0.62, stops[2]);
+    gr.addColorStop(1, 'rgba(44,34,102,0)');
+    g.fillStyle = gr;
+    g.fillRect(0, 0, 256, 256);
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }
+
+  private buildFire(spec: FireSpec, index: number): FireObj {
+    const r = rngOf(100 + index * 17);
+    const group = new THREE.Group();
+    const scale = FIRE_SCALE[spec.size];
+    group.scale.setScalar(scale);
+    const stones: THREE.Mesh[] = [];
+    for (let i = 0; i < 11; i++) {
+      const a = (i / 11) * Math.PI * 2 + 0.2;
+      const m = new THREE.Mesh(this.stoneGeo, this.stoneMats[i % 3]);
+      m.position.set(Math.cos(a) * 0.98, 0.1, Math.sin(a) * 0.98);
+      m.scale.set(1.15, 0.64, 0.95 + r() * 0.25);
+      m.rotation.y = r() * 6;
+      group.add(m);
+      stones.push(m);
+    }
+    const ashMat = new THREE.MeshStandardMaterial({ color: 0x2a1820, roughness: 1 });
+    this.disposables.push(ashMat);
+    const ash = new THREE.Mesh(this.ashGeo, ashMat);
+    ash.scale.set(1, 0.16, 1);
+    ash.position.y = 0.06;
+    group.add(ash);
+
+    const coals: THREE.Mesh[] = [];
+    for (let i = 0; i < 7; i++) {
+      const cm = new THREE.MeshStandardMaterial({ color: 0x4a2420, emissive: 0xff7a2e, emissiveIntensity: 0, roughness: 0.8 });
+      this.disposables.push(cm);
+      const m = new THREE.Mesh(this.coalGeo, cm);
+      const a = (i / 7) * Math.PI * 2;
+      m.position.set(Math.cos(a) * 0.36, 0.12, Math.sin(a) * 0.36);
+      m.scale.set(1.2, 0.7, 1);
+      m.rotation.set(r(), r() * 6, r());
+      group.add(m);
+      coals.push(m);
+    }
+
+    const tongues: Tongue[] = [];
+    const rings: [number, number, number, number][] = [[1, 0, 1.35, 1.55], [4, 0.2, 0.85, 1.25], [6, 0.4, 0.45, 0.8]];
+    const total = rings.reduce((s, x) => s + x[0], 0);
+    let n = 0;
+    const fireGroup = new THREE.Group();
+    fireGroup.position.y = 0.14;
+    group.add(fireGroup);
+    for (const [count, radius, minH, maxH] of rings) {
+      for (let i = 0; i < count; i++) {
+        const a = (i / count) * Math.PI * 2 + r();
+        const m = new THREE.Mesh(this.flameGeo, this.flameMat);
+        const baseH = minH + r() * (maxH - minH);
+        const x = Math.cos(a) * radius;
+        const z = Math.sin(a) * radius;
+        m.position.set(x, 0, z);
+        fireGroup.add(m);
+        tongues.push({ mesh: m, baseW: 0.34 + (baseH / 1.6) * 0.26 + r() * 0.08, baseH, phase: r() * 10, speed: 1.6 + r() * 1.6, need: n / total, x, z });
+        n++;
+      }
+    }
+
+    const hotPool = new THREE.Mesh(this.discGeo, new THREE.MeshBasicMaterial({ map: this.hotTex, transparent: true, depthWrite: false, opacity: 0 }));
+    const coldPool = new THREE.Mesh(this.discGeo, new THREE.MeshBasicMaterial({ map: this.coldTex, transparent: true, depthWrite: false, opacity: 0 }));
+    for (const p of [hotPool, coldPool]) { p.rotation.x = -Math.PI / 2; p.position.y = 0.02; group.add(p); this.disposables.push(p.material as THREE.Material); }
+
+    const ring = new THREE.Mesh(this.ringGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }));
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.035;
+    group.add(ring);
+    this.disposables.push(ring.material as THREE.Material);
+
+    const hit = new THREE.Mesh(this.hitGeo, new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, colorWrite: false }));
+    hit.position.y = 1.1;
+    hit.userData.fireId = spec.id;
+    group.add(hit);
+    this.disposables.push(hit.material as THREE.Material);
+
+    this.scene.add(group);
+    return { id: spec.id, spec, group, scale, pos: new THREE.Vector3(), tongues, coals, stones, hotPool, coldPool, ring, hit, ash, shownF: FLAME_LEVEL[spec.level], shownCoal: COAL_GLOW[spec.level], shownCold: spec.level === 0 ? 1 : 0, flare: 0, excite: 0, index, paintedLevel: null };
+  }
+
+  /** Create, update and arrange one campfire per area. */
+  setFires(specs: FireSpec[]): void {
+    const capped = specs.slice(0, MAX_FIRES);
+    const ids = new Set(capped.map((s) => s.id));
+    for (const [id, f] of this.fires) if (!ids.has(id)) { this.scene.remove(f.group); this.fires.delete(id); this.anchors.delete(id); }
+    const slots = layoutFires(capped.length);
+    capped.forEach((spec, i) => {
+      let f = this.fires.get(spec.id);
+      if (f && f.spec.size !== spec.size) { this.scene.remove(f.group); f = undefined; }
+      if (!f) { f = this.buildFire(spec, i); this.fires.set(spec.id, f); }
+      f.spec = spec;
+      f.index = i;
+      f.pos.set(slots[i].x, 0, slots[i].z);
+      f.group.position.copy(f.pos);
+      if (f.paintedLevel !== spec.level) {
+        const cold = spec.level === 0;
+        f.stones.forEach((m, k) => { m.material = (cold ? this.frostMats : this.stoneMats)[k % 3]; });
+        (f.ash.material as THREE.MeshStandardMaterial).color.set(cold ? 0x4a5384 : 0x2a1820);
+        f.paintedLevel = spec.level;
+      }
+    });
+    let maxX = 3, minZ = -3, maxZ = 0;
+    for (const f of this.fires.values()) { maxX = Math.max(maxX, Math.abs(f.pos.x) + 2.6); minZ = Math.min(minZ, f.pos.z - 2.4); maxZ = Math.max(maxZ, f.pos.z); }
+    this.yardZ = maxZ + 3.6;
+    // the wood yard is as wide as the fires, but never wider than a phone can show
+    this.yardHalf = Math.min(3.6, Math.max(2.6, maxX - 0.4));
+    this.extent = Math.max(maxX, this.yardHalf + 1.2, 4.2);
+    this.depth = (this.yardZ - minZ) / 2 + 1.3;
+    this.center.set(0, 0.6, (minZ + this.yardZ) / 2);
+    this.controls.target.copy(this.center);
+    this.ground.scale.setScalar(this.extent + 3.2);
+    this.ground.position.set(0, 0, this.center.z);
+    this.layoutYard();
+    this.resize();
+  }
+
+  /** Scatter the wood in a loose patch of ground in front of the fires, like it was dropped there. */
+  private layoutYard(): void {
+    if (this.sticks.size === 0) {
+      const w = this.wood;
+      REST_STICKS.forEach((kind) => this.addStick(kind, w, false));
+    }
+    const r = rngOf(55);
+    const placed: THREE.Vector3[] = [];
+    for (const run of this.sticks.values()) {
+      if (run.state !== 'idle' && run.state !== 'anim') continue;
+      const spot = this.freeSpot(r, placed, run.obj.length);
+      placed.push(spot);
+      run.obj.home.copy(spot);
+      run.obj.homeYaw = (r() - 0.5) * 2.6 + (r() > 0.5 ? 0 : Math.PI);
+      if (run.state === 'idle') { run.obj.group.position.copy(spot); run.obj.group.rotation.y = run.obj.homeYaw; }
+    }
+  }
+
+  private freeSpot(r: () => number, placed: THREE.Vector3[], len: number): THREE.Vector3 {
+    for (let tries = 0; tries < 60; tries++) {
+      const p = new THREE.Vector3((r() - 0.5) * 2 * this.yardHalf, 0, this.yardZ + (r() - 0.5) * 1.9);
+      if (placed.every((q) => Math.hypot(q.x - p.x, (q.z - p.z) * 1.3) > 1.15 + len * 0.18)) return p;
+    }
+    return new THREE.Vector3((r() - 0.5) * 6, 0, this.yardZ);
+  }
+
+  private addStick(kind: StickKind, w: WoodMaterials, pop: boolean): StickRun {
+    const id = this.nextStickId++;
+    const obj = buildStick(id, kind, w, id * 31 + 7);
+    this.scene.add(obj.group, obj.shadow);
+    this.disposables.push({ dispose: () => obj.mats.forEach((m) => m.dispose()) });
+    const run: StickRun = { obj, state: pop ? 'anim' : 'idle', anim: pop ? { kind: 'spawn', t: 0, dur: 0.6 } : null, target: new THREE.Vector3(), tilt: 0, lastX: 0 };
+    this.sticks.set(id, run);
+    return run;
+  }
+
+  // ---- public controls ------------------------------------------------------------------------
+
+  setSelected(id: string | null): void { this.selected = id; }
+  setAutoRotate(on: boolean): void { this.controls.autoRotate = on && !this.opts.reducedMotion; }
+
+  /** The fire swells and throws sparks. */
+  flare(fireId: string): void {
+    const f = this.fires.get(fireId);
+    if (!f) return;
+    f.flare = 1;
+    const r = Math.random;
+    const gold = new THREE.Color('#FFD25A');
+    const orange = new THREE.Color('#FF9A2E');
+    for (let i = 0; i < this.burst.count; i++) {
+      this.burstLife[i] = 0.8 + r() * 1.0;
+      this.burst.pos.set([f.pos.x + (r() - 0.5) * 0.5, 0.7, f.pos.z + (r() - 0.5) * 0.5], i * 3);
+      this.burstVel.set([(r() - 0.5) * 2.2, 2 + r() * 2.8, (r() - 0.5) * 2.2], i * 3);
+      this.burst.size[i] = 0.07 + r() * 0.1;
+      this.burst.setColor(i, i % 2 ? gold : orange);
+    }
+  }
+
+  /** The held stick flies into its fire and burns away. */
+  consumeStick(stickId: number): void {
+    const run = this.sticks.get(stickId);
+    if (!run || !run.fireId) return;
+    run.state = 'anim';
+    run.anim = { kind: 'fly', t: 0, dur: 0.38, from: run.obj.group.position.clone(), fireId: run.fireId };
+  }
+
+  /** Nothing was logged: the stick goes back where it lay. */
+  returnStick(stickId: number): void {
+    const run = this.sticks.get(stickId);
+    if (!run) return;
+    this.hover = null;
+    run.state = 'anim';
+    run.anim = { kind: 'return', t: 0, dur: 0.6, from: run.obj.group.position.clone(), yaw0: run.obj.group.rotation.y };
+  }
+
+  flyTo(view: CameraView): void {
+    const from = this.current();
+    let d = view.azimuth - from.azimuth;
+    d = Math.atan2(Math.sin(d), Math.cos(d));
+    this.fly = { from, to: { azimuth: from.azimuth + d, polar: view.polar, distance: view.distance ?? this.baseDistance }, t: 0 };
+    this.controls.autoRotate = false;
+  }
+
+  private current(): CameraView & { distance: number } {
+    return { azimuth: this.controls.getAzimuthalAngle(), polar: this.controls.getPolarAngle(), distance: this.camera.position.distanceTo(this.controls.target) };
+  }
+
+  private place(v: CameraView & { distance: number }): void {
+    const t = this.controls.target;
+    this.camera.position.set(t.x + v.distance * Math.sin(v.polar) * Math.sin(v.azimuth), t.y + v.distance * Math.cos(v.polar), t.z + v.distance * Math.sin(v.polar) * Math.cos(v.azimuth));
+  }
+
+  private interacted(): void { this.opts.onInteract?.(); this.fly = null; this.controls.autoRotate = false; }
+
+  // ---- input ----------------------------------------------------------------------------------
+
+  private ndc(e: PointerEvent): THREE.Vector2 {
+    const rect = this.canvas.getBoundingClientRect();
+    return new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+  }
+
+  private onDown = (e: PointerEvent) => {
+    this.down = { x: e.clientX, y: e.clientY, t: performance.now() };
+    this.raycaster.setFromCamera(this.ndc(e), this.camera);
+    const targets = [...this.sticks.values()].filter((s) => s.state === 'idle').map((s) => s.obj.group);
+    const hit = this.raycaster.intersectObjects(targets, true)[0];
+    if (!hit) return;
+    const id = hit.object.userData.stickId as number | undefined;
+    const run = id ? this.sticks.get(id) : undefined;
+    if (!run) return;
+    this.drag = { run, pointer: e.pointerId };
+    run.state = 'drag';
+    run.target.copy(run.obj.group.position);
+    run.lastX = run.target.x;
+    this.controls.enabled = false;
+    this.controls.autoRotate = false;
+    this.fly = null;
+    try { this.canvas.setPointerCapture(e.pointerId); } catch { /* the pointer may already be gone */ }
+    this.opts.onInteract?.();
+    this.moveDrag(e);
+  };
+
+  private moveDrag(e: PointerEvent): void {
+    if (!this.drag) return;
+    this.raycaster.setFromCamera(this.ndc(e), this.camera);
+    const hit = new THREE.Vector3();
+    if (this.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -HOVER_HEIGHT), hit)) {
+      const lim = this.extent + 2.5;
+      this.drag.run.target.set(Math.max(-lim, Math.min(lim, hit.x)), HOVER_HEIGHT, Math.max(this.center.z - lim, Math.min(this.center.z + lim, hit.z)));
+    }
+    let over: string | null = null;
+    let best = Infinity;
+    for (const f of this.fires.values()) {
+      const d = Math.hypot(this.drag.run.target.x - f.pos.x, this.drag.run.target.z - f.pos.z);
+      if (d < 1.55 * f.scale + 0.45 && d < best) { best = d; over = f.id; }
+    }
+    this.hover = over;
+    const rect = this.canvas.getBoundingClientRect();
+    this.opts.onDrag({ dragging: true, kind: this.drag.run.obj.kind, overFire: over, x: e.clientX - rect.left, y: e.clientY - rect.top });
+  }
+
+  private onMove = (e: PointerEvent) => { if (this.drag && e.pointerId === this.drag.pointer) this.moveDrag(e); };
+
+  private finishDrag(drop: boolean): void {
+    if (!this.drag) return;
+    const { run } = this.drag;
+    this.drag = null;
+    this.controls.enabled = true;
+    this.opts.onDrag({ dragging: false, x: 0, y: 0 });
+    if (drop && this.hover) {
+      run.state = 'hold';
+      run.fireId = this.hover;
+      this.opts.onDrop(this.hover, run.obj.kind, run.obj.id);
+    } else {
+      this.returnStick(run.obj.id);
+    }
+    this.hover = null;
+  }
+
+  private onUp = (e: PointerEvent) => {
+    if (this.drag && e.pointerId === this.drag.pointer) { this.finishDrag(true); return; }
+    if (Math.hypot(e.clientX - this.down.x, e.clientY - this.down.y) > 8 || performance.now() - this.down.t > 450) return;
+    this.raycaster.setFromCamera(this.ndc(e), this.camera);
+    const hit = this.raycaster.intersectObjects([...this.fires.values()].map((f) => f.hit), false)[0];
+    this.opts.onSelectFire(hit ? (hit.object.userData.fireId as string) : null);
+  };
+
+  private onCancel = () => { this.finishDrag(false); };
+  private onVis = () => { this.running = document.visibilityState === 'visible'; };
+
+  // ---- frame ----------------------------------------------------------------------------------
+
+  private resize(): void {
+    const box = (this.canvas.parentElement ?? this.canvas).getBoundingClientRect();
+    this.width = Math.max(1, Math.round(box.width));
+    this.height = Math.max(1, Math.round(box.height));
+    this.renderer.setSize(this.width, this.height, false);
+    this.camera.aspect = this.width / this.height;
+    const vFov = (this.camera.fov * Math.PI) / 180;
+    const hFov = 2 * Math.atan(Math.tan(vFov / 2) * this.camera.aspect);
+    const fit = (this.extent * 1.02) / Math.tan(hFov / 2);
+    const fitV = (this.depth * 0.78) / Math.tan(vFov / 2);
+    const first = this.baseDistance === 11;
+    const next = Math.max(7, Math.min(fit, 40), fitV);
+    const changed = Math.abs(next - this.baseDistance) > 0.01;
+    this.baseDistance = next;
+    this.controls.minDistance = next * 0.4;
+    this.controls.maxDistance = next * 1.3;
+    if (first || (changed && !this.drag)) this.place({ azimuth: this.current().azimuth || 0, polar: first ? 0.84 : this.current().polar, distance: next });
+    this.camera.updateProjectionMatrix();
+    const pxH = this.height * this.renderer.getPixelRatio();
+    for (const p of [this.sparks, this.burst, this.flies, this.snow]) p.setScale(pxH, this.camera.fov);
+  }
+
+  private loop = (): void => {
+    this.raf = requestAnimationFrame(this.loop);
+    const now = performance.now();
+    const dt = Math.min(0.05, (now - this.last) / 1000);
+    this.last = now;
+    if (!this.running || !this.visible) return;
+    this.elapsed += dt;
+    this.update(dt, this.elapsed);
+    this.controls.update();
+    this.renderer.render(this.scene, this.camera);
+    this.emitLabels();
+  };
+
+  private update(dt: number, t: number): void {
+    const calm = this.opts.reducedMotion;
+    if (this.fly) {
+      this.fly.t = Math.min(1, this.fly.t + dt / 0.85);
+      const k = ease(this.fly.t);
+      const { from, to } = this.fly;
+      this.place({ azimuth: from.azimuth + (to.azimuth - from.azimuth) * k, polar: from.polar + (to.polar - from.polar) * k, distance: from.distance + (to.distance - from.distance) * k });
+      if (this.fly.t >= 1) this.fly = null;
+    }
+    const r = Math.random;
+    const gold = [new THREE.Color('#FFD25A'), new THREE.Color('#FF9A2E'), new THREE.Color('#FFFBE0')];
+    let anyWarm = false;
+
+    for (const f of this.fires.values()) {
+      const lvl = f.spec.level;
+      const target = FLAME_LEVEL[lvl] * (0.82 + 0.18 * f.spec.progress);
+      f.shownF = damp(f.shownF, target, 2.4, dt);
+      f.shownCoal = damp(f.shownCoal, COAL_GLOW[lvl], 2.4, dt);
+      f.shownCold = damp(f.shownCold, lvl === 0 ? 1 : 0, 2.2, dt);
+      f.flare = Math.max(0, f.flare - dt * 1.3);
+      const over = this.hover === f.id;
+      f.excite = damp(f.excite, over ? 1 : 0, 8, dt);
+      const F = f.shownF;
+      const boost = 1 + f.flare * 0.4 + f.excite * 0.14;
+      if (F > 0.3) anyWarm = true;
+
+      for (const tg of f.tongues) {
+        const on = F * 1.18 > tg.need * 0.92;
+        tg.mesh.visible = on;
+        if (!on) continue;
+        const k = 0.3 + 1.0 * F;
+        const w = calm ? 0 : Math.sin(t * tg.speed + tg.phase);
+        const w2 = calm ? 0 : Math.sin(t * tg.speed * 0.7 + tg.phase * 1.7);
+        const wd = (0.62 + F * 0.5) * (1 + f.flare * 0.25);
+        tg.mesh.scale.set(tg.baseW * (1 + 0.1 * w2) * wd, tg.baseH * k * (1 + 0.13 * w) * boost, tg.baseW * (1 - 0.1 * w2) * wd);
+        tg.mesh.rotation.z = 0.12 * w2 + tg.x * 0.12;
+        tg.mesh.rotation.x = 0.1 * Math.cos(t * tg.speed * 0.8 + tg.phase) - tg.z * 0.12;
+      }
+      f.coals.forEach((c, i) => {
+        const m = c.material as THREE.MeshStandardMaterial;
+        const pulse = calm ? 0.5 : Math.sin(t * (lvl === 1 ? 2.2 : 3.2) + i * 1.7) * 0.5 + 0.5;
+        m.emissiveIntensity = f.shownCoal * (0.6 + 0.6 * pulse) * (1 + f.flare * 0.8);
+      });
+      (f.hotPool.material as THREE.MeshBasicMaterial).opacity = Math.min(1, F * 1.1 + (lvl === 1 ? 0.3 : 0));
+      f.hotPool.scale.setScalar(0.7 + F * 0.5 + f.flare * 0.15);
+      (f.coldPool.material as THREE.MeshBasicMaterial).opacity = f.shownCold * 0.85;
+      const ringMat = f.ring.material as THREE.MeshBasicMaterial;
+      const pulse = calm ? 0 : 0.18 * Math.sin(t * 7);
+      ringMat.opacity = over ? 0.75 + pulse : this.selected === f.id ? 0.28 : 0;
+      f.ring.scale.setScalar(over ? 1.06 + (calm ? 0 : 0.04 * Math.sin(t * 7)) : 1);
+
+      // sparks of this fire
+      for (let n = 0; n < SPARKS_PER; n++) {
+        const i = f.index * SPARKS_PER + n;
+        this.sparkLife[i] -= dt;
+        if (this.sparkLife[i] <= 0) {
+          if (calm || F < 0.12 || n > 2 + F * 10) { this.sparks.alpha[i] = 0; continue; }
+          const a = r() * Math.PI * 2;
+          const d = r() * 0.35 * f.scale;
+          this.sparks.pos.set([f.pos.x + Math.cos(a) * d, 0.6 * f.scale + r() * 0.5, f.pos.z + Math.sin(a) * d], i * 3);
+          this.sparkVel.set([(r() - 0.5) * 0.5, 0.7 + r() * (0.8 + F), (r() - 0.5) * 0.5], i * 3);
+          this.sparkLife[i] = 0.9 + r() * 1.4;
+          this.sparks.size[i] = 0.04 + r() * 0.05;
+          this.sparks.setColor(i, gold[i % 3]);
+        }
+        for (let k = 0; k < 3; k++) this.sparks.pos[i * 3 + k] += this.sparkVel[i * 3 + k] * dt;
+        this.sparks.alpha[i] = Math.min(1, this.sparkLife[i] * 1.5);
+      }
+
+      // snow around a cold fire
+      for (let n = 0; n < SNOW_PER; n++) {
+        const i = f.index * SNOW_PER + n;
+        if (f.shownCold < 0.05 || n >= f.shownCold * SNOW_PER) { this.snow.alpha[i] = 0; continue; }
+        if (this.snow.alpha[i] === 0 || this.snow.pos[i * 3 + 1] < 0.05) {
+          const a = r() * Math.PI * 2;
+          const d = Math.sqrt(r()) * 1.7 * f.scale;
+          this.snow.pos.set([f.pos.x + Math.cos(a) * d, 0.4 + r() * 2.6, f.pos.z + Math.sin(a) * d], i * 3);
+          this.snow.size[i] = 0.1 + r() * 0.08;
+          this.snow.setColor(i, new THREE.Color('#ffffff'));
+        }
+        if (!calm) {
+          this.snow.pos[i * 3 + 1] -= dt * (0.25 + (n % 5) * 0.08);
+          this.snow.pos[i * 3] += Math.sin(t * 0.8 + i) * dt * 0.12;
+        }
+        this.snow.alpha[i] = 0.55 + ((i * 13) % 40) / 100;
+      }
+    }
+    // spark slots with no fire
+    for (let i = this.fires.size * SPARKS_PER; i < this.sparks.count; i++) this.sparks.alpha[i] = 0;
+    for (let i = this.fires.size * SNOW_PER; i < this.snow.count; i++) this.snow.alpha[i] = 0;
+    this.sparks.commit();
+    this.snow.commit();
+
+    for (let i = 0; i < this.burst.count; i++) {
+      if (this.burstLife[i] <= 0) { this.burst.alpha[i] = 0; continue; }
+      this.burstLife[i] -= dt;
+      this.burstVel[i * 3 + 1] -= 2.4 * dt;
+      for (let k = 0; k < 3; k++) this.burst.pos[i * 3 + k] += this.burstVel[i * 3 + k] * dt;
+      this.burst.alpha[i] = Math.max(0, Math.min(1, this.burstLife[i] * 1.6));
+    }
+    this.burst.commit();
+
+    const flyOn = anyWarm && !calm;
+    for (let i = 0; i < this.flies.count; i++) {
+      const a = t * 0.1 * (1 + (i % 3) * 0.3) + i * 1.3;
+      const d = (this.extent * 0.55) + (i % 5) * 0.6;
+      this.flies.pos.set([Math.cos(a) * d + Math.sin(t * 0.6 + i) * 0.4, 0.8 + (i % 4) * 0.5 + Math.sin(t * 0.9 + i * 2) * 0.3, this.center.z + Math.sin(a) * d * 0.8], i * 3);
+      this.flies.alpha[i] = flyOn ? 0.18 + 0.5 * Math.max(0, Math.sin(t * 1.2 + i * 2.1)) : 0;
+    }
+    this.flies.commit();
+
+    // one light follows the fire you are feeding or have selected
+    const lit = this.fires.get(this.hover ?? this.selected ?? '');
+    if (lit) this.lightTarget.set(lit.pos.x, 1.3 * lit.scale, lit.pos.z);
+    this.light.position.lerp(this.lightTarget, 1 - Math.exp(-dt * 6));
+    const want = lit && lit.shownF > 0.05 ? (4 + lit.shownF * 16) * (calm ? 1 : 1 + 0.07 * Math.sin(t * 13)) * (1 + lit.excite * 0.4) : 0;
+    this.light.intensity = damp(this.light.intensity, want, 6, dt);
+
+    this.updateSticks(dt, t);
+  }
+
+  private updateSticks(dt: number, t: number): void {
+    const calm = this.opts.reducedMotion;
+    for (const run of [...this.sticks.values()]) {
+      const g = run.obj.group;
+      const sh = run.obj.shadow;
+      if (run.state === 'idle') {
+        g.position.copy(run.obj.home);
+        g.rotation.set(0, run.obj.homeYaw, 0);
+        g.scale.setScalar(1);
+      } else if (run.state === 'drag') {
+        const before = g.position.x;
+        g.position.x = damp(g.position.x, run.target.x, 16, dt);
+        g.position.y = damp(g.position.y, run.target.y, 14, dt);
+        g.position.z = damp(g.position.z, run.target.z, 16, dt);
+        const vx = (g.position.x - before) / Math.max(dt, 0.001);
+        run.tilt = damp(run.tilt, Math.max(-0.5, Math.min(0.5, -vx * 0.06)), 10, dt);
+        g.rotation.z = run.tilt;
+        g.rotation.x = damp(g.rotation.x, calm ? 0 : Math.sin(t * 5) * 0.04, 8, dt);
+        g.scale.setScalar(damp(g.scale.x, 1.08, 10, dt));
+      } else if (run.state === 'hold') {
+        const f = this.fires.get(run.fireId ?? '');
+        if (f) {
+          g.position.x = damp(g.position.x, f.pos.x, 9, dt);
+          g.position.z = damp(g.position.z, f.pos.z, 9, dt);
+          g.position.y = damp(g.position.y, 1.25 * f.scale + (calm ? 0 : Math.sin(t * 3) * 0.06), 9, dt);
+        }
+        g.rotation.z = damp(g.rotation.z, 0, 8, dt);
+        g.rotation.y += dt * (calm ? 0 : 0.6);
+      } else if (run.anim) {
+        this.stepAnim(run, dt);
+      }
+      // the shadow stays on the ground under the stick, smaller and fainter as it rises
+      sh.position.set(g.position.x, 0.015, g.position.z);
+      sh.rotation.z = -g.rotation.y;
+      const lift = Math.max(0, g.position.y);
+      (sh.material as THREE.MeshBasicMaterial).opacity = Math.max(0.08, 0.5 - lift * 0.25);
+      sh.visible = g.visible && g.scale.x > 0.05;
+    }
+  }
+
+  private stepAnim(run: StickRun, dt: number): void {
+    const a = run.anim!;
+    const g = run.obj.group;
+    a.t = Math.min(a.dur, a.t + dt);
+    const k = a.t / a.dur;
+    if (a.kind === 'return') {
+      const e = ease(k);
+      g.position.lerpVectors(a.from, run.obj.home, e);
+      g.position.y += Math.sin(Math.PI * k) * 0.9;
+      g.rotation.y = a.yaw0 + (run.obj.homeYaw - a.yaw0) * e;
+      g.rotation.z = (1 - e) * g.rotation.z;
+      g.scale.setScalar(1 + (1 - e) * 0.08);
+      if (k >= 1) { run.state = 'idle'; run.anim = null; }
+    } else if (a.kind === 'fly') {
+      const f = this.fires.get(a.fireId);
+      const to = f ? new THREE.Vector3(f.pos.x, 0.5 * f.scale, f.pos.z) : a.from;
+      const e = ease(k);
+      g.position.lerpVectors(a.from, to, e);
+      g.rotation.z = (1 - e) * g.rotation.z + e * 0.2;
+      if (k >= 1) {
+        this.flare(a.fireId);
+        // each stick gets its own materials so it can darken and glow without touching the others
+        const mats: THREE.MeshStandardMaterial[] = [];
+        g.traverse((o) => {
+          const m = o as THREE.Mesh;
+          if (!m.isMesh || o === run.obj.hit) return;
+          const list = Array.isArray(m.material) ? m.material : [m.material];
+          const cloned = list.map((x) => { const c = (x as THREE.MeshStandardMaterial).clone(); mats.push(c); return c; });
+          m.material = Array.isArray(m.material) ? cloned : cloned[0];
+        });
+        run.burnMats = mats;
+        run.anim = { kind: 'burn', t: 0, dur: 1.25, fireId: a.fireId };
+      }
+    } else if (a.kind === 'burn') {
+      const e = k;
+      const char = new THREE.Color(0x140c10);
+      for (const m of run.burnMats ?? []) {
+        m.color.lerp(char, 0.1 + e * 0.1);
+        m.emissive.setHex(0xff6a2e);
+        m.emissiveIntensity = Math.sin(Math.PI * Math.min(1, e * 1.2)) * 1.6;
+      }
+      const s = 1 - ease(Math.max(0, (e - 0.25) / 0.75)) * 0.92;
+      g.scale.set(s, s, s);
+      if (Math.random() < 0.5 && !this.opts.reducedMotion) {
+        const i = Math.floor(Math.random() * this.burst.count);
+        if (this.burstLife[i] <= 0) {
+          this.burstLife[i] = 0.6;
+          this.burst.pos.set([g.position.x + (Math.random() - 0.5) * 0.4, g.position.y + 0.2, g.position.z + (Math.random() - 0.5) * 0.4], i * 3);
+          this.burstVel.set([(Math.random() - 0.5) * 0.6, 1.2 + Math.random(), (Math.random() - 0.5) * 0.6], i * 3);
+          this.burst.size[i] = 0.05 + Math.random() * 0.06;
+          this.burst.setColor(i, new THREE.Color(Math.random() > 0.5 ? '#FF9A2E' : '#FFD25A'));
+        }
+      }
+      if (k >= 1) this.retire(run);
+    } else if (a.kind === 'spawn') {
+      const e = backOut(k);
+      g.position.copy(run.obj.home);
+      g.position.y = Math.max(0, (1 - k) * 1.1);
+      g.rotation.set(0, run.obj.homeYaw, 0);
+      g.scale.setScalar(Math.max(0.01, e));
+      if (k >= 1) { run.state = 'idle'; run.anim = null; }
+    }
+  }
+
+  /** The stick has burned away: remove it and lay a new, random one on the ground. */
+  private retire(run: StickRun): void {
+    this.sticks.delete(run.obj.id);
+    this.scene.remove(run.obj.group, run.obj.shadow);
+    run.burnMats?.forEach((m) => m.dispose());
+    const kind = STICK_KINDS[Math.floor(Math.random() * STICK_KINDS.length)];
+    const fresh = this.addStick(kind, this.wood, true);
+    const placed = [...this.sticks.values()].filter((s) => s !== fresh).map((s) => s.obj.home);
+    fresh.obj.home.copy(this.freeSpot(Math.random, placed, fresh.obj.length));
+    fresh.obj.homeYaw = (Math.random() - 0.5) * 2.6 + (Math.random() > 0.5 ? 0 : Math.PI);
+    fresh.obj.group.position.copy(fresh.obj.home);
+  }
+
+  private emitLabels(): void {
+    const out: LabelPos[] = [];
+    const v = new THREE.Vector3();
+    for (const f of this.fires.values()) {
+      // a little sign on the ground in front of the fire
+      v.set(f.pos.x, 0.12, f.pos.z + 1.55 * f.scale);
+      const dist = v.distanceTo(this.camera.position);
+      v.project(this.camera);
+      out.push({ id: f.id, x: (v.x * 0.5 + 0.5) * this.width, y: (-v.y * 0.5 + 0.5) * this.height, depth: Math.max(0, Math.min(1, (dist - this.baseDistance * 0.45) / (this.baseDistance * 1.0))), visible: v.z < 1 });
+    }
+    this.opts.onFrame(out);
+  }
+
+  dispose(): void {
+    cancelAnimationFrame(this.raf);
+    this.ro.disconnect();
+    this.io.disconnect();
+    document.removeEventListener('visibilitychange', this.onVis);
+    for (const [ev, fn] of [['pointerdown', this.onDown], ['pointermove', this.onMove], ['pointerup', this.onUp], ['pointercancel', this.onCancel]] as const) this.canvas.removeEventListener(ev, fn as EventListener);
+    this.controls.dispose();
+    this.disposables.forEach((d) => d.dispose());
+    this.textures.forEach((t) => t.dispose());
+    this.scene.traverse((o) => { const m = o as THREE.Mesh; if (m.geometry) m.geometry.dispose(); });
+    this.renderer.dispose();
+  }
+}

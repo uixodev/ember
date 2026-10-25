@@ -199,3 +199,21 @@ export function groundTexture(): THREE.CanvasTexture {
   }
   return texture(c);
 }
+
+/** The pale inside of a split log. */
+export function splitFaceTexture(): THREE.CanvasTexture {
+  const [c, g] = canvas(128, 256);
+  g.fillStyle = '#C9965C';
+  g.fillRect(0, 0, 128, 256);
+  const r = rng(14);
+  for (let i = 0; i < 40; i++) {
+    g.strokeStyle = `rgba(110,70,36,${0.15 + r() * 0.3})`;
+    g.lineWidth = 1 + r() * 2;
+    g.beginPath();
+    const x = r() * 128;
+    g.moveTo(x, 0);
+    g.bezierCurveTo(x + 10 * (r() - 0.5), 80, x + 14 * (r() - 0.5), 170, x + 8 * (r() - 0.5), 256);
+    g.stroke();
+  }
+  return texture(c);
+}
