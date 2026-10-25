@@ -1,9 +1,9 @@
 /**
  * Levels for a campfire. A fire goes up one level every time its heat reaches 100%: feed it wood until it is full.
- * Levels never end. The fire's look changes through seven mastery designs as the level grows.
+ * Levels never end. The fire's look changes through eight mastery designs as the level grows.
  */
 
-export type Tier = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+export type Tier = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
 export interface TierInfo {
   tier: Tier;
@@ -26,6 +26,7 @@ export const TIERS: TierInfo[] = [
   { tier: 5, name: 'Forge', from: 25, look: 'A glowing iron ring joins the pillars', fill: '#2FCFA0', rim: '#1B9C78', ink: '#10304A' },
   { tier: 6, name: 'Inferno', from: 40, look: 'Embers circle the fire', fill: '#4F8EF7', rim: '#2C5BC4', ink: '#FFFFFF' },
   { tier: 7, name: 'Legend', from: 60, look: 'Gold pillars and a crown of light', fill: '#FFF4C2', rim: '#E0A810', ink: '#5A3C00' },
+  { tier: 8, name: 'Mythic', from: 100, look: 'Everything shimmers through the rainbow over a turning prism ring', fill: '#7FE3C8', rim: '#2F6FEB', ink: '#10304A' },
 ];
 
 export function tierOfLevel(level: number): TierInfo {
