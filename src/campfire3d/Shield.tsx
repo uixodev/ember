@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { tierOfLevel, TIERS, type Tier } from './mastery';
 
 /** A little shield with the level on it, in the colours of the fire's mastery design. */
@@ -8,21 +8,35 @@ export function Shield({ level, tier, size = 32 }: { level: number; tier?: Tier;
   const t = tier ? TIERS[tier - 1] : tierOfLevel(level);
   const [id] = useState(() => `holo${shieldCount++}`);
   const holo = t.tier === 8;
+  const gradA = useRef<SVGLinearGradientElement>(null);
+  const gradB = useRef<SVGLinearGradientElement>(null);
   const calm = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   const digits = String(level).length;
+  // The colours of a Mythic shield flow all the time. Driven from here so it moves the same in every browser.
+  useEffect(() => {
+    if (!holo || calm) return;
+    let raf = 0;
+    const t0 = performance.now();
+    const loop = () => {
+      const t = (performance.now() - t0) / 1000;
+      gradA.current?.setAttribute('gradientTransform', `translate(${((t * 0.28) % 1).toFixed(3)} 0)`);
+      gradB.current?.setAttribute('gradientTransform', `translate(${(-(t * 0.2) % 1).toFixed(3)} 0)`);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [holo, calm]);
   const font = digits >= 4 ? 7.5 : digits === 3 ? 9 : digits === 2 ? 11 : 13;
   return (
     <svg className="shield" width={size} height={size * 1.08} viewBox="0 0 24 26" role="img" aria-label={`Level ${level}, ${t.name}`}>
       {holo && (
         <defs>
           {/* soft holographic colours, the same colour at both ends so the movement has no seam */}
-          <linearGradient id={id} x1="0" y1="0" x2="1" y2="0.6" spreadMethod="repeat">
+          <linearGradient ref={gradA} id={id} x1="0" y1="0" x2="1" y2="0.6" spreadMethod="repeat">
             {['#FFB8DC', '#D9C6FF', '#A9DCFF', '#B4F5E4', '#FFF2B0', '#FFD0B8', '#FFB8DC'].map((c, i, a) => <stop key={i} offset={i / (a.length - 1)} stopColor={c} />)}
-            {!calm && <animateTransform attributeName="gradientTransform" type="translate" from="0 0" to="1 0" dur="3.2s" repeatCount="indefinite" />}
           </linearGradient>
-          <linearGradient id={`${id}r`} x1="1" y1="0" x2="0" y2="1" spreadMethod="repeat">
+          <linearGradient ref={gradB} id={`${id}r`} x1="1" y1="0" x2="0" y2="1" spreadMethod="repeat">
             {['#A9DCFF', '#B4F5E4', '#FFF2B0', '#FFD0B8', '#FFB8DC', '#D9C6FF', '#A9DCFF'].map((c, i, a) => <stop key={i} offset={i / (a.length - 1)} stopColor={c} />)}
-            {!calm && <animateTransform attributeName="gradientTransform" type="translate" from="0 0" to="-1 0" dur="4.4s" repeatCount="indefinite" />}
           </linearGradient>
         </defs>
       )}
