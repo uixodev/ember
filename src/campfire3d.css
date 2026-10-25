@@ -204,3 +204,5 @@ html.c3-lock body { position: fixed; inset: 0; width: 100%; }
 .c3-title { margin: 0 156px 0 0; justify-items: start; text-align: left; gap: 6px; }
 .c3-title h1 { font-size: 24px; max-width: 100%; }
 @media (max-height: 640px) { .c3-title h1 { font-size: 20px; } }
+.c3-sparks { width: 54px; min-width: 54px; padding: 0; justify-content: center; border-radius: 50%; font: 800 20px/1 var(--font); right: 76px; }
+.c3-title { margin-right: 140px; }

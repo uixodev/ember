@@ -268,7 +268,7 @@ export default function Campfire3DPreview() {
           </nav>
         </header>
         <button type="button" className="c3-sparks" onClick={() => { setPanel(null); setLogOpen(true); }} aria-label={`${sparksToday} ${sparksToday === 1 ? 'spark' : 'sparks'} today, open the list`}>
-          {sparksToday} {sparksToday === 1 ? 'spark' : 'sparks'}
+          {sparksToday}
         </button>
         {chosen && (
           <div className="c3-title" aria-live="polite">
