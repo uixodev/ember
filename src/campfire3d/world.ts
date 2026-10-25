@@ -144,6 +144,11 @@ export class CampfireWorld {
   private width = 1;
   private height = 1;
   private lightTarget = new THREE.Vector3();
+  private insetTop = 0;
+  private insetBottom = 0;
+  private targetTop = 0;
+  private targetBottom = 0;
+  private lastOffset = NaN;
   private ro: ResizeObserver;
   private io: IntersectionObserver;
 
@@ -400,6 +405,16 @@ export class CampfireWorld {
 
   // ---- public controls ------------------------------------------------------------------------
 
+  /** Space covered by controls at the top and bottom, so the fires sit in the free middle. */
+  setInsets(top: number, bottom: number): void { this.targetTop = top; this.targetBottom = bottom; }
+
+  private applyOffset(force = false): void {
+    const y = (this.insetBottom - this.insetTop) / 2;
+    if (!force && Math.abs(y - this.lastOffset) < 0.3) return;
+    this.lastOffset = y;
+    this.camera.setViewOffset(this.width, this.height, 0, y, this.width, this.height);
+  }
+
   setSelected(id: string | null): void { this.selected = id; }
   /** Show a creature on every lit fire, not only the Hot ones (to preview them). */
   setCreaturesAlways(on: boolean): void { this.creaturesAlways = on; }
@@ -599,7 +614,9 @@ export class CampfireWorld {
     const vFov = (this.camera.fov * Math.PI) / 180;
     const hFov = 2 * Math.atan(Math.tan(vFov / 2) * this.camera.aspect);
     const fit = (this.extent * 0.88) / Math.tan(hFov / 2);
-    const fitV = (this.depth * 0.95) / Math.tan(vFov / 2);
+    // the scene lives in the part of the screen the controls leave free
+    const free = Math.max(0.4, 1 - Math.min(0.5, 300 / this.height));
+    const fitV = (this.depth * 0.95) / (Math.tan(vFov / 2) * free);
     const first = this.baseDistance === 11;
     const next = Math.max(7, Math.min(fit, 40), fitV);
     const changed = Math.abs(next - this.baseDistance) > 0.01;
@@ -608,6 +625,7 @@ export class CampfireWorld {
     this.controls.maxDistance = next * 1.3;
     if (first || (changed && !this.drag)) this.place({ azimuth: this.current().azimuth || 0, polar: first ? 0.84 : this.current().polar, distance: next });
     this.camera.updateProjectionMatrix();
+    this.applyOffset(true);
     const pxH = this.height * this.renderer.getPixelRatio();
     for (const p of [this.sparks, this.burst, this.flies, this.snow]) p.setScale(pxH, this.camera.fov);
   }
@@ -619,6 +637,9 @@ export class CampfireWorld {
     this.last = now;
     if (!this.running || !this.visible) return;
     this.elapsed += dt;
+    this.insetTop = damp(this.insetTop, this.targetTop, 7, dt);
+    this.insetBottom = damp(this.insetBottom, this.targetBottom, 7, dt);
+    this.applyOffset();
     this.update(dt, this.elapsed);
     this.controls.update();
     this.renderer.render(this.scene, this.camera);

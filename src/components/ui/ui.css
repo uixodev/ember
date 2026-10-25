@@ -64,7 +64,7 @@ button.pill { cursor: pointer; }
 .stepper-caption { margin-top: 10px; font: var(--t-label); }
 
 /* sheet */
-.sheet-scrim { position: fixed; inset: 0; background: var(--scrim); display: flex; align-items: flex-end; justify-content: center; z-index: 50; animation: fade .2s ease; }
+.sheet-scrim { position: fixed; inset: 0; background: var(--scrim); display: flex; align-items: flex-end; justify-content: center; z-index: 300; animation: fade .2s ease; }
 .sheet {
   position: relative; width: min(100%, 430px); background: var(--sheet); color: var(--navy); border-radius: var(--r-card);
   margin: 0 8px calc(12px + env(safe-area-inset-bottom)); padding: 20px; text-align: center; animation: rise .28s cubic-bezier(.2, .8, .2, 1);

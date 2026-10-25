@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button } from './components/ui/Button';
 import { FeedSheet } from './components/ui/FeedSheet';
 import { HeatIcon } from './components/ui/HeatIcon';
+import { Segmented } from './components/ui/Tabs';
 import { TopBar } from './components/ui/TopBar';
 import { LEVEL_NAMES, formatSpan } from './engine/format';
 import { DEFAULT_ACTIVE_HOURS, type Level as HeatLevel } from './engine/heat';
@@ -16,8 +16,9 @@ import './campfire.css';
 import './campfire3d.css';
 
 /**
- * DESIGN SAMPLE, not the real app: every area is its own campfire. Drag a piece of wood onto a fire,
- * say what you did, log it, and watch it burn. Open with ?campfire3d. All data here is made up.
+ * DESIGN SAMPLE, not the real app: one fixed screen, no scrolling. Every area is its own campfire.
+ * Drag wood from the dock onto a fire, say what you did, log it, and watch it burn.
+ * Open with ?campfire3d. All data here is made up.
  */
 
 interface Fire { area: Area; level: Level; progress: number; size: Size; color: PaletteId; style: FireStyle; creature: CreatureId | 'auto' | 'none'; main?: boolean; cool: string }
@@ -41,39 +42,49 @@ const SAMPLE: Fire[] = [
   mk('med', 'Meditate', 1, 0.5, 1, '7 h', 'mint', 'wisp'),
   mk('garden', 'Garden', 2, 0.3, 1, '2 days', 'lime', 'candle'),
 ];
-
 // hand every area a different creature in turn, so the Hot fires don't all get the same one
 SAMPLE.forEach((f, i) => { f.creature = CREATURE_IDS[(i + 5) % CREATURE_IDS.length]; });
 
 const SIZE_NAMES: Record<Size, string> = { 1: 'Small', 2: 'Medium', 3: 'Large', 4: 'Huge' };
 const HOURS = DEFAULT_ACTIVE_HOURS;
+const VIEWS = [{ azimuth: 0, polar: 0.84 }, { azimuth: 0, polar: 0.3 }, { azimuth: Math.PI / 2, polar: 1.2 }];
 
 interface Pending { fireId: string; kind: StickKind; stickId: number | null }
+type Panel = null | 'customise' | 'menu';
+type Tab = 'size' | 'colour' | 'style' | 'creature';
 
 export default function Campfire3DPreview() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const worldRef = useRef<CampfireWorld | null>(null);
   const labelRefs = useRef(new Map<string, HTMLDivElement>());
+  const topRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const viewIndex = useRef(0);
   const [failed, setFailed] = useState(false);
   const [hint, setHint] = useState(true);
   const [names, setNames] = useState(false);
   const [creaturesAll, setCreaturesAll] = useState(false);
   const [held, setHeld] = useState<StickKind | null>(null);
   const [icons, setIcons] = useState<Partial<Record<StickKind, string>>>({});
-  const viewIndex = useRef(0);
-  const stageRef = useRef<HTMLElement>(null);
   const [count, setCount] = useState(5);
   const [fires, setFires] = useState<Fire[]>(SAMPLE);
   const [sel, setSel] = useState<string | null>('js');
   const [drag, setDrag] = useState<DragState | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
+  const [panel, setPanel] = useState<Panel>(null);
+  const [tab, setTab] = useState<Tab>('size');
 
   const shown = useMemo(() => fires.slice(0, count), [fires, count]);
   const chosen = shown.find((f) => f.area.id === sel);
-  const firesRef = useRef(shown);
-  firesRef.current = shown;
   const pendingFire = pending ? shown.find((f) => f.area.id === pending.fireId) : undefined;
   const overFire = drag?.overFire ? shown.find((f) => f.area.id === drag.overFire) : undefined;
+
+  // The page is one fixed screen: nothing to scroll.
+  useEffect(() => {
+    document.documentElement.classList.add('c3-lock');
+    return () => document.documentElement.classList.remove('c3-lock');
+  }, []);
 
   const onFrame = useCallback((labels: LabelPos[]) => {
     for (const l of labels) {
@@ -99,13 +110,23 @@ export default function Campfire3DPreview() {
         reducedMotion: reduced,
       });
       worldRef.current = world;
-      const t = window.setTimeout(() => setIcons(world.renderIcons()), 250);
       (window as unknown as { __world: CampfireWorld }).__world = world;
+      const t = window.setTimeout(() => setIcons(world.renderIcons()), 250);
       return () => { window.clearTimeout(t); world.dispose(); worldRef.current = null; };
     } catch {
       setFailed(true);
     }
   }, [onFrame]);
+
+  // keep the fires centred in the part of the screen the controls leave free
+  useEffect(() => {
+    const measure = () => worldRef.current?.setInsets(topRef.current?.offsetHeight ?? 0, bottomRef.current?.offsetHeight ?? 0);
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (topRef.current) ro.observe(topRef.current);
+    if (bottomRef.current) ro.observe(bottomRef.current);
+    return () => ro.disconnect();
+  }, [failed]);
 
   useEffect(() => {
     worldRef.current?.setFires(shown.map((f) => ({ id: f.area.id, level: f.level, progress: f.progress, size: f.size, color: f.color, style: f.style, creature: f.creature })));
@@ -147,22 +168,16 @@ export default function Campfire3DPreview() {
     if (best) setSel(best.id);
   };
 
-  const recolor = (color: PaletteId) => { if (chosen) setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, color } : f))); };
-  const restyle = (style: FireStyle) => { if (chosen) setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, style } : f))); };
-  const setCreature = (creature: Fire['creature']) => { if (chosen) setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, creature } : f))); };
-  const resize = (size: Size) => { if (chosen) setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, size } : f))); };
+  const patch = (change: Partial<Fire>) => { if (chosen) setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, ...change } : f))); };
   const shuffle = () => setFires((all) => all.map((f) => { const lv = ((Math.random() * 4) | 0) as Level; return { ...f, level: lv, progress: lv ? 0.2 + Math.random() * 0.75 : 0, cool: lv ? 'a while' : 'cold' }; }));
   const mixSizes = () => setFires((all) => all.map((f) => ({ ...f, size: (1 + ((Math.random() * 4) | 0)) as Size })));
-  const VIEWS = [{ azimuth: 0, polar: 0.84 }, { azimuth: 0, polar: 0.3 }, { azimuth: Math.PI / 2, polar: 1.2 }];
-  const nextView = () => {
-    viewIndex.current = (viewIndex.current + 1) % VIEWS.length;
-    worldRef.current?.flyTo(VIEWS[viewIndex.current]);
-  };
+  const nextView = () => { viewIndex.current = (viewIndex.current + 1) % VIEWS.length; worldRef.current?.flyTo(VIEWS[viewIndex.current]); };
 
-  // wood from the inventory: pick it up here, carry it into the scene
+  // wood from the dock: pick it up here, carry it into the scene
   const grab = (kind: StickKind) => (e: React.PointerEvent<HTMLButtonElement>) => {
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
+    setPanel(null);
     worldRef.current?.beginTrayDrag(kind, e.clientX, e.clientY, e.pointerId);
     setHeld(kind);
     setHint(false);
@@ -174,44 +189,121 @@ export default function Campfire3DPreview() {
   };
 
   const warm = shown.length ? Math.max(...shown.map((f) => f.level)) : 0;
-  const stageH = stageRef.current?.clientHeight ?? 480;
+  const stageH = stageRef.current?.clientHeight ?? 700;
+  const togglePanel = (p: Exclude<Panel, null>) => setPanel((cur) => (cur === p ? null : p));
 
   return (
-    <div className="camp-page">
-      <div className="camp-banner">Design sample, not the real app yet. Drag a piece of wood onto a fire. Drag the ground to look around.</div>
-      <TopBar initial="J" streak={4} sparksToday={3} level={warm as HeatLevel} />
+    <div className="c3-app" ref={stageRef} onPointerDown={onStageDown} onPointerUp={onStageUp}>
+      {failed ? (
+        <div className="c3-fail"><b>3D isn't available on this device</b><span>Open the flat version instead: add ?campfire to the address.</span></div>
+      ) : (
+        <>
+          <canvas ref={canvasRef} className="c3-canvas" aria-label="Your campfires" />
+          {shown.map((f) => (
+            <div key={f.area.id} ref={(el) => { if (el) labelRefs.current.set(f.area.id, el); else labelRefs.current.delete(f.area.id); }}
+              className={`camp-label c3-label c3-fire-label${sel === f.area.id ? ' sel' : ''}${drag?.overFire === f.area.id ? ' over' : ''}`}>
+              <HeatIcon level={f.level} size={16} />
+              <span className="camp-label-text">{f.area.name}</span>
+            </div>
+          ))}
+          {shown.length === 0 && <div className="camp-empty"><b>No fires yet</b><span>Add an area to light its fire.</span></div>}
+          {drag && (
+            <div className={`c3-chip${overFire ? ' ready' : ''}`} style={{ left: Math.max(70, Math.min(drag.x, (stageRef.current?.clientWidth ?? 390) - 70)), top: Math.min(drag.y, stageH - 150) }} aria-hidden="true">
+              <b>{STICKS[drag.kind ?? 'branch'].name}</b>
+              <span>{overFire ? `Let go to feed ${overFire.area.name}` : `${STICKS[drag.kind ?? 'branch'].blurb}, about ${STICKS[drag.kind ?? 'branch'].minutes} min`}</span>
+            </div>
+          )}
+        </>
+      )}
 
-      <section ref={stageRef} className="c3-stage" aria-label="Your campfires" onPointerDown={onStageDown} onPointerUp={onStageUp}>
-        {failed ? (
-          <div className="c3-fail"><b>3D isn't available on this device</b><span>Open the flat version instead: add ?campfire to the address.</span></div>
-        ) : (
-          <>
-            <canvas ref={canvasRef} className="c3-canvas" />
-            {shown.map((f) => (
-              <div key={f.area.id} ref={(el) => { if (el) labelRefs.current.set(f.area.id, el); else labelRefs.current.delete(f.area.id); }}
-                className={`camp-label c3-label c3-fire-label${sel === f.area.id ? ' sel' : ''}${shown.length > 6 ? ' compact' : ''}${drag?.overFire === f.area.id ? ' over' : ''}`}>
-                <HeatIcon level={f.level} size={shown.length > 6 ? 14 : 18} />
-                <span className="camp-label-text">{f.area.name}</span>
-              </div>
-            ))}
-            {shown.length === 0 && <div className="camp-empty"><b>No fires yet</b><span>Add an area to light its fire.</span></div>}
-            {hint && !drag && <div className="c3-hint" aria-hidden="true">Drag wood from below onto a fire</div>}
-            <button type="button" className="c3-view" aria-label="Change the view" onClick={nextView}>
-              <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" /><circle cx="12" cy="12" r="3" fill="currentColor" /></svg>
-            </button>
-            {drag && (
-              <div className={`c3-chip${overFire ? ' ready' : ''}`} style={{ left: drag.x, top: Math.min(drag.y, stageH - 28) }} aria-hidden="true">
-                <b>{STICKS[drag.kind ?? 'branch'].name}</b>
-                <span>{overFire ? `Let go to feed ${overFire.area.name}` : `${STICKS[drag.kind ?? 'branch'].blurb}, about ${STICKS[drag.kind ?? 'branch'].minutes} min`}</span>
-              </div>
-            )}
-          </>
+      <div className="c3-top" ref={topRef}>
+        <TopBar initial="J" streak={4} sparksToday={3} level={warm as HeatLevel} />
+      </div>
+      <div className="c3-side">
+        <button type="button" className="c3-round" aria-label="Change the view" onClick={nextView}>
+          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" /><circle cx="12" cy="12" r="3" fill="currentColor" /></svg>
+        </button>
+        <button type="button" className={`c3-round${panel === 'menu' ? ' on' : ''}`} aria-label="More options" aria-expanded={panel === 'menu'} onClick={() => togglePanel('menu')}>
+          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" fill="none" /><circle cx="16" cy="7" r="2.4" fill="currentColor" /><circle cx="8" cy="17" r="2.4" fill="currentColor" /></svg>
+        </button>
+      </div>
+      {hint && !drag && !panel && <div className="c3-hint" aria-hidden="true">Drag wood from the dock onto a fire</div>}
+
+      <div className="c3-bottom" ref={bottomRef}>
+        {panel === 'customise' && chosen && (
+          <section className="c3-panel" aria-label={`Customise ${chosen.area.name}`}>
+            <div className="c3-panel-head">
+              <b>{chosen.area.name}</b>
+              <button type="button" className="c3-x" aria-label="Close" onClick={() => setPanel(null)}>×</button>
+            </div>
+            <Segmented value={tab} onChange={setTab} options={[{ value: 'size', label: 'Size' }, { value: 'colour', label: 'Colour' }, { value: 'style', label: 'Style' }, { value: 'creature', label: 'Creature' }]} />
+            <div className="c3-panel-body">
+              {tab === 'size' && (
+                <div className="camp-size-row" role="radiogroup" aria-label="Fire size">
+                  {([1, 2, 3, 4] as Size[]).map((z) => (
+                    <button key={z} type="button" role="radio" aria-checked={chosen.size === z} aria-label={SIZE_NAMES[z]} className={`camp-size-btn${chosen.size === z ? ' on' : ''}`} onClick={() => patch({ size: z })}>
+                      <i style={{ height: 6 + z * 4, width: 12 + z * 6, borderRadius: '50%' }} /><span>{SIZE_NAMES[z]}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {tab === 'colour' && (
+                <div className="c3-swatches" role="radiogroup" aria-label="Fire colour">
+                  {PALETTE_IDS.map((id) => (
+                    <button key={id} type="button" role="radio" aria-checked={chosen.color === id} aria-label={PALETTES[id].name} title={PALETTES[id].name}
+                      className={`c3-swatch${chosen.color === id ? ' on' : ''}`} style={{ background: PALETTES[id].swatch }} onClick={() => patch({ color: id })} />
+                  ))}
+                </div>
+              )}
+              {tab === 'style' && (
+                <div className="chips left" role="radiogroup" aria-label="Fire style">
+                  {FIRE_STYLES.map((x) => (
+                    <button key={x.id} type="button" role="radio" aria-checked={chosen.style === x.id} className={`chip${chosen.style === x.id ? ' on' : ''}`} onClick={() => patch({ style: x.id })}>{x.name}</button>
+                  ))}
+                </div>
+              )}
+              {tab === 'creature' && (
+                <>
+                  <div className="chips left" role="radiogroup" aria-label="Creature on top">
+                    {(['auto', 'none', ...CREATURE_IDS] as const).map((c) => (
+                      <button key={c} type="button" role="radio" aria-checked={chosen.creature === c} className={`chip${chosen.creature === c ? ' on' : ''}`} onClick={() => patch({ creature: c })}>
+                        {c === 'auto' ? 'Auto' : c === 'none' ? 'None' : CREATURE_NAMES[c]}
+                      </button>
+                    ))}
+                  </div>
+                  <span className="camp-size-note">A creature of fire stands on a fire when it is Hot.</span>
+                </>
+              )}
+            </div>
+          </section>
         )}
-      </section>
 
-      <section className="c3-bag" aria-label="Your wood">
-        <div className="c3-bag-head"><h2>Your wood</h2><span>Drag a piece up onto a fire</span></div>
-        <div className="c3-slots">
+        {panel === 'menu' && (
+          <section className="c3-panel" aria-label="More options">
+            <div className="c3-panel-head"><b>Try it</b><button type="button" className="c3-x" aria-label="Close" onClick={() => setPanel(null)}>×</button></div>
+            <label className="c3-range"><span>Areas: <b>{count}</b></span>
+              <input type="range" min={0} max={12} value={count} onChange={(e) => { const n = +e.target.value; setCount(n); if (sel && !fires.slice(0, n).some((f) => f.area.id === sel)) setSel(null); }} />
+            </label>
+            <div className="c3-switches">
+              <button type="button" role="switch" aria-checked={names} className={`c3-pill${names ? ' on' : ''}`} onClick={() => setNames((n) => !n)}>Show every name</button>
+              <button type="button" role="switch" aria-checked={creaturesAll} className={`c3-pill${creaturesAll ? ' on' : ''}`} onClick={() => setCreaturesAll((n) => !n)}>Creatures everywhere</button>
+              <button type="button" className="c3-pill" onClick={shuffle}>Shuffle heats</button>
+              <button type="button" className="c3-pill" onClick={mixSizes}>Mix sizes</button>
+            </div>
+            <span className="camp-size-note">Design sample, not the real app yet. All data is made up.</span>
+          </section>
+        )}
+
+        {chosen && !drag && (
+          <div className="c3-focus">
+            <HeatIcon level={chosen.level} size={30} />
+            <div className="c3-focus-text"><b>{chosen.area.name}{chosen.main ? ' · main' : ''}</b><span>{LEVEL_NAMES[chosen.level as HeatLevel]} · {chosen.level === 0 ? 'one spark warms it' : `cools in ${chosen.cool}`}</span></div>
+            <button type="button" className="c3-act primary" onClick={feedWithoutWood}>Feed it</button>
+            <button type="button" className={`c3-act${panel === 'customise' ? ' on' : ''}`} aria-expanded={panel === 'customise'} onClick={() => togglePanel('customise')}>Customise</button>
+          </div>
+        )}
+
+        <section className="c3-dock" aria-label="Your wood">
           {(Object.keys(STICKS) as StickKind[]).map((k) => (
             <button key={k} type="button" className={`c3-slot${held === k ? ' held' : ''}`}
               aria-label={`${STICKS[k].name}, about ${STICKS[k].minutes} minutes. Drag onto a fire, or press Enter to feed the selected fire.`}
@@ -221,83 +313,8 @@ export default function Campfire3DPreview() {
               <span>{STICKS[k].minutes} min</span>
             </button>
           ))}
-        </div>
-      </section>
-
-      {chosen ? (
-        <section className="camp-card">
-          <div className="camp-card-top"><HeatIcon level={chosen.level} size={30} /><div><b>{chosen.area.name}{chosen.main ? ' · main' : ''}</b><span>{LEVEL_NAMES[chosen.level as HeatLevel]} · {chosen.level === 0 ? 'one spark warms it' : `cools in ${chosen.cool}`}</span></div></div>
-          <div className="camp-size">
-            <span className="camp-size-title">Fire size <b>{SIZE_NAMES[chosen.size]}</b></span>
-            <div className="camp-size-row" role="radiogroup" aria-label="Fire size">
-              {([1, 2, 3, 4] as Size[]).map((z) => (
-                <button key={z} type="button" role="radio" aria-checked={chosen.size === z} aria-label={SIZE_NAMES[z]} className={`camp-size-btn${chosen.size === z ? ' on' : ''}`} onClick={() => resize(z)}>
-                  <i style={{ height: 6 + z * 4, width: 12 + z * 6, borderRadius: '50%' }} /><span>{SIZE_NAMES[z]}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="camp-size">
-            <span className="camp-size-title">Fire style <b>{FIRE_STYLES.find((x) => x.id === chosen.style)?.name}</b></span>
-            <div className="chips left" role="radiogroup" aria-label="Fire style">
-              {FIRE_STYLES.map((x) => (
-                <button key={x.id} type="button" role="radio" aria-checked={chosen.style === x.id} className={`chip${chosen.style === x.id ? ' on' : ''}`} onClick={() => restyle(x.id)}>{x.name}</button>
-              ))}
-            </div>
-          </div>
-          <div className="camp-size">
-            <span className="camp-size-title">Creature on top <b>{chosen.creature === 'auto' ? 'Auto' : chosen.creature === 'none' ? 'None' : CREATURE_NAMES[chosen.creature]}</b></span>
-            <div className="chips left" role="radiogroup" aria-label="Creature on top">
-              {(['auto', 'none', ...CREATURE_IDS] as const).map((c) => (
-                <button key={c} type="button" role="radio" aria-checked={chosen.creature === c} className={`chip${chosen.creature === c ? ' on' : ''}`} onClick={() => setCreature(c)}>
-                  {c === 'auto' ? 'Auto' : c === 'none' ? 'None' : CREATURE_NAMES[c]}
-                </button>
-              ))}
-            </div>
-            <span className="camp-size-note">A creature of fire stands on a fire when it is Hot.</span>
-          </div>
-          <div className="camp-size">
-            <span className="camp-size-title">Fire colour <b>{PALETTES[chosen.color].name}</b></span>
-            <div className="c3-swatches" role="radiogroup" aria-label="Fire colour">
-              {PALETTE_IDS.map((id) => (
-                <button key={id} type="button" role="radio" aria-checked={chosen.color === id} aria-label={PALETTES[id].name}
-                  className={`c3-swatch${chosen.color === id ? ' on' : ''}`} style={{ background: PALETTES[id].swatch }} onClick={() => recolor(id)} />
-              ))}
-            </div>
-          </div>
-          <div className="camp-card-actions"><Button variant="white" onClick={feedWithoutWood}>Feed it</Button><Button variant="glass">Open</Button></div>
-          <p>Or drag wood from your inventory onto this fire. The kind of wood suggests how long and how hard you worked.</p>
         </section>
-      ) : <p className="camp-hint">Tap a fire to see it, or drag wood onto one.</p>}
-
-      <section className="camp-legend" aria-label="What a fire looks like">
-        {([3, 2, 1, 0] as Level[]).map((l) => <span key={l}><HeatIcon level={l} size={18} />{LEVEL_NAMES[l as HeatLevel]}</span>)}
-      </section>
-
-      <section className="camp-controls">
-        <h2>Try it</h2>
-        <label><span>Areas: <b>{count}</b></span>
-          <input type="range" min={0} max={12} value={count} onChange={(e) => { const n = +e.target.value; setCount(n); if (sel && !fires.slice(0, n).some((f) => f.area.id === sel)) setSel(null); }} />
-        </label>
-        <button type="button" role="switch" aria-checked={names} className="switch-row" onClick={() => setNames((n) => !n)}>
-          <span><span className="switch-title">Show every name</span><span className="note switch-note">Off keeps the scene calm: only the fire you pick shows its name.</span></span>
-          <span className={`switch${names ? ' on' : ''}`} aria-hidden="true"><span /></span>
-        </button>
-        <button type="button" role="switch" aria-checked={creaturesAll} className="switch-row" onClick={() => setCreaturesAll((n) => !n)}>
-          <span><span className="switch-title">Creatures on every fire</span><span className="note switch-note">A preview: usually they only stand on Hot fires.</span></span>
-          <span className={`switch${creaturesAll ? ' on' : ''}`} aria-hidden="true"><span /></span>
-        </button>
-        <div className="camp-btns">
-          <Button variant="glass" small onClick={shuffle}>Shuffle the heats</Button>
-          <Button variant="glass" small onClick={mixSizes}>Mix the sizes</Button>
-        </div>
-        <ul>
-          <li><b>Each area has its own fire</b>: its own heat, colour and style.</li>
-          <li><b>Hot fires</b> get a creature made of fire standing on the flames.</li>
-          <li><b>Fire size</b> is yours to set per area.</li>
-          <li><b>Wood</b> comes from your inventory under the scene. Let go away from a fire and it goes back.</li>
-        </ul>
-      </section>
+      </div>
 
       {pending && pendingFire && (
         <FeedSheet
