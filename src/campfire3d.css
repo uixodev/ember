@@ -1,0 +1,14 @@
+.c3-stage { position: relative; width: 100%; max-width: 460px; margin: 0 auto; height: min(74dvh, 560px); min-height: 380px; border-radius: 24px; overflow: hidden; touch-action: none; }
+.c3-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; outline: none; }
+.c3-canvas:active { cursor: grabbing; }
+/* Name tags let touches through, so a drag that starts on one still turns the fire. Taps on them are found in code. */
+.c3-label { left: 0; top: 0; will-change: transform; pointer-events: none; transition: background-color .2s ease, color .2s ease; }
+.c3-rest { background: rgba(86, 100, 159, .85); font-weight: 600; pointer-events: none; }
+.c3-hint { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); padding: 7px 14px; border-radius: 999px; background: rgba(36, 31, 110, .75); font: 600 12px/1 var(--font); color: var(--ink-2); white-space: nowrap; pointer-events: none; }
+.c3-fail { position: absolute; inset: 0; display: grid; place-content: center; gap: 6px; text-align: center; padding: 24px; font: 450 14px/1.4 var(--font); color: var(--ink-2); }
+.c3-fail b { font: 750 18px/1.2 var(--font); color: #fff; }
+.c3-views { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; }
+@media (prefers-reduced-motion: no-preference) {
+  .c3-hint { animation: c3-hint 2.8s ease-in-out infinite; }
+}
+@keyframes c3-hint { 0%, 100% { opacity: .75; } 50% { opacity: 1; } }
