@@ -224,3 +224,6 @@ html.c3-lock body { position: fixed; inset: 0; width: 100%; }
 .c3-title { margin-right: 80px; }
 .c3-tools { justify-items: end; }
 .c3-more { justify-self: stretch; }
+.c3-tools.open { width: 54px; }
+.c3-more-in .c3-sparks-row { width: 44px; padding: 0; justify-content: center; }
+.c3-sparks-row .c3-count { margin: 0; min-width: 30px; height: 30px; font-size: 15px; }

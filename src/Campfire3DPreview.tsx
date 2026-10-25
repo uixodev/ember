@@ -265,7 +265,7 @@ export default function Campfire3DPreview() {
         </button>
 
         <button type="button" className="c3-round c3-sparks-row" onClick={() => { setPanel(null); setLogOpen(true); }} aria-label={`${sparksToday} ${sparksToday === 1 ? 'spark' : 'sparks'} today, open the list`}>
-          <span>Sparks</span><span className="c3-count">{sparksToday}</span>
+          <span className="c3-count">{sparksToday}</span>
         </button>
             </div></div>
           </nav>
