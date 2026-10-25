@@ -196,3 +196,11 @@ html.c3-lock body { position: fixed; inset: 0; width: 100%; }
 .c3-title { margin: 0 92px; }
 .c3-title { margin: 0; pointer-events: none; }
 .c3-title h1 { font-size: 22px; text-shadow: 0 1px 8px rgba(24, 20, 80, .55); }
+
+/* Menu at the top right, title and heat label at the top left */
+.c3-head { left: auto; right: 14px; }
+.c3-tools { justify-items: center; }
+.c3-sparks { right: 76px; }
+.c3-title { margin: 0 156px 0 0; justify-items: start; text-align: left; gap: 6px; }
+.c3-title h1 { font-size: 24px; max-width: 100%; }
+@media (max-height: 640px) { .c3-title h1 { font-size: 20px; } }
