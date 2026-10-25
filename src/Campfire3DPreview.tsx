@@ -63,7 +63,7 @@ const VIEWS = [{ azimuth: 0, polar: 0.84 }, { azimuth: 0, polar: 0.3 }, { azimut
 
 interface Pending { fireId: string; kind: StickKind; stickId: number | null }
 type Panel = null | 'customise' | 'menu' | 'cool';
-type Tab = 'cooling' | 'size' | 'colour' | 'style' | 'creature';
+type Tab = 'size' | 'colour' | 'style' | 'creature' | 'cooling';
 
 export default function Campfire3DPreview() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -102,7 +102,7 @@ export default function Campfire3DPreview() {
   const [drag, setDrag] = useState<DragState | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
   const [panel, setPanel] = useState<Panel>(null);
-  const [tab, setTab] = useState<Tab>('cooling');
+  const [tab, setTab] = useState<Tab>('size');
 
   const shown = useMemo<Live[]>(() => fires.map((f) => { const pct = Math.max(0, f.percent - (f.rate * Math.max(0, now - f.since)) / DAY); return { ...f, pct, level: levelOf(pct), progress: pct / 100 }; }), [fires, now]);
   const chosen = shown.find((f) => f.area.id === sel);
@@ -204,7 +204,7 @@ export default function Campfire3DPreview() {
     f.pos = pos;
     f.creature = CREATURE_IDS[fires.length % CREATURE_IDS.length];
     setFires((all) => [...all, f]);
-    setSel(f.area.id); setTab('cooling'); setPanel('customise'); setHint(false); setFocusId(f.area.id);
+    setSel(f.area.id); setTab('size'); setPanel('customise'); setHint(false); setFocusId(f.area.id);
   };
   const nextView = () => { viewIndex.current = (viewIndex.current + 1) % VIEWS.length; worldRef.current?.flyTo(VIEWS[viewIndex.current]); };
 
@@ -287,7 +287,7 @@ export default function Campfire3DPreview() {
               <input className="c3-name" value={chosen.area.name} maxLength={24} placeholder="Name this area" aria-label="Area name" onChange={(e) => rename(e.target.value)} />
               <button type="button" className="c3-x" aria-label="Close" onClick={() => setPanel(null)}>×</button>
             </div>
-            <Segmented value={tab} onChange={setTab} options={[{ value: 'cooling', label: 'Cooling' }, { value: 'size', label: 'Size' }, { value: 'colour', label: 'Colour' }, { value: 'style', label: 'Style' }, { value: 'creature', label: 'Creature' }]} />
+            <Segmented value={tab} onChange={setTab} options={[{ value: 'size', label: 'Size' }, { value: 'colour', label: 'Colour' }, { value: 'style', label: 'Style' }, { value: 'creature', label: 'Creature' }, { value: 'cooling', label: 'Cooling' }]} />
             <div className="c3-panel-body">
               {tab === 'cooling' && (
                 <>

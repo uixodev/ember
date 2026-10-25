@@ -3,7 +3,8 @@
  * Each palette colours the flames, the coals, the glow on the ground and the sparks.
  */
 export type PaletteId =
-  | 'classic' | 'lava' | 'crimson' | 'amber' | 'gold' | 'lime' | 'green' | 'mint' | 'teal' | 'aurora' | 'sky' | 'blue' | 'sapphire' | 'ice' | 'star';
+  | 'classic' | 'lava' | 'crimson' | 'amber' | 'gold' | 'lime' | 'green' | 'mint' | 'teal' | 'aurora' | 'sky' | 'blue' | 'sapphire' | 'ice' | 'star'
+  | 'copper' | 'ember' | 'citrus' | 'forest' | 'emerald' | 'jade' | 'cyan' | 'turquoise' | 'arctic' | 'cobalt' | 'midnight' | 'silver';
 
 export interface Palette {
   id: PaletteId;
@@ -34,6 +35,18 @@ export const PALETTES: Record<PaletteId, Palette> = {
   sapphire: { id: 'sapphire', name: 'Sapphire', swatch: '#2A45B8', ramp: ['#CFE0FF', '#7FA6FF', '#3F6BE8', '#2A45B8', '#1C2C80'], coal: 0x3f6be8, pool: ['#2A45B8', '#1F3394', '#1F2564'], sparks: ['#7FA6FF', '#3F6BE8', '#FFFFFF'] },
   ice: { id: 'ice', name: 'Ice', swatch: '#DCEBFF', ramp: ['#FFFFFF', '#F2F7FF', '#DCEBFF', '#BFD6F5', '#9DB8E6'], coal: 0xdcebff, pool: ['#7F94C8', '#566AA6', '#3A4780'], sparks: ['#FFFFFF', '#DCEBFF', '#A9D4FF'] },
   star: { id: 'star', name: 'White-hot', swatch: '#FFFFFF', ramp: ['#FFFFFF', '#FFFFFF', '#FFF8E0', '#FFE9A8', '#FFD27A'], coal: 0xffffff, pool: ['#9A8A7A', '#6E6460', '#463F52'], sparks: ['#FFFFFF', '#FFF8E0', '#FFE9A8'] },
+  copper: { id: 'copper', name: 'Copper', swatch: '#D2792F', ramp: ['#FFE6C0', '#F2A860', '#D2792F', '#A8541F', '#6E3418'], coal: 0xd2792f, pool: ['#8A4A24', '#5E3520', '#3A2420'], sparks: ['#F2A860', '#D2792F', '#FFE6C0'] },
+  ember: { id: 'ember', name: 'Ember', swatch: '#FF5A1F', ramp: ['#FFD7A0', '#FF8A3A', '#FF5A1F', '#D43A14', '#8A220F'], coal: 0xff5a1f, pool: ['#A83A1C', '#702A1A', '#3E1D1A'], sparks: ['#FF8A3A', '#FF5A1F', '#FFD7A0'] },
+  citrus: { id: 'citrus', name: 'Citrus', swatch: '#FFC21F', ramp: ['#FFFBD0', '#FFEA6A', '#FFC21F', '#FF9A12', '#E06A0C'], coal: 0xffc21f, pool: ['#B08A22', '#76601F', '#463C22'], sparks: ['#FFEA6A', '#FFC21F', '#FFFFFF'] },
+  forest: { id: 'forest', name: 'Forest', swatch: '#1F8F4A', ramp: ['#D8F5C0', '#7ED66A', '#2FA84F', '#1F8F4A', '#136638'], coal: 0x2fa84f, pool: ['#1F7A3E', '#1A5A33', '#1B3A36'], sparks: ['#7ED66A', '#2FA84F', '#FFFFFF'] },
+  emerald: { id: 'emerald', name: 'Emerald', swatch: '#14C88A', ramp: ['#DDFFF0', '#6EEBB8', '#14C88A', '#0E9C76', '#0A6E62'], coal: 0x14c88a, pool: ['#12896A', '#106650', '#17404A'], sparks: ['#6EEBB8', '#14C88A', '#FFFFFF'] },
+  jade: { id: 'jade', name: 'Jade', swatch: '#5CC6A0', ramp: ['#EAFFF6', '#B0EBD2', '#5CC6A0', '#38A084', '#26786A'], coal: 0x5cc6a0, pool: ['#2F8A74', '#26665A', '#234448'], sparks: ['#B0EBD2', '#5CC6A0', '#FFFFFF'] },
+  cyan: { id: 'cyan', name: 'Cyan', swatch: '#22D3EE', ramp: ['#E4FCFF', '#9AF0FF', '#22D3EE', '#12A5D0', '#0E78AA'], coal: 0x22d3ee, pool: ['#1A8EAE', '#16688A', '#1C4466'], sparks: ['#9AF0FF', '#22D3EE', '#FFFFFF'] },
+  turquoise: { id: 'turquoise', name: 'Turquoise', swatch: '#2ED8C8', ramp: ['#E6FFFB', '#9AF3E8', '#2ED8C8', '#1CAAB0', '#167C94'], coal: 0x2ed8c8, pool: ['#1E968F', '#18706F', '#1B4560'], sparks: ['#9AF3E8', '#2ED8C8', '#FFFFFF'] },
+  arctic: { id: 'arctic', name: 'Arctic', swatch: '#A6E8FF', ramp: ['#FFFFFF', '#E0F7FF', '#A6E8FF', '#6ECBF0', '#3FA3D8'], coal: 0xa6e8ff, pool: ['#5C8CC0', '#46689E', '#34457A'], sparks: ['#E0F7FF', '#A6E8FF', '#FFFFFF'] },
+  cobalt: { id: 'cobalt', name: 'Cobalt', swatch: '#2F6FEB', ramp: ['#E0ECFF', '#8AB4FF', '#2F6FEB', '#1F4DBF', '#173A8E'], coal: 0x2f6feb, pool: ['#2A56C0', '#203F94', '#1F2C6A'], sparks: ['#8AB4FF', '#2F6FEB', '#FFFFFF'] },
+  midnight: { id: 'midnight', name: 'Midnight', swatch: '#1B2F8A', ramp: ['#9EB8FF', '#5A7DEA', '#2F4FC4', '#1B2F8A', '#121E5E'], coal: 0x2f4fc4, pool: ['#22348E', '#1A276A', '#181F52'], sparks: ['#9EB8FF', '#5A7DEA', '#FFFFFF'] },
+  silver: { id: 'silver', name: 'Silver', swatch: '#C8D2E0', ramp: ['#FFFFFF', '#EEF2F8', '#C8D2E0', '#9FAEC4', '#7886A4'], coal: 0xc8d2e0, pool: ['#7684A8', '#586688', '#3E486A'], sparks: ['#FFFFFF', '#C8D2E0', '#A9D4FF'] },
 };
 
 export const PALETTE_IDS = Object.keys(PALETTES) as PaletteId[];

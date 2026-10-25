@@ -5,11 +5,12 @@ import * as THREE from 'three';
  * coloured like flame (pale in the middle, red at the edges, in the fire's own colours) and animated.
  * They are about one unit tall and face +z; the world turns them toward the camera.
  */
-export type CreatureId = 'phoenix' | 'fox' | 'dragon' | 'salamander' | 'imp' | 'owl';
+export type CreatureId = 'phoenix' | 'fox' | 'dragon' | 'salamander' | 'imp' | 'owl' | 'wolf' | 'cat' | 'rabbit' | 'serpent' | 'bear' | 'turtle' | 'stag' | 'spirit';
 
-export const CREATURE_IDS: CreatureId[] = ['phoenix', 'fox', 'dragon', 'salamander', 'imp', 'owl'];
+export const CREATURE_IDS: CreatureId[] = ['phoenix', 'fox', 'dragon', 'salamander', 'imp', 'owl', 'wolf', 'cat', 'rabbit', 'serpent', 'bear', 'turtle', 'stag', 'spirit'];
 export const CREATURE_NAMES: Record<CreatureId, string> = {
   phoenix: 'Phoenix', fox: 'Fire fox', dragon: 'Dragon', salamander: 'Salamander', imp: 'Imp', owl: 'Fire owl',
+  wolf: 'Wolf', cat: 'Cat', rabbit: 'Rabbit', serpent: 'Serpent', bear: 'Bear', turtle: 'Turtle', stag: 'Stag', spirit: 'Spirit',
 };
 
 export interface Creature {
@@ -290,7 +291,218 @@ function owl(ramp: string[]): Creature {
   });
 }
 
-const BUILDERS: Record<CreatureId, (ramp: string[]) => Creature> = { phoenix, fox, dragon, salamander, imp, owl };
+// ---- Wolf: standing proud, long snout, upright ears, bushy tail ----------------------------------
+
+function wolf(ramp: string[]): Creature {
+  const b = new Builder();
+  const g = b.group;
+  b.add(g, sph(0.2), 0, 0.42, -0.02, 0.9, 0.95, 1.7);
+  b.add(g, sph(0.17), 0, 0.5, 0.2);
+  const head = b.pivot(g, 0, 0.66, 0.3);
+  b.add(head, sph(0.15), 0, 0, 0, 0.95, 0.95, 1.05);
+  b.add(head, cone(0.07, 0.24), 0, -0.04, 0.12, 1, 1, 0.9, Math.PI / 2);
+  b.add(head, cone(0.06, 0.2), -0.08, 0.14, -0.03, 1, 1, 0.7, 0, 0, 0.1);
+  b.add(head, cone(0.06, 0.2), 0.08, 0.14, -0.03, 1, 1, 0.7, 0, 0, -0.1);
+  b.eye(head, 0.026, -0.065, 0.03, 0.12);
+  b.eye(head, 0.026, 0.065, 0.03, 0.12);
+  for (const [x, z] of [[-0.1, 0.18], [0.1, 0.18], [-0.1, -0.2], [0.1, -0.2]]) b.add(g, cyl(0.05, 0.04, 0.32), x, 0.3, z);
+  const tail = b.pivot(g, 0, 0.5, -0.3);
+  b.add(tail, cone(0.09, 0.42), 0, 0, 0, 1, 1, 1, Math.PI * 0.72);
+  return b.finish(ramp, (t) => {
+    tail.rotation.z = Math.sin(t * 2.2) * 0.25;
+    head.rotation.x = -0.1 + Math.sin(t * 0.8) * 0.12;
+    head.rotation.y = Math.sin(t * 0.6) * 0.3;
+    g.userData.bob = Math.sin(t * 2) * 0.02;
+  });
+}
+
+// ---- Cat: sitting, tall tail that swishes ---------------------------------------------------------
+
+function cat(ramp: string[]): Creature {
+  const b = new Builder();
+  const g = b.group;
+  b.add(g, sph(0.22), 0, 0.28, -0.02, 0.95, 1.1, 1.05);
+  const head = b.pivot(g, 0, 0.6, 0.06);
+  b.add(head, sph(0.16), 0, 0, 0, 1.1, 0.95, 1);
+  b.add(head, cone(0.065, 0.14, 3), -0.1, 0.14, 0, 1, 1, 1, 0, 0, 0.25);
+  b.add(head, cone(0.065, 0.14, 3), 0.1, 0.14, 0, 1, 1, 1, 0, 0, -0.25);
+  b.eye(head, 0.03, -0.07, 0.02, 0.14);
+  b.eye(head, 0.03, 0.07, 0.02, 0.14);
+  b.add(head, sph(0.02), 0, -0.03, 0.16);
+  for (const x of [-0.08, 0.08]) b.add(g, cyl(0.045, 0.04, 0.2), x, 0.17, 0.16);
+  const tail: THREE.Mesh[] = [];
+  for (let i = 0; i < 8; i++) tail.push(b.add(g, sph(0.055 - i * 0.002), 0.16 + Math.sin(i * 0.5) * 0.1, 0.1 + i * 0.08, -0.2));
+  return b.finish(ramp, (t) => {
+    tail.forEach((m, i) => { m.position.x = 0.16 + Math.sin(i * 0.5) * 0.1 + Math.sin(t * 2.4 + i * 0.5) * 0.04 * (i + 1) * 0.5; });
+    head.rotation.z = Math.sin(t * 1.2) * 0.12;
+    head.rotation.y = Math.sin(t * 0.7) * 0.3;
+    g.userData.bob = Math.sin(t * 2.6) * 0.015;
+  });
+}
+
+// ---- Rabbit: round, with tall ears that twitch and a hopping bob ----------------------------------
+
+function rabbit(ramp: string[]): Creature {
+  const b = new Builder();
+  const g = b.group;
+  b.add(g, sph(0.24), 0, 0.28, -0.02, 1, 1, 1.1);
+  const head = b.pivot(g, 0, 0.56, 0.12);
+  b.add(head, sph(0.15), 0, 0, 0);
+  const ears: THREE.Group[] = [];
+  for (const side of [-1, 1]) {
+    const e = b.pivot(head, side * 0.06, 0.1, -0.02);
+    b.add(e, sph(0.05), 0, 0.17, 0, 0.6, 3.2, 0.4);
+    ears.push(e);
+  }
+  b.eye(head, 0.03, -0.07, 0.02, 0.12);
+  b.eye(head, 0.03, 0.07, 0.02, 0.12);
+  b.add(head, sph(0.025), 0, -0.04, 0.14);
+  b.add(g, sph(0.07), 0, 0.22, -0.3);
+  for (const x of [-0.1, 0.1]) b.add(g, sph(0.07), x, 0.07, 0.14, 1, 0.7, 1.5);
+  return b.finish(ramp, (t) => {
+    ears[0].rotation.z = 0.15 + Math.sin(t * 3) * 0.08;
+    ears[1].rotation.z = -0.15 - Math.sin(t * 3 + 1) * 0.08;
+    head.rotation.y = Math.sin(t * 1.1) * 0.3;
+    g.userData.bob = Math.abs(Math.sin(t * 2.4)) * 0.06;
+  });
+}
+
+// ---- Serpent: a coiled snake rising up with a swaying head ----------------------------------------
+
+function serpent(ramp: string[]): Creature {
+  const b = new Builder();
+  const g = b.group;
+  const segs: THREE.Mesh[] = [];
+  for (let i = 0; i < 14; i++) {
+    const a = i * 0.62;
+    const r = 0.22 - i * 0.008;
+    segs.push(b.add(g, sph(0.11 - i * 0.003), Math.cos(a) * r, 0.1 + i * 0.045, Math.sin(a) * r));
+  }
+  const head = b.pivot(g, 0, 0.78, 0);
+  b.add(head, sph(0.13), 0, 0, 0.02, 1, 0.8, 1.2);
+  b.eye(head, 0.026, -0.06, 0.04, 0.1);
+  b.eye(head, 0.026, 0.06, 0.04, 0.1);
+  b.add(head, cone(0.015, 0.12), 0, -0.04, 0.2, 1, 1, 1, Math.PI / 2);
+  return b.finish(ramp, (t) => {
+    segs.forEach((m, i) => { const a = i * 0.62 + t * 1.2; const r = 0.22 - i * 0.008; m.position.x = Math.cos(a) * r; m.position.z = Math.sin(a) * r; });
+    head.position.x = Math.cos(14 * 0.62 + t * 1.2) * 0.1;
+    head.position.z = Math.sin(14 * 0.62 + t * 1.2) * 0.1;
+    head.rotation.y = -(14 * 0.62 + t * 1.2) + Math.PI / 2;
+    head.rotation.x = 0.2 + Math.sin(t * 2) * 0.1;
+  });
+}
+
+// ---- Bear: big and round, waving a paw ------------------------------------------------------------
+
+function bear(ramp: string[]): Creature {
+  const b = new Builder();
+  const g = b.group;
+  b.add(g, sph(0.3), 0, 0.34, 0, 1, 1.1, 0.95);
+  const head = b.pivot(g, 0, 0.74, 0.05);
+  b.add(head, sph(0.19), 0, 0, 0);
+  b.add(head, sph(0.075), -0.14, 0.15, -0.02);
+  b.add(head, sph(0.075), 0.14, 0.15, -0.02);
+  b.add(head, sph(0.09), 0, -0.05, 0.14, 1, 0.8, 0.9);
+  b.eye(head, 0.03, -0.075, 0.04, 0.15);
+  b.eye(head, 0.03, 0.075, 0.04, 0.15);
+  b.add(head, sph(0.03), 0, -0.02, 0.22);
+  const arms: THREE.Group[] = [];
+  for (const side of [-1, 1]) {
+    const a = b.pivot(g, side * 0.3, 0.5, 0.04);
+    b.add(a, cyl(0.08, 0.07, 0.3), side * 0.04, 0, 0, 1, 1, 1, 0, 0, side * 0.25);
+    arms.push(a);
+  }
+  for (const x of [-0.14, 0.14]) b.add(g, cyl(0.1, 0.09, 0.18), x, 0.16, 0.06);
+  return b.finish(ramp, (t) => {
+    arms[1].rotation.z = -0.5 - Math.sin(t * 5) * 0.4;
+    arms[0].rotation.z = 0.1 + Math.sin(t * 1.5) * 0.05;
+    head.rotation.z = Math.sin(t * 1.3) * 0.1;
+    g.userData.bob = Math.sin(t * 2) * 0.025;
+  });
+}
+
+// ---- Turtle: a domed shell, a slow neck and little flippers ---------------------------------------
+
+function turtle(ramp: string[]): Creature {
+  const b = new Builder();
+  const g = b.group;
+  b.add(g, sph(0.32, 16, 10), 0, 0.2, 0, 1, 0.75, 1.15);
+  for (const [x, y, z] of [[0, 0.46, 0], [-0.16, 0.38, 0.1], [0.16, 0.38, 0.1], [-0.15, 0.36, -0.12], [0.15, 0.36, -0.12]]) b.add(g, sph(0.07), x, y, z, 1, 0.5, 1);
+  const neck = b.pivot(g, 0, 0.18, 0.32);
+  b.add(neck, sph(0.1), 0, 0.04, 0.1, 0.9, 0.9, 1.4);
+  b.add(neck, sph(0.1), 0, 0.1, 0.24);
+  b.eye(neck, 0.025, -0.05, 0.14, 0.31);
+  b.eye(neck, 0.025, 0.05, 0.14, 0.31);
+  const legs: THREE.Group[] = [];
+  for (const [x, z] of [[-1, 0.2], [1, 0.2], [-1, -0.2], [1, -0.2]] as const) {
+    const l = b.pivot(g, x * 0.26, 0.1, z);
+    b.add(l, sph(0.08), x * 0.04, -0.02, 0, 1.3, 0.8, 1.1);
+    legs.push(l);
+  }
+  b.add(g, cone(0.05, 0.14), 0, 0.14, -0.36, 1, 1, 1, -Math.PI / 2);
+  return b.finish(ramp, (t) => {
+    neck.rotation.x = Math.sin(t * 0.9) * 0.12;
+    neck.rotation.y = Math.sin(t * 0.6) * 0.3;
+    legs.forEach((l, i) => { l.rotation.x = Math.sin(t * 1.6 + i * 1.5) * 0.18; });
+    g.userData.bob = Math.sin(t * 1.4) * 0.015;
+  });
+}
+
+// ---- Stag: a tall deer with branching antlers -----------------------------------------------------
+
+function stag(ramp: string[]): Creature {
+  const b = new Builder();
+  const g = b.group;
+  b.add(g, sph(0.18), 0, 0.5, -0.02, 0.9, 0.95, 1.8);
+  b.add(g, cone(0.09, 0.34), 0, 0.5, 0.2, 1, 1, 1, -0.5);
+  const head = b.pivot(g, 0, 0.88, 0.32);
+  b.add(head, sph(0.1), 0, 0, 0, 0.95, 1, 1.15);
+  b.add(head, cone(0.045, 0.16), 0, -0.04, 0.1, 1, 1, 1, Math.PI / 2);
+  b.add(head, cone(0.04, 0.1), -0.09, 0.05, -0.02, 1, 1, 0.6, 0, 0, Math.PI / 2 - 0.3);
+  b.add(head, cone(0.04, 0.1), 0.09, 0.05, -0.02, 1, 1, 0.6, 0, 0, -Math.PI / 2 + 0.3);
+  for (const side of [-1, 1]) {
+    b.add(head, cone(0.02, 0.3), side * 0.06, 0.1, -0.02, 1, 1, 1, 0, 0, -side * 0.35);
+    b.add(head, cone(0.016, 0.16), side * 0.13, 0.22, -0.02, 1, 1, 1, 0, 0, -side * 0.9);
+    b.add(head, cone(0.016, 0.14), side * 0.1, 0.3, -0.02, 1, 1, 1, 0, 0, side * 0.2);
+  }
+  b.eye(head, 0.022, -0.055, 0.03, 0.09);
+  b.eye(head, 0.022, 0.055, 0.03, 0.09);
+  for (const [x, z] of [[-0.09, 0.16], [0.09, 0.16], [-0.09, -0.2], [0.09, -0.2]]) b.add(g, cyl(0.035, 0.025, 0.4), x, 0.4, z);
+  return b.finish(ramp, (t) => {
+    head.rotation.x = Math.sin(t * 0.9) * 0.1;
+    head.rotation.y = Math.sin(t * 0.55) * 0.35;
+    g.userData.bob = Math.sin(t * 1.8) * 0.02;
+  });
+}
+
+// ---- Spirit: a floating teardrop of flame with a wavy tail and two bright eyes --------------------
+
+function spirit(ramp: string[]): Creature {
+  const b = new Builder();
+  const g = b.group;
+  b.add(g, sph(0.26), 0, 0.55, 0, 1, 1.15, 0.95);
+  const tail: THREE.Mesh[] = [];
+  for (let i = 0; i < 6; i++) tail.push(b.add(g, sph(0.22 - i * 0.035), 0, 0.38 - i * 0.1, 0));
+  b.eye(g, 0.05, -0.1, 0.6, 0.2, true);
+  b.eye(g, 0.05, 0.1, 0.6, 0.2, true);
+  b.eye(g, 0.025, -0.1, 0.6, 0.245);
+  b.eye(g, 0.025, 0.1, 0.6, 0.245);
+  const arms: THREE.Group[] = [];
+  for (const side of [-1, 1]) {
+    const a = b.pivot(g, side * 0.24, 0.52, 0.04);
+    b.add(a, sph(0.07), side * 0.1, -0.02, 0, 1.6, 0.8, 0.8);
+    arms.push(a);
+  }
+  b.add(g, cone(0.07, 0.2), 0, 0.84, 0, 1, 1, 1, 0.2);
+  return b.finish(ramp, (t) => {
+    tail.forEach((m, i) => { m.position.x = Math.sin(t * 3 + i * 0.8) * 0.05 * (i + 1) * 0.5; });
+    arms[0].rotation.z = Math.sin(t * 2.4) * 0.3;
+    arms[1].rotation.z = -Math.sin(t * 2.4 + 1) * 0.3;
+    g.userData.bob = Math.sin(t * 2) * 0.07 + 0.03;
+  });
+}
+
+const BUILDERS: Record<CreatureId, (ramp: string[]) => Creature> = { phoenix, fox, dragon, salamander, imp, owl, wolf, cat, rabbit, serpent, bear, turtle, stag, spirit };
 
 export function buildCreature(id: CreatureId, ramp: string[]): Creature {
   return BUILDERS[id](ramp);
