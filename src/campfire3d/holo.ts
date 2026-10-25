@@ -34,6 +34,11 @@ export function holoMaterial(side: THREE.Side = THREE.DoubleSide): THREE.ShaderM
         vec3 c = hsl(h, 0.72, 0.8);
         float sheen = 0.5 + 0.5 * sin(vW.y * 6.0 - uTime * 1.9 + vW.x * 3.0);
         c = mix(c, vec3(1.0), 0.14 * sheen + smoothstep(0.5, 1.0, vHeat) * 0.5);
+        // a glowing white edge where the surface turns away from you, like the rim of a crystal
+        vec3 n = normalize(cross(dFdx(vW), dFdy(vW)));
+        vec3 view = normalize(cameraPosition - vW);
+        float rim = pow(1.0 - abs(dot(n, view)), 1.6);
+        c = mix(c, vec3(1.0), clamp(rim * 1.25, 0.0, 0.92));
         gl_FragColor = vec4(c, 1.0);
       }`,
   });

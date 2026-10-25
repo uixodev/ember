@@ -223,6 +223,26 @@ export function buildTier(tier: Tier): TierDecor {
   }
 
   if (holo) {
+    // a white outline around every solid piece: the same shape, a little bigger, drawn from the inside
+    const edge = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.BackSide });
+    mats.push(edge);
+    const solids: THREE.Mesh[] = [];
+    group.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh && m.material instanceof THREE.MeshStandardMaterial) solids.push(m); });
+    for (const m of solids) {
+      if (m.geometry instanceof THREE.TorusGeometry) {
+        // a ring grows in thickness, not in size, so its outline is a fatter ring in the same place
+        const { radius, tube, radialSegments, tubularSegments } = m.geometry.parameters;
+        const hull = new THREE.Mesh(g(new THREE.TorusGeometry(radius, tube * 1.7, radialSegments, tubularSegments)), edge);
+        m.add(hull);
+      } else {
+        const hull = new THREE.Mesh(m.geometry, edge);
+        hull.scale.setScalar(1.16);
+        m.add(hull);
+      }
+    }
+  }
+
+  if (holo) {
     const tex = prismTexture();
     const mesh = new THREE.Mesh(g(new THREE.RingGeometry(1.7, 2.1, 64)), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
     mats.push(mesh.material as THREE.Material);
