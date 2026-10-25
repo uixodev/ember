@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { flameGeometry } from './flame';
+import { buildCreature, autoCreature, type Creature, type CreatureId } from './creatures';
+import { flameGeometry, type FlameShape } from './flame';
 import { PALETTES, type PaletteId } from './palettes';
 import { Particles } from './particles';
 import { buildStick, makeWoodMaterials, STICKS, type StickKind, type StickObj, type WoodMaterials } from './sticks';
@@ -9,7 +10,18 @@ import * as TX from './textures';
 export type Level = 0 | 1 | 2 | 3;
 export type Size = 1 | 2 | 3 | 4;
 
-export interface FireSpec { id: string; level: Level; progress: number; size: Size; color: PaletteId }
+/** How the flames look and move. */
+export type FireStyle = 'camp' | 'inferno' | 'torch' | 'swirl' | 'wisp' | 'candle' | 'crystal';
+export const FIRE_STYLES: { id: FireStyle; name: string }[] = [
+  { id: 'camp', name: 'Campfire' }, { id: 'inferno', name: 'Inferno' }, { id: 'torch', name: 'Torch' }, { id: 'swirl', name: 'Swirl' },
+  { id: 'wisp', name: 'Wisps' }, { id: 'candle', name: 'Candle' }, { id: 'crystal', name: 'Crystal' },
+];
+
+export interface FireSpec {
+  id: string; level: Level; progress: number; size: Size; color: PaletteId; style: FireStyle;
+  /** The fire creature that stands on a Hot fire: a kind, "auto" for a stable pick, or "none". */
+  creature: CreatureId | 'auto' | 'none';
+}
 export interface LabelPos { id: string; x: number; y: number; depth: number; visible: boolean }
 export interface CameraView { azimuth: number; polar: number; distance?: number }
 
@@ -61,13 +73,14 @@ export function layoutFires(n: number): { x: number; z: number }[] {
   return slots.sort((a, b) => Math.hypot(a.x, a.z * 1.2) - Math.hypot(b.x, b.z * 1.2));
 }
 
-interface Tongue { mesh: THREE.Mesh; baseW: number; baseH: number; phase: number; speed: number; need: number; x: number; z: number }
+interface Tongue { mesh: THREE.Mesh; shape: FlameShape; baseW: number; baseH: number; phase: number; speed: number; need: number; x: number; z: number; orbitR: number; orbitA: number; hover: number }
 
 interface FireObj {
   id: string; spec: FireSpec; group: THREE.Group; scale: number; pos: THREE.Vector3;
   tongues: Tongue[]; coals: THREE.Mesh[]; stones: THREE.Mesh[]; hotPool: THREE.Mesh; coldPool: THREE.Mesh; ring: THREE.Mesh; hit: THREE.Mesh; ash: THREE.Mesh;
   shownF: number; shownCoal: number; shownCold: number; flare: number; excite: number; index: number;
   paintedLevel: Level | null; paintedColor: PaletteId | null;
+  flames: THREE.Group; creature: { id: CreatureId; obj: Creature } | null; creatureShown: number; facing: number;
 }
 
 type Anim =
@@ -86,7 +99,8 @@ export class CampfireWorld {
   private readonly raycaster = new THREE.Raycaster();
   private readonly fires = new Map<string, FireObj>();
   private readonly sticks = new Map<number, StickRun>();
-  private readonly flameGeos = new Map<PaletteId, THREE.BufferGeometry>();
+  private readonly flameGeos = new Map<string, THREE.BufferGeometry>();
+  private creaturesAlways = false;
   private readonly poolTex = new Map<PaletteId, THREE.CanvasTexture>();
   private coldTex!: THREE.CanvasTexture;
   private readonly flameMat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
@@ -210,9 +224,10 @@ export class CampfireWorld {
     return t;
   }
 
-  private flameFor(id: PaletteId): THREE.BufferGeometry {
-    let g = this.flameGeos.get(id);
-    if (!g) { g = flameGeometry(PALETTES[id].ramp); this.flameGeos.set(id, g); this.disposables.push(g); }
+  private flameFor(id: PaletteId, shape: FlameShape = 'round'): THREE.BufferGeometry {
+    const key = `${id}:${shape}`;
+    let g = this.flameGeos.get(key);
+    if (!g) { g = flameGeometry(PALETTES[id].ramp, shape); this.flameGeos.set(key, g); this.disposables.push(g); }
     return g;
   }
 
@@ -224,8 +239,8 @@ export class CampfireWorld {
 
   /** Apply a fire's colour: flames, coals and the glow on the ground. */
   private paint(f: FireObj, id: PaletteId): void {
-    const geo = this.flameFor(id);
-    f.tongues.forEach((t) => { t.mesh.geometry = geo; });
+    f.tongues.forEach((t) => { t.mesh.geometry = this.flameFor(id, t.shape); });
+    this.dropCreature(f);
     f.coals.forEach((c) => (c.material as THREE.MeshStandardMaterial).emissive.setHex(PALETTES[id].coal));
     const mat = f.hotPool.material as THREE.MeshBasicMaterial;
     mat.map = this.poolFor(id);
@@ -234,6 +249,36 @@ export class CampfireWorld {
   }
 
   // ---- building -------------------------------------------------------------------------------
+
+  /** Where the flames of each style stand, and how big they are. */
+  private tonguePlan(style: FireStyle, r: () => number): { x: number; z: number; w: number; h: number; shape: FlameShape; speed?: number; orbitR?: number; orbitA?: number; hover?: number }[] {
+    const out: { x: number; z: number; w: number; h: number; shape: FlameShape; speed?: number; orbitR?: number; orbitA?: number; hover?: number }[] = [];
+    const ring = (count: number, radius: number, minH: number, maxH: number, wMul: number, shape: FlameShape = 'round', speed?: number) => {
+      for (let i = 0; i < count; i++) {
+        const a = (i / count) * Math.PI * 2 + r();
+        const h = minH + r() * (maxH - minH);
+        out.push({ x: Math.cos(a) * radius, z: Math.sin(a) * radius, w: (0.34 + (h / 1.6) * 0.26 + r() * 0.08) * wMul, h, shape, speed });
+      }
+    };
+    if (style === 'camp') { ring(1, 0, 1.35, 1.55, 1); ring(4, 0.2, 0.85, 1.25, 1); ring(6, 0.4, 0.45, 0.8, 1); }
+    else if (style === 'inferno') { ring(1, 0, 1.9, 2.2, 1.25); ring(6, 0.3, 1.3, 1.8, 1.2); ring(9, 0.58, 0.8, 1.3, 1.15); ring(8, 0.82, 0.45, 0.8, 1.1); }
+    else if (style === 'torch') { ring(1, 0, 2.2, 2.4, 0.62, 'slim', 3); ring(3, 0.1, 1.5, 2, 0.6, 'slim', 3.4); ring(4, 0.2, 0.9, 1.3, 0.55, 'slim', 3.8); }
+    else if (style === 'crystal') { ring(1, 0, 1.5, 1.7, 0.95, 'crystal', 0.9); ring(5, 0.28, 0.9, 1.4, 0.9, 'crystal', 1); ring(7, 0.55, 0.5, 0.9, 0.85, 'crystal', 1.1); }
+    else if (style === 'swirl') {
+      for (let i = 0; i < 15; i++) {
+        const a = i * 0.72;
+        const rad = 0.06 + i * 0.034;
+        out.push({ x: Math.cos(a) * rad, z: Math.sin(a) * rad, w: 0.42 - i * 0.012, h: 1.75 - i * 0.075, shape: 'round', speed: 2.4 });
+      }
+    } else if (style === 'candle') {
+      out.push({ x: 0, z: 0, w: 0.5, h: 1.55, shape: 'slim', speed: 1.3 });
+      out.push({ x: 0, z: 0, w: 0.3, h: 0.9, shape: 'core', speed: 1.6 });
+    } else {
+      // wisps: small flames that float and drift around above the coals
+      for (let i = 0; i < 8; i++) out.push({ x: 0, z: 0, w: 0.26 + r() * 0.08, h: 0.5 + r() * 0.3, shape: 'slim', speed: 1.4 + r(), orbitR: 0.28 + r() * 0.5, orbitA: r() * 6.28, hover: 0.5 + r() * 0.9 });
+    }
+    return out;
+  }
 
   private buildFire(spec: FireSpec, index: number): FireObj {
     const r = rngOf(100 + index * 17);
@@ -271,25 +316,16 @@ export class CampfireWorld {
     }
 
     const tongues: Tongue[] = [];
-    const rings: [number, number, number, number][] = [[1, 0, 1.35, 1.55], [4, 0.2, 0.85, 1.25], [6, 0.4, 0.45, 0.8]];
-    const total = rings.reduce((s, x) => s + x[0], 0);
-    let n = 0;
     const fireGroup = new THREE.Group();
     fireGroup.position.y = 0.14;
     group.add(fireGroup);
-    for (const [count, radius, minH, maxH] of rings) {
-      for (let i = 0; i < count; i++) {
-        const a = (i / count) * Math.PI * 2 + r();
-        const m = new THREE.Mesh(this.flameFor(spec.color), this.flameMat);
-        const baseH = minH + r() * (maxH - minH);
-        const x = Math.cos(a) * radius;
-        const z = Math.sin(a) * radius;
-        m.position.set(x, 0, z);
-        fireGroup.add(m);
-        tongues.push({ mesh: m, baseW: 0.34 + (baseH / 1.6) * 0.26 + r() * 0.08, baseH, phase: r() * 10, speed: 1.6 + r() * 1.6, need: n / total, x, z });
-        n++;
-      }
-    }
+    const plan = this.tonguePlan(spec.style, r);
+    plan.forEach((p, n) => {
+      const m = new THREE.Mesh(this.flameFor(spec.color, p.shape), this.flameMat);
+      m.position.set(p.x, 0, p.z);
+      fireGroup.add(m);
+      tongues.push({ mesh: m, shape: p.shape, baseW: p.w, baseH: p.h, phase: r() * 10, speed: p.speed ?? 1.6 + r() * 1.6, need: n / plan.length, x: p.x, z: p.z, orbitR: p.orbitR ?? 0, orbitA: p.orbitA ?? 0, hover: p.hover ?? 0 });
+    });
 
     const hotPool = new THREE.Mesh(this.discGeo, new THREE.MeshBasicMaterial({ map: this.poolFor(spec.color), transparent: true, depthWrite: false, opacity: 0 }));
     const coldPool = new THREE.Mesh(this.discGeo, new THREE.MeshBasicMaterial({ map: this.coldTex, transparent: true, depthWrite: false, opacity: 0 }));
@@ -326,18 +362,18 @@ export class CampfireWorld {
     }
 
     this.scene.add(group);
-    return { id: spec.id, spec, group, scale, pos: new THREE.Vector3(), tongues, coals, stones, hotPool, coldPool, ring, hit, ash, shownF: FLAME_LEVEL[spec.level], shownCoal: COAL_GLOW[spec.level], shownCold: spec.level === 0 ? 1 : 0, flare: 0, excite: 0, index, paintedLevel: null, paintedColor: spec.color };
+    return { id: spec.id, spec, group, scale, flames: fireGroup, creature: null, creatureShown: 0, facing: 0, pos: new THREE.Vector3(), tongues, coals, stones, hotPool, coldPool, ring, hit, ash, shownF: FLAME_LEVEL[spec.level], shownCoal: COAL_GLOW[spec.level], shownCold: spec.level === 0 ? 1 : 0, flare: 0, excite: 0, index, paintedLevel: null, paintedColor: spec.color };
   }
 
   /** Create, update and arrange one campfire per area. */
   setFires(specs: FireSpec[]): void {
     const capped = specs.slice(0, MAX_FIRES);
     const ids = new Set(capped.map((s) => s.id));
-    for (const [id, f] of this.fires) if (!ids.has(id)) { this.scene.remove(f.group); this.fires.delete(id); }
+    for (const [id, f] of this.fires) if (!ids.has(id)) { this.dropCreature(f); this.scene.remove(f.group); this.fires.delete(id); }
     const slots = layoutFires(capped.length);
     capped.forEach((spec, i) => {
       let f = this.fires.get(spec.id);
-      if (f && f.spec.size !== spec.size) { this.scene.remove(f.group); f = undefined; }
+      if (f && (f.spec.size !== spec.size || f.spec.style !== spec.style)) { this.dropCreature(f); this.scene.remove(f.group); f = undefined; }
       if (!f) { f = this.buildFire(spec, i); this.fires.set(spec.id, f); }
       f.spec = spec;
       f.index = i;
@@ -365,6 +401,8 @@ export class CampfireWorld {
   // ---- public controls ------------------------------------------------------------------------
 
   setSelected(id: string | null): void { this.selected = id; }
+  /** Show a creature on every lit fire, not only the Hot ones (to preview them). */
+  setCreaturesAlways(on: boolean): void { this.creaturesAlways = on; }
   setShowAllNames(on: boolean): void { this.showAll = on; }
   setAutoRotate(on: boolean): void { this.controls.autoRotate = on && !this.opts.reducedMotion; }
 
@@ -613,18 +651,33 @@ export class CampfireWorld {
       const boost = 1 + f.flare * 0.4 + f.excite * 0.14;
       if (F > 0.3) anyWarm = true;
 
+      const style = f.spec.style;
+      f.flames.rotation.y = calm ? 0 : style === 'swirl' ? t * 1.15 : style === 'crystal' ? t * 0.35 : 0;
+      const amp = style === 'crystal' ? 0.35 : style === 'candle' ? 0.6 : 1;
       for (const tg of f.tongues) {
         const on = F * 1.18 > tg.need * 0.92;
         tg.mesh.visible = on;
         if (!on) continue;
         const k = 0.3 + 1.0 * F;
-        const w = calm ? 0 : Math.sin(t * tg.speed + tg.phase);
-        const w2 = calm ? 0 : Math.sin(t * tg.speed * 0.7 + tg.phase * 1.7);
+        const w = calm ? 0 : Math.sin(t * tg.speed + tg.phase) * amp;
+        const w2 = calm ? 0 : Math.sin(t * tg.speed * 0.7 + tg.phase * 1.7) * amp;
         const wd = (0.62 + F * 0.5) * (1 + f.flare * 0.25);
-        tg.mesh.scale.set(tg.baseW * (1 + 0.1 * w2) * wd, tg.baseH * k * (1 + 0.13 * w) * boost, tg.baseW * (1 - 0.1 * w2) * wd);
-        tg.mesh.rotation.z = 0.12 * w2 + tg.x * 0.12;
-        tg.mesh.rotation.x = 0.1 * Math.cos(t * tg.speed * 0.8 + tg.phase) - tg.z * 0.12;
+        if (style === 'wisp') {
+          const a = tg.orbitA + t * 0.55 * (0.6 + (tg.phase % 1));
+          tg.mesh.position.set(Math.cos(a) * tg.orbitR, tg.hover * (0.4 + F * 0.8) + (calm ? 0 : Math.sin(t * 1.3 + tg.phase) * 0.14), Math.sin(a) * tg.orbitR);
+          tg.mesh.scale.set(tg.baseW * (0.9 + 0.2 * w2) * wd, tg.baseH * (0.55 + F * 0.8) * (1 + 0.18 * w) * boost, tg.baseW * (0.9 - 0.2 * w2) * wd);
+          tg.mesh.rotation.set(0.1 * w2, 0, 0.1 * w);
+        } else if (style === 'swirl') {
+          const ang = Math.atan2(tg.z, tg.x);
+          tg.mesh.scale.set(tg.baseW * (1 + 0.08 * w2) * wd, tg.baseH * k * (1 + 0.1 * w) * boost, tg.baseW * (1 - 0.08 * w2) * wd);
+          tg.mesh.rotation.set(Math.cos(ang) * 0.42, 0, Math.sin(ang) * 0.42);
+        } else {
+          tg.mesh.scale.set(tg.baseW * (1 + 0.1 * w2) * wd, tg.baseH * k * (1 + 0.13 * w) * boost, tg.baseW * (1 - 0.1 * w2) * wd);
+          tg.mesh.rotation.z = 0.12 * w2 + tg.x * 0.12;
+          tg.mesh.rotation.x = 0.1 * Math.cos(t * tg.speed * 0.8 + tg.phase) * amp - tg.z * 0.12;
+        }
       }
+      this.updateCreature(f, dt, t);
       f.coals.forEach((c, i) => {
         const m = c.material as THREE.MeshStandardMaterial;
         const pulse = calm ? 0.5 : Math.sin(t * (lvl === 1 ? 2.2 : 3.2) + i * 1.7) * 0.5 + 0.5;
@@ -701,6 +754,57 @@ export class CampfireWorld {
     this.light.intensity = damp(this.light.intensity, want, 6, dt);
 
     this.updateSticks(dt, t);
+  }
+
+  private creatureFor(f: FireObj): CreatureId | null {
+    const c = f.spec.creature;
+    return c === 'none' ? null : c === 'auto' ? autoCreature(f.id) : c;
+  }
+
+  private dropCreature(f: FireObj): void {
+    if (!f.creature) return;
+    this.scene.remove(f.creature.obj.group);
+    f.creature.obj.dispose();
+    f.creature = null;
+    f.creatureShown = 0;
+  }
+
+  /** A creature of fire stands on the Hot fires: it grows out of the flames, faces you and bobs. */
+  private updateCreature(f: FireObj, dt: number, t: number): void {
+    const id = this.creatureFor(f);
+    const want = id !== null && (f.spec.level === 3 || (this.creaturesAlways && f.shownF > 0.12));
+    f.creatureShown = damp(f.creatureShown, want ? 1 : 0, want ? 2.6 : 5, dt);
+    if (want && id && (!f.creature || f.creature.id !== id)) {
+      this.dropCreature(f);
+      const obj = buildCreature(id, PALETTES[f.spec.color].ramp);
+      this.scene.add(obj.group);
+      f.creature = { id, obj };
+      f.creatureShown = 0;
+      this.flare(f.id);
+    }
+    if (!f.creature) return;
+    if (!want && f.creatureShown < 0.01) { this.dropCreature(f); return; }
+    const show = f.creatureShown;
+    const F0 = f.shownF;
+    // stand on the tallest flame that is burning right now
+    let top = 0;
+    for (const tg of f.tongues) {
+      if (!tg.mesh.visible) continue;
+      top = Math.max(top, f.spec.style === 'wisp' ? tg.hover * (0.4 + F0 * 0.8) + tg.baseH * 0.9 : tg.baseH * (0.3 + F0));
+    }
+    const bob = this.opts.reducedMotion ? 0 : Math.sin(t * 2 + f.index) * 0.05;
+    const e = show < 1 ? 1 - Math.pow(1 - show, 3) * (1 + 0.6 * Math.cos(show * 3)) : 1;
+    const base = f.scale * 1.25 * (1 + f.flare * 0.15);
+    f.creature.obj.group.scale.setScalar(Math.max(0.001, base * Math.max(0, e)));
+    if (!this.opts.reducedMotion) f.creature.obj.tick(t + f.index * 1.7);
+    const own = (f.creature.obj.group.userData.bob as number | undefined) ?? 0;
+    f.creature.obj.group.position.set(f.pos.x, (0.14 + top * 0.82) * f.scale + bob + own * base, f.pos.z);
+    const want2 = Math.atan2(this.camera.position.x - f.pos.x, this.camera.position.z - f.pos.z);
+    let d = want2 - f.facing;
+    d = Math.atan2(Math.sin(d), Math.cos(d));
+    f.facing += d * (1 - Math.exp(-dt * 4));
+    f.creature.obj.group.rotation.y = f.facing;
+    f.creature.obj.group.visible = show > 0.01;
   }
 
   private updateSticks(dt: number, t: number): void {
@@ -824,6 +928,7 @@ export class CampfireWorld {
     this.canvas.removeEventListener('pointerdown', this.onDown);
     this.canvas.removeEventListener('pointerup', this.onUp);
     this.controls.dispose();
+    for (const f of this.fires.values()) this.dropCreature(f);
     this.disposables.forEach((d) => d.dispose());
     this.textures.forEach((t) => t.dispose());
     this.scene.traverse((o) => { const m = o as THREE.Mesh; if (m.geometry) m.geometry.dispose(); });

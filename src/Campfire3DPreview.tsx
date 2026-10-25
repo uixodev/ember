@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from './components/ui/Button';
-import { FeedBurst } from './components/FeedBurst/FeedBurst';
 import { FeedSheet } from './components/ui/FeedSheet';
 import { HeatIcon } from './components/ui/HeatIcon';
 import { TopBar } from './components/ui/TopBar';
@@ -8,10 +7,11 @@ import { LEVEL_NAMES, formatSpan } from './engine/format';
 import { DEFAULT_ACTIVE_HOURS, type Level as HeatLevel } from './engine/heat';
 import { planFeed } from './engine/hold';
 import type { Area } from './model/types';
-import { CampfireWorld, type DragState, type LabelPos, type Level, type Size } from './campfire3d/world';
+import { CampfireWorld, FIRE_STYLES, type DragState, type FireStyle, type LabelPos, type Level, type Size } from './campfire3d/world';
+import { CREATURE_IDS, CREATURE_NAMES, type CreatureId } from './campfire3d/creatures';
 import { PALETTES, PALETTE_IDS, type PaletteId } from './campfire3d/palettes';
 import { STICKS, type StickKind } from './campfire3d/sticks';
-import type { FeedEntry, FeedInfo } from './store/store';
+import type { FeedEntry } from './store/store';
 import './campfire.css';
 import './campfire3d.css';
 
@@ -20,27 +20,30 @@ import './campfire3d.css';
  * say what you did, log it, and watch it burn. Open with ?campfire3d. All data here is made up.
  */
 
-interface Fire { area: Area; level: Level; progress: number; size: Size; color: PaletteId; main?: boolean; cool: string }
+interface Fire { area: Area; level: Level; progress: number; size: Size; color: PaletteId; style: FireStyle; creature: CreatureId | 'auto' | 'none'; main?: boolean; cool: string }
 
-const mk = (id: string, name: string, level: Level, progress: number, size: Size, cool: string, color: PaletteId, main = false): Fire => ({
+const mk = (id: string, name: string, level: Level, progress: number, size: Size, cool: string, color: PaletteId, style: FireStyle = 'camp', main = false): Fire => ({
   area: { id, name, place: main ? 'main' : 'side', coolingMinutes: main ? 150 : 1440, sparks: [`Spend 5 minutes on ${name}`], level, levelSince: 0, createdAt: 0 },
-  level, progress, size, color, main, cool,
+  level, progress, size, color, style, creature: 'auto', main, cool,
 });
 
 const SAMPLE: Fire[] = [
-  mk('js', 'JavaScript', 2, 0.55, 4, '1 h 20', 'classic', true),
-  mk('clean', 'Cleaning', 3, 0.8, 2, '19 h', 'green'),
-  mk('read', 'Reading', 1, 0.2, 2, '5 h', 'crimson'),
-  mk('draw', 'Drawing', 2, 0.6, 1, '4 days', 'gold'),
-  mk('guitar', 'Guitar', 0, 0, 2, 'cold', 'blue'),
-  mk('piano', 'Piano', 3, 0.9, 3, '2 days', 'teal'),
-  mk('run', 'Running', 1, 0.35, 2, '9 h', 'crimson'),
-  mk('es', 'Spanish', 2, 0.4, 3, '11 h', 'gold'),
-  mk('cook', 'Cooking', 3, 0.7, 1, '3 days', 'classic'),
-  mk('write', 'Writing', 0, 0, 2, 'cold', 'ice'),
-  mk('med', 'Meditate', 1, 0.5, 1, '7 h', 'green'),
-  mk('garden', 'Garden', 2, 0.3, 1, '2 days', 'teal'),
+  mk('js', 'JavaScript', 2, 0.55, 4, '1 h 20', 'classic', 'camp', true),
+  mk('clean', 'Cleaning', 3, 0.8, 2, '19 h', 'green', 'inferno'),
+  mk('read', 'Reading', 1, 0.2, 2, '5 h', 'crimson', 'camp'),
+  mk('draw', 'Drawing', 2, 0.6, 1, '4 days', 'gold', 'candle'),
+  mk('guitar', 'Guitar', 0, 0, 2, 'cold', 'sapphire', 'crystal'),
+  mk('piano', 'Piano', 3, 0.9, 3, '2 days', 'aurora', 'swirl'),
+  mk('run', 'Running', 1, 0.35, 2, '9 h', 'lava', 'torch'),
+  mk('es', 'Spanish', 2, 0.4, 3, '11 h', 'sky', 'wisp'),
+  mk('cook', 'Cooking', 3, 0.7, 1, '3 days', 'amber', 'inferno'),
+  mk('write', 'Writing', 0, 0, 2, 'cold', 'ice', 'crystal'),
+  mk('med', 'Meditate', 1, 0.5, 1, '7 h', 'mint', 'wisp'),
+  mk('garden', 'Garden', 2, 0.3, 1, '2 days', 'lime', 'candle'),
 ];
+
+// hand every area a different creature in turn, so the Hot fires don't all get the same one
+SAMPLE.forEach((f, i) => { f.creature = CREATURE_IDS[(i + 5) % CREATURE_IDS.length]; });
 
 const SIZE_NAMES: Record<Size, string> = { 1: 'Small', 2: 'Medium', 3: 'Large', 4: 'Huge' };
 const HOURS = DEFAULT_ACTIVE_HOURS;
@@ -54,6 +57,7 @@ export default function Campfire3DPreview() {
   const [failed, setFailed] = useState(false);
   const [hint, setHint] = useState(true);
   const [names, setNames] = useState(false);
+  const [creaturesAll, setCreaturesAll] = useState(false);
   const [held, setHeld] = useState<StickKind | null>(null);
   const [icons, setIcons] = useState<Partial<Record<StickKind, string>>>({});
   const viewIndex = useRef(0);
@@ -63,7 +67,6 @@ export default function Campfire3DPreview() {
   const [sel, setSel] = useState<string | null>('js');
   const [drag, setDrag] = useState<DragState | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
-  const [burst, setBurst] = useState<FeedInfo | null>(null);
 
   const shown = useMemo(() => fires.slice(0, count), [fires, count]);
   const chosen = shown.find((f) => f.area.id === sel);
@@ -105,10 +108,11 @@ export default function Campfire3DPreview() {
   }, [onFrame]);
 
   useEffect(() => {
-    worldRef.current?.setFires(shown.map((f) => ({ id: f.area.id, level: f.level, progress: f.progress, size: f.size, color: f.color })));
+    worldRef.current?.setFires(shown.map((f) => ({ id: f.area.id, level: f.level, progress: f.progress, size: f.size, color: f.color, style: f.style, creature: f.creature })));
   }, [shown]);
   useEffect(() => { worldRef.current?.setSelected(sel); }, [sel]);
   useEffect(() => { worldRef.current?.setShowAllNames(names); }, [names]);
+  useEffect(() => { worldRef.current?.setCreaturesAlways(creaturesAll); }, [creaturesAll]);
 
   const cancelPending = () => {
     if (pending?.stickId) worldRef.current?.returnStick(pending.stickId);
@@ -123,11 +127,6 @@ export default function Campfire3DPreview() {
     if (pending.stickId) worldRef.current?.consumeStick(pending.stickId); else worldRef.current?.flare(fire.area.id);
     setFires((all) => all.map((f) => (f.area.id === fire.area.id ? { ...f, level: to, progress: 1, cool: formatSpan(plan.holdMinutes) } : f)));
     setPending(null);
-    // the stick burns first, then the reward
-    window.setTimeout(() => setBurst({
-      kind: 'spark', areaId: fire.area.id, name: fire.area.name, from: fire.level, to, fromProgress: fire.progress,
-      prevStreak: 3, streak: 4, sparksToday: 3, note: entry.note, minutes: entry.minutes, holdMinutes: plan.holdMinutes,
-    }), 1300);
   };
 
   const feedWithoutWood = () => { if (chosen) setPending({ fireId: chosen.area.id, kind: 'branch', stickId: null }); };
@@ -149,6 +148,8 @@ export default function Campfire3DPreview() {
   };
 
   const recolor = (color: PaletteId) => { if (chosen) setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, color } : f))); };
+  const restyle = (style: FireStyle) => { if (chosen) setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, style } : f))); };
+  const setCreature = (creature: Fire['creature']) => { if (chosen) setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, creature } : f))); };
   const resize = (size: Size) => { if (chosen) setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, size } : f))); };
   const shuffle = () => setFires((all) => all.map((f) => { const lv = ((Math.random() * 4) | 0) as Level; return { ...f, level: lv, progress: lv ? 0.2 + Math.random() * 0.75 : 0, cool: lv ? 'a while' : 'cold' }; }));
   const mixSizes = () => setFires((all) => all.map((f) => ({ ...f, size: (1 + ((Math.random() * 4) | 0)) as Size })));
@@ -237,6 +238,25 @@ export default function Campfire3DPreview() {
             </div>
           </div>
           <div className="camp-size">
+            <span className="camp-size-title">Fire style <b>{FIRE_STYLES.find((x) => x.id === chosen.style)?.name}</b></span>
+            <div className="chips left" role="radiogroup" aria-label="Fire style">
+              {FIRE_STYLES.map((x) => (
+                <button key={x.id} type="button" role="radio" aria-checked={chosen.style === x.id} className={`chip${chosen.style === x.id ? ' on' : ''}`} onClick={() => restyle(x.id)}>{x.name}</button>
+              ))}
+            </div>
+          </div>
+          <div className="camp-size">
+            <span className="camp-size-title">Creature on top <b>{chosen.creature === 'auto' ? 'Auto' : chosen.creature === 'none' ? 'None' : CREATURE_NAMES[chosen.creature]}</b></span>
+            <div className="chips left" role="radiogroup" aria-label="Creature on top">
+              {(['auto', 'none', ...CREATURE_IDS] as const).map((c) => (
+                <button key={c} type="button" role="radio" aria-checked={chosen.creature === c} className={`chip${chosen.creature === c ? ' on' : ''}`} onClick={() => setCreature(c)}>
+                  {c === 'auto' ? 'Auto' : c === 'none' ? 'None' : CREATURE_NAMES[c]}
+                </button>
+              ))}
+            </div>
+            <span className="camp-size-note">A creature of fire stands on a fire when it is Hot.</span>
+          </div>
+          <div className="camp-size">
             <span className="camp-size-title">Fire colour <b>{PALETTES[chosen.color].name}</b></span>
             <div className="c3-swatches" role="radiogroup" aria-label="Fire colour">
               {PALETTE_IDS.map((id) => (
@@ -263,12 +283,17 @@ export default function Campfire3DPreview() {
           <span><span className="switch-title">Show every name</span><span className="note switch-note">Off keeps the scene calm: only the fire you pick shows its name.</span></span>
           <span className={`switch${names ? ' on' : ''}`} aria-hidden="true"><span /></span>
         </button>
+        <button type="button" role="switch" aria-checked={creaturesAll} className="switch-row" onClick={() => setCreaturesAll((n) => !n)}>
+          <span><span className="switch-title">Creatures on every fire</span><span className="note switch-note">A preview: usually they only stand on Hot fires.</span></span>
+          <span className={`switch${creaturesAll ? ' on' : ''}`} aria-hidden="true"><span /></span>
+        </button>
         <div className="camp-btns">
           <Button variant="glass" small onClick={shuffle}>Shuffle the heats</Button>
           <Button variant="glass" small onClick={mixSizes}>Mix the sizes</Button>
         </div>
         <ul>
-          <li><b>Each area has its own fire</b>, with its own heat and its own colour.</li>
+          <li><b>Each area has its own fire</b>: its own heat, colour and style.</li>
+          <li><b>Hot fires</b> get a creature made of fire standing on the flames.</li>
           <li><b>Fire size</b> is yours to set per area.</li>
           <li><b>Wood</b> comes from your inventory under the scene. Let go away from a fire and it goes back.</li>
         </ul>
@@ -282,7 +307,6 @@ export default function Campfire3DPreview() {
           onConfirm={(entry) => confirm(entry)}
         />
       )}
-      {burst && <FeedBurst info={burst} onDone={() => setBurst(null)} />}
     </div>
   );
 }
