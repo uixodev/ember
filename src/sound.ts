@@ -127,6 +127,17 @@ const SOUNDS = {
     tone(c, t + 0.5, N.G6, 1.1, { gain: 0.05 });
     crackle(c, t + 0.1, 1.1, 16, 0.06);
   },
+  wood: (c: Ctx, t: number) => {
+    tone(c, t, 170, 0.12, { to: 70, gain: 0.3 });
+    noise(c, t, 0.06, { type: 'lowpass', freq: 900, gain: 0.12 });
+    tone(c, t + 0.05, 520, 0.05, { to: 380, type: 'square', gain: 0.04 });
+    crackle(c, t + 0.08, 0.3, 4, 0.05);
+  },
+  woodBurn: (c: Ctx, t: number) => {
+    noise(c, t, 0.7, { freq: 300, to: 2200, gain: 0.07, q: 0.7 });
+    tone(c, t, 120, 0.5, { to: 200, gain: 0.12 });
+    crackle(c, t + 0.05, 1.0, 12, 0.06);
+  },
   bell: (c: Ctx, t: number) => {
     for (const d of [0, 0.7]) {
       tone(c, t + d, 880, 1.3, { gain: 0.14, attack: 0.003 });

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FeedSheet } from './components/ui/FeedSheet';
+import { play, playHeat, unlockAudio } from './sound';
 import { HeatIcon } from './components/ui/HeatIcon';
 import { Segmented } from './components/ui/Tabs';
 import { TopBar } from './components/ui/TopBar';
@@ -95,7 +96,7 @@ export default function Campfire3DPreview() {
         onFrame,
         onSelectFire: (id) => { if (id) setSel(id); },
         onDrag: (s) => setDrag(s.dragging ? s : null),
-        onDrop: (fireId, kind, stickId) => { setHint(false); setPending({ fireId, kind, stickId }); },
+        onDrop: (fireId, kind, stickId) => { play('wood'); setHint(false); setPending({ fireId, kind, stickId }); },
         onInteract: () => setHint(false),
         reducedMotion: reduced,
       });
@@ -134,6 +135,7 @@ export default function Campfire3DPreview() {
     const fire = pendingFire;
     const plan = planFeed(fire.area, { minutes: entry.minutes ?? 5, effort: entry.effort ?? 3, nextAt: entry.nextAt }, Date.now(), HOURS);
     const to = Math.min(3, fire.level + 1) as Level;
+    play('woodBurn'); window.setTimeout(() => playHeat(to), 450);
     if (pending.stickId) worldRef.current?.consumeStick(pending.stickId); else worldRef.current?.flare(fire.area.id);
     setFires((all) => all.map((f) => (f.area.id === fire.area.id ? { ...f, level: to, progress: 1, cool: formatSpan(plan.holdMinutes) } : f)));
     setPending(null);
@@ -152,6 +154,7 @@ export default function Campfire3DPreview() {
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
     setPanel(null);
+    unlockAudio();
     worldRef.current?.beginTrayDrag(kind, e.clientX, e.clientY, e.pointerId);
     setHeld(kind);
     setHint(false);
