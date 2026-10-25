@@ -1,12 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FeedSheet } from './components/ui/FeedSheet';
 import { play, playHeat, unlockAudio } from './sound';
 import { HeatIcon } from './components/ui/HeatIcon';
 import { Segmented } from './components/ui/Tabs';
 import { TopBar } from './components/ui/TopBar';
-import { LEVEL_NAMES, formatSpan } from './engine/format';
+import { LEVEL_NAMES, formatSpan, formatWhen } from './engine/format';
 import { DEFAULT_ACTIVE_HOURS, type Level as HeatLevel } from './engine/heat';
-import { planFeed } from './engine/hold';
 import type { Area } from './model/types';
 import { CampfireWorld, FIRE_STYLES, layoutFires, type DragState, type FireStyle, type LabelPos, type Level, type Size } from './campfire3d/world';
 import { CREATURE_IDS, CREATURE_NAMES, type CreatureId } from './campfire3d/creatures';
@@ -22,26 +21,35 @@ import './campfire3d.css';
  * Open with ?campfire3d. All data here is made up.
  */
 
-interface Fire { area: Area; level: Level; progress: number; size: Size; color: PaletteId; style: FireStyle; creature: CreatureId | 'auto' | 'none'; main?: boolean; cool: string; pos?: { x: number; z: number } }
+/** A fire holds a percentage of heat. It loses `rate` percent every day, and wood adds more. */
+interface Fire { area: Area; percent: number; since: number; rate: number; size: Size; color: PaletteId; style: FireStyle; creature: CreatureId | 'auto' | 'none'; main?: boolean; pos?: { x: number; z: number } }
+type Live = Fire & { pct: number; level: Level; progress: number };
 
-const mk = (id: string, name: string, level: Level, progress: number, size: Size, cool: string, color: PaletteId, style: FireStyle = 'camp', main = false): Fire => ({
-  area: { id, name, place: main ? 'main' : 'side', coolingMinutes: main ? 150 : 1440, sparks: [`Spend 5 minutes on ${name}`], level, levelSince: 0, createdAt: 0 },
-  level, progress, size, color, style, creature: 'auto', main, cool,
+const levelOf = (p: number): Level => (p <= 0 ? 0 : p < 30 ? 1 : p < 70 ? 2 : 3);
+const DAY = 86_400_000;
+/** How fast a fire cools, in percent per day, from slow to fast. */
+const RATES = [10, 20, 35, 50, 75, 100, 150, 240, 480, 720];
+const rateText = (r: number) => (r > 100 ? `${Math.round(r / 24)}% an hour` : `${r}% a day`);
+const coldAfter = (pct: number, rate: number) => (pct / rate) * DAY;
+
+const mk = (id: string, name: string, percent: number, rate: number, size: Size, color: PaletteId, style: FireStyle = 'camp', main = false): Fire => ({
+  area: { id, name, place: main ? 'main' : 'side', coolingMinutes: main ? 150 : 1440, sparks: [`Spend 5 minutes on ${name || 'it'}`], level: levelOf(percent), levelSince: 0, createdAt: 0 },
+  percent, since: Date.now(), rate, size, color, style, creature: 'auto', main,
 });
 
 const SAMPLE: Fire[] = [
-  mk('js', 'JavaScript', 2, 0.55, 4, '1 h 20', 'classic', 'camp', true),
-  mk('clean', 'Cleaning', 3, 0.8, 2, '19 h', 'green', 'inferno'),
-  mk('read', 'Reading', 1, 0.2, 2, '5 h', 'crimson', 'camp'),
-  mk('draw', 'Drawing', 2, 0.6, 1, '4 days', 'gold', 'candle'),
-  mk('guitar', 'Guitar', 0, 0, 2, 'cold', 'sapphire', 'crystal'),
-  mk('piano', 'Piano', 3, 0.9, 3, '2 days', 'aurora', 'swirl'),
-  mk('run', 'Running', 1, 0.35, 2, '9 h', 'lava', 'torch'),
-  mk('es', 'Spanish', 2, 0.4, 3, '11 h', 'sky', 'wisp'),
-  mk('cook', 'Cooking', 3, 0.7, 1, '3 days', 'amber', 'inferno'),
-  mk('write', 'Writing', 0, 0, 2, 'cold', 'ice', 'crystal'),
-  mk('med', 'Meditate', 1, 0.5, 1, '7 h', 'mint', 'wisp'),
-  mk('garden', 'Garden', 2, 0.3, 1, '2 days', 'lime', 'candle'),
+  mk('js', 'JavaScript', 55, 150, 4, 'classic', 'camp', true),
+  mk('clean', 'Cleaning', 85, 50, 2, 'green', 'inferno'),
+  mk('read', 'Reading', 20, 75, 2, 'crimson', 'camp'),
+  mk('draw', 'Drawing', 62, 35, 1, 'gold', 'candle'),
+  mk('guitar', 'Guitar', 0, 50, 2, 'sapphire', 'crystal'),
+  mk('piano', 'Piano', 92, 35, 3, 'aurora', 'swirl'),
+  mk('run', 'Running', 33, 100, 2, 'lava', 'torch'),
+  mk('es', 'Spanish', 45, 75, 3, 'sky', 'wisp'),
+  mk('cook', 'Cooking', 75, 20, 1, 'amber', 'inferno'),
+  mk('write', 'Writing', 0, 35, 2, 'ice', 'crystal'),
+  mk('med', 'Meditate', 50, 100, 1, 'mint', 'wisp'),
+  mk('garden', 'Garden', 28, 20, 1, 'lime', 'candle'),
 ];
 // hand every area a different creature in turn, so the Hot fires don't all get the same one
 SAMPLE.forEach((f, i) => { f.creature = CREATURE_IDS[(i + 5) % CREATURE_IDS.length]; });
@@ -54,7 +62,7 @@ const VIEWS = [{ azimuth: 0, polar: 0.84 }, { azimuth: 0, polar: 0.3 }, { azimut
 
 interface Pending { fireId: string; kind: StickKind; stickId: number | null }
 type Panel = null | 'customise' | 'menu';
-type Tab = 'size' | 'colour' | 'style' | 'creature';
+type Tab = 'cooling' | 'size' | 'colour' | 'style' | 'creature';
 
 export default function Campfire3DPreview() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -74,9 +82,11 @@ export default function Campfire3DPreview() {
   const [drag, setDrag] = useState<DragState | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
   const [panel, setPanel] = useState<Panel>(null);
-  const [tab, setTab] = useState<Tab>('size');
+  const [tab, setTab] = useState<Tab>('cooling');
 
-  const shown = fires;
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const t = window.setInterval(() => setNow(Date.now()), 10_000); return () => window.clearInterval(t); }, []);
+  const shown = useMemo<Live[]>(() => fires.map((f) => { const pct = Math.max(0, f.percent - (f.rate * (now - f.since)) / DAY); return { ...f, pct, level: levelOf(pct), progress: pct / 100 }; }), [fires, now]);
   const chosen = shown.find((f) => f.area.id === sel);
   const pendingFire = pending ? shown.find((f) => f.area.id === pending.fireId) : undefined;
   const overFire = drag?.overFire ? shown.find((f) => f.area.id === drag.overFire) : undefined;
@@ -134,22 +144,22 @@ export default function Campfire3DPreview() {
     setPending(null);
   };
 
-  const confirm = (entry: FeedEntry & { note: string }) => {
+  const confirm = (_entry: FeedEntry & { note: string }) => {
     if (!pending || !pendingFire) return;
     const fire = pendingFire;
-    const plan = planFeed(fire.area, { minutes: entry.minutes ?? 5, effort: entry.effort ?? 3, nextAt: entry.nextAt }, Date.now(), HOURS);
-    const to = Math.min(3, fire.level + 1) as Level;
+    const to = levelOf(Math.min(100, fire.pct + STICKS[pending.kind].gain));
     play('woodBurn'); window.setTimeout(() => playHeat(to), 450);
     if (pending.stickId) worldRef.current?.consumeStick(pending.stickId); else worldRef.current?.flare(fire.area.id);
-    setFires((all) => all.map((f) => (f.area.id === fire.area.id ? { ...f, level: to, progress: 1, cool: formatSpan(plan.holdMinutes) } : f)));
+    setFires((all) => all.map((f) => (f.area.id === fire.area.id ? { ...f, percent: Math.min(100, fire.pct + STICKS[pending.kind].gain), since: Date.now() } : f)));
     setPending(null);
   };
 
 
 
   const rename = (name: string) => { if (chosen) setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, area: { ...f.area, name, sparks: [`Spend 5 minutes on ${name || 'it'}`] } } : f))); };
+  const setRate = (rate: number) => { if (chosen) setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, percent: chosen.pct, since: Date.now(), rate } : f))); };
   const patch = (change: Partial<Fire>) => { if (chosen) setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, ...change } : f))); };
-  const shuffle = () => setFires((all) => all.map((f) => { const lv = ((Math.random() * 4) | 0) as Level; return { ...f, level: lv, progress: lv ? 0.2 + Math.random() * 0.75 : 0, cool: lv ? 'a while' : 'cold' }; }));
+  const shuffle = () => setFires((all) => all.map((f) => ({ ...f, percent: Math.random() < 0.2 ? 0 : Math.round(5 + Math.random() * 95), since: Date.now() })));
   const mixSizes = () => setFires((all) => all.map((f) => ({ ...f, size: (1 + ((Math.random() * 4) | 0)) as Size })));
   const addFire = () => {
     if (fires.length >= 12) return;
@@ -157,7 +167,7 @@ export default function Campfire3DPreview() {
     for (let x = -10.5; x <= 10.5; x += 3.5) for (let z = -9.6; z <= 9.6; z += 3.2) spots.push({ x, z });
     spots.sort((a, b) => Math.hypot(a.x, a.z * 1.2) - Math.hypot(b.x, b.z * 1.2));
     const pos = spots.find((c) => fires.every((f) => Math.hypot(c.x - (f.pos?.x ?? 0), c.z - (f.pos?.z ?? 0)) >= 3.3)) ?? spots[0];
-    const f = mk(`new-${Date.now()}`, '', 0, 0, 2, 'cold', PALETTE_IDS[fires.length % PALETTE_IDS.length]);
+    const f = mk(`new-${Date.now()}`, '', 0, 50, 2, PALETTE_IDS[fires.length % PALETTE_IDS.length]);
     f.pos = pos;
     f.creature = CREATURE_IDS[fires.length % CREATURE_IDS.length];
     setFires((all) => [...all, f]);
@@ -196,7 +206,7 @@ export default function Campfire3DPreview() {
           {drag && (
             <div className={`c3-chip${overFire ? ' ready' : ''}`} style={{ left: Math.max(70, Math.min(drag.x, (stageRef.current?.clientWidth ?? 390) - 70)), top: Math.min(drag.y, stageH - 150) }} aria-hidden="true">
               <b>{STICKS[drag.kind ?? 'branch'].name}</b>
-              <span>{overFire ? `Let go to feed ${overFire.area.name}` : `${STICKS[drag.kind ?? 'branch'].blurb}, about ${STICKS[drag.kind ?? 'branch'].minutes} min`}</span>
+              <span>{overFire ? `Let go to feed ${overFire.area.name}` : `${STICKS[drag.kind ?? 'branch'].blurb}, +${STICKS[drag.kind ?? 'branch'].gain}%`}</span>
             </div>
           )}
         </>
@@ -207,7 +217,7 @@ export default function Campfire3DPreview() {
         {chosen && (
           <div className="c3-title" aria-live="polite">
             <h1>{chosen.area.name || 'New area'}{chosen.main ? ' · main' : ''}</h1>
-            <span className={`c3-state lv${chosen.level}`}><HeatIcon level={chosen.level} size={18} />{LEVEL_NAMES[chosen.level as HeatLevel]}</span>
+            <span className={`c3-state lv${chosen.level}`}><HeatIcon level={chosen.level} size={18} />{LEVEL_NAMES[chosen.level as HeatLevel]} · {Math.round(chosen.pct)}%</span>
           </div>
         )}
       </div>
@@ -235,8 +245,18 @@ export default function Campfire3DPreview() {
               <input className="c3-name" value={chosen.area.name} maxLength={24} placeholder="Name this area" aria-label="Area name" onChange={(e) => rename(e.target.value)} />
               <button type="button" className="c3-x" aria-label="Close" onClick={() => setPanel(null)}>×</button>
             </div>
-            <Segmented value={tab} onChange={setTab} options={[{ value: 'size', label: 'Size' }, { value: 'colour', label: 'Colour' }, { value: 'style', label: 'Style' }, { value: 'creature', label: 'Creature' }]} />
+            <Segmented value={tab} onChange={setTab} options={[{ value: 'cooling', label: 'Cooling' }, { value: 'size', label: 'Size' }, { value: 'colour', label: 'Colour' }, { value: 'style', label: 'Style' }, { value: 'creature', label: 'Creature' }]} />
             <div className="c3-panel-body">
+              {tab === 'cooling' && (
+                <>
+                  <div className="chips left" role="radiogroup" aria-label="How fast it cools">
+                    {RATES.map((r) => (
+                      <button key={r} type="button" role="radio" aria-checked={chosen.rate === r} className={`chip${chosen.rate === r ? ' on' : ''}`} onClick={() => setRate(r)}>{rateText(r)}</button>
+                    ))}
+                  </div>
+                  <span className="camp-size-note">Loses {rateText(chosen.rate)}. From full it is cold after {formatSpan(Math.round(coldAfter(100, chosen.rate) / 60000))}.</span>
+                </>
+              )}
               {tab === 'size' && (
                 <div className="camp-size-row" role="radiogroup" aria-label="Fire size">
                   {([1, 2, 3, 4] as Size[]).map((z) => (
@@ -291,7 +311,8 @@ export default function Campfire3DPreview() {
 
         {chosen && !drag && (
           <div className="c3-focus">
-            <div className="c3-focus-text"><b>{chosen.level === 0 ? 'One spark warms it' : `Cools in ${chosen.cool}`}</b></div>
+            <div className="c3-focus-text"><b>{Math.round(chosen.pct)}% · loses {rateText(chosen.rate)}</b>
+              <span>{chosen.pct <= 0 ? 'Cold. Any wood lights it again' : `Fully cooled ${formatWhen(now + coldAfter(chosen.pct, chosen.rate), now)}`}</span></div>
             <button type="button" className={`c3-act${panel === 'customise' ? ' on' : ''}`} aria-expanded={panel === 'customise'} onClick={() => togglePanel('customise')}>Customise</button>
           </div>
         )}
@@ -299,11 +320,11 @@ export default function Campfire3DPreview() {
         <section className="c3-dock" aria-label="Your wood">
           {(Object.keys(STICKS) as StickKind[]).map((k) => (
             <button key={k} type="button" className={`c3-slot${held === k ? ' held' : ''}`}
-              aria-label={`${STICKS[k].name}, about ${STICKS[k].minutes} minutes. Drag onto a fire, or press Enter to feed the selected fire.`}
+              aria-label={`${STICKS[k].name}, adds ${STICKS[k].gain} percent. Drag onto a fire, or press Enter to feed the selected fire.`}
               onPointerDown={grab(k)} onPointerMove={carry} onPointerUp={release(true)} onPointerCancel={release(false)} onKeyDown={useWood(k)}>
               <span className="c3-slot-img">{icons[k] ? <img src={icons[k]} alt="" draggable={false} /> : <i className={`c3-slot-fallback ${k}`} />}</span>
               <b>{STICKS[k].name}</b>
-              <span>{STICKS[k].minutes} min</span>
+              <span>+{STICKS[k].gain}%</span>
             </button>
           ))}
         </section>
@@ -313,6 +334,7 @@ export default function Campfire3DPreview() {
         <FeedSheet
           area={pendingFire.area} hours={HOURS}
           prefillMinutes={STICKS[pending.kind].minutes} prefillEffort={STICKS[pending.kind].effort}
+          footNote={<>Adds <b>+{STICKS[pending.kind].gain}%</b>: {pendingFire.area.name || 'this fire'} goes from <b>{Math.round(pendingFire.pct)}%</b> to <b>{Math.min(100, Math.round(pendingFire.pct + STICKS[pending.kind].gain))}%</b>.</>}
           onClose={cancelPending}
           onConfirm={(entry) => confirm(entry)}
         />

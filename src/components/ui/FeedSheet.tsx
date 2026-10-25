@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { formatSpan, formatWhen } from '../../engine/format';
 import type { ActiveHours } from '../../engine/heat';
 import { planFeed, type Effort } from '../../engine/hold';
@@ -15,7 +15,7 @@ export type FeedKind = 'spark' | 'big';
  * the longer the fire holds. You can also pick when you plan to come back.
  * The area's spark list works as templates for the note.
  */
-export function FeedSheet({ area, hours, kind = 'spark', prefill = '', prefillMinutes, prefillEffort, onConfirm, onClose }: {
+export function FeedSheet({ area, hours, kind = 'spark', prefill = '', prefillMinutes, prefillEffort, footNote, onConfirm, onClose }: {
   area: Area;
   /** Your active hours, used for the "next feeding" preview. */
   hours: ActiveHours;
@@ -23,6 +23,8 @@ export function FeedSheet({ area, hours, kind = 'spark', prefill = '', prefillMi
   prefill?: string;
   prefillMinutes?: number;
   prefillEffort?: Effort;
+  /** Replaces the "fire holds for" line, for screens that model heat differently. */
+  footNote?: ReactNode;
   onConfirm: (entry: FeedEntry & { note: string }, saveAsTemplate: boolean) => void;
   onClose: () => void;
 }) {
@@ -86,7 +88,7 @@ export function FeedSheet({ area, hours, kind = 'spark', prefill = '', prefillMi
         </div>
         <div className="sheet-foot">
           <p className="feed-plan" aria-live="polite">
-            {minsOk
+            {footNote && minsOk ? footNote : minsOk
               ? <>The fire holds for <b>{formatSpan(plan.holdMinutes)}</b>, so the next feeding is due <b>{formatWhen(plan.nextAt, now)}</b>.</>
               : 'Enter between 1 and 1440 minutes.'}
           </p>

@@ -5,12 +5,12 @@ import * as TX from './textures';
 export type StickKind = 'kindling' | 'branch' | 'split' | 'log' | 'big';
 
 /** What each kind of wood suggests when you drop it on a fire. You can always change it in the sheet. */
-export const STICKS: Record<StickKind, { name: string; minutes: number; effort: Effort; blurb: string }> = {
-  kindling: { name: 'Kindling', minutes: 5, effort: 2, blurb: 'a quick one' },
-  branch: { name: 'Branch', minutes: 15, effort: 3, blurb: 'a short session' },
-  split: { name: 'Split log', minutes: 30, effort: 3, blurb: 'a proper go' },
-  log: { name: 'Log', minutes: 60, effort: 4, blurb: 'a solid hour' },
-  big: { name: 'Big log', minutes: 120, effort: 5, blurb: 'a long, hard push' },
+export const STICKS: Record<StickKind, { name: string; minutes: number; effort: Effort; blurb: string; /** Percent of heat it adds to a fire. */ gain: number }> = {
+  kindling: { name: 'Kindling', minutes: 5, effort: 2, blurb: 'a quick one', gain: 5 },
+  branch: { name: 'Branch', minutes: 15, effort: 3, blurb: 'a short session', gain: 10 },
+  split: { name: 'Split log', minutes: 30, effort: 3, blurb: 'a proper go', gain: 20 },
+  log: { name: 'Log', minutes: 60, effort: 4, blurb: 'a solid hour', gain: 30 },
+  big: { name: 'Big log', minutes: 120, effort: 5, blurb: 'a long, hard push', gain: 100 },
 };
 
 export const STICK_KINDS = Object.keys(STICKS) as StickKind[];

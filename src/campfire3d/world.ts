@@ -400,18 +400,21 @@ export class CampfireWorld {
         f.paintedLevel = spec.level;
       }
     });
-    this.refit();
-    this.resize();
+    if (this.sigOf() !== this.fitSig) this.refit();
   }
 
+  private fitSig = '';
+  private sigOf(): string { return [...this.fires.values()].map((f) => `${f.id}:${f.pos.x.toFixed(2)},${f.pos.z.toFixed(2)}`).join('|'); }
+
   /** Frame the camera around wherever the fires are now. */
-  private refit(): void {
+  private refit(keepTarget = false): void {
+    this.fitSig = this.sigOf();
     let maxX = 2.8, minZ = -2.4, maxZ = 2.4;
     for (const f of this.fires.values()) { maxX = Math.max(maxX, Math.abs(f.pos.x) + 2.7); minZ = Math.min(minZ, f.pos.z - 2.4); maxZ = Math.max(maxZ, f.pos.z + 2.4); }
     this.extent = maxX;
     this.depth = (maxZ - minZ) / 2 + 0.8;
     this.center.set(0, 0.6, (minZ + maxZ) / 2);
-    this.controls.target.copy(this.center);
+    if (!keepTarget) this.controls.target.copy(this.center);
     this.ground.scale.setScalar(Math.max(this.extent, this.depth) + 3.2);
     this.ground.position.set(0, 0, this.center.z);
     this.resize();
@@ -457,7 +460,7 @@ export class CampfireWorld {
     if (!f) return;
     f.group.position.set(f.pos.x, 0, f.pos.z);
     this.opts.onFireMoved?.(d.id, f.pos.x, f.pos.z);
-    this.refit();
+    this.refit(true);
   }
 
   // ---- public controls ------------------------------------------------------------------------
