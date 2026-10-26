@@ -138,6 +138,8 @@ export default function Campfire3DPreview() {
   }), [fires, now, preview]);
   const chosen = shown.find((f) => f.area.id === sel);
   const pendingFire = pending ? shown.find((f) => f.area.id === pending.fireId) : undefined;
+  // what each piece of wood is worth right now: more when the selected fire is Warm or Hot
+  const dockMult = chosen ? xpMultiplier(chosen.level) : 1;
   const overFire = drag?.overFire ? shown.find((f) => f.area.id === drag.overFire) : undefined;
 
   // The page is one fixed screen: nothing to scroll.
@@ -356,7 +358,7 @@ export default function Campfire3DPreview() {
           {drag && (
             <div className={`c3-chip${overFire ? ' ready' : ''}`} style={{ left: Math.max(70, Math.min(drag.x, (stageRef.current?.clientWidth ?? 390) - 70)), top: Math.min(drag.y, stageH - 150) }} aria-hidden="true">
               <b>{STICKS[drag.kind ?? 'branch'].name}</b>
-              <span>{overFire ? `Let go to feed ${overFire.area.name}` : `${STICKS[drag.kind ?? 'branch'].blurb}, +${STICKS[drag.kind ?? 'branch'].gain}%`}</span>
+              <span>{overFire ? `Let go to feed ${overFire.area.name}: +${WOOD_XP[drag.kind ?? 'branch'] * xpMultiplier(overFire.level)} XP` : `${STICKS[drag.kind ?? 'branch'].blurb}, +${STICKS[drag.kind ?? 'branch'].gain}%`}</span>
             </div>
           )}
         </>
@@ -561,7 +563,7 @@ export default function Campfire3DPreview() {
               <span className="c3-slot-img">{icons[k] ? <img src={icons[k]} alt="" draggable={false} /> : <i className={`c3-slot-fallback ${k}`} />}</span>
               <b>{STICKS[k].name}</b>
               <span>+{STICKS[k].gain}%</span>
-              <span className="c3-slot-xp">{WOOD_XP[k]} XP</span>
+              <span className={`c3-slot-xp${dockMult > 1 ? ' boost' : ''}`} title={dockMult > 1 ? `${WOOD_XP[k]} XP × ${dockMult} because the fire is ${dockMult === 3 ? 'Hot' : 'Warm'}` : undefined}>{WOOD_XP[k] * dockMult} XP</span>
             </button>
           ))}
         </section>}
