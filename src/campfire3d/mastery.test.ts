@@ -16,7 +16,7 @@ describe('experience and levels', () => {
   });
 
   it('never ends', () => {
-    expect(levelOfXp(1e9)).toBeGreaterThan(4000);
+    expect(levelOfXp(1e9)).toBeGreaterThan(7000);
     expect(levelOfXp(xpToReach(10_000))).toBe(10_000);
   });
 

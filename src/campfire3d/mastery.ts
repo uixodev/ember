@@ -10,12 +10,12 @@ export const WOOD_XP = { kindling: 1, branch: 5, split: 10, log: 20, big: 50 } a
 /** The multiplier for the heat the fire has when it is fed: Cold and Embers x1, Warm x2, Hot x3. */
 export const xpMultiplier = (heatLevel: 0 | 1 | 2 | 3): number => (heatLevel === 3 ? 3 : heatLevel === 2 ? 2 : 1);
 
-/** Total XP needed to reach `level` (level 1 needs none): 100, 300, 600, 1000 ... Each level asks more than the last. */
-export const xpToReach = (level: number): number => 50 * level * (level - 1);
+/** Total XP needed to reach `level` (level 1 needs none): 36, 108, 216 ... Each level asks more than the last. At about 100 XP a day, level 100 (Mythic) takes around 5 years. */
+export const xpToReach = (level: number): number => 18 * level * (level - 1);
 
 export function levelOfXp(xp: number): number {
   if (!(xp > 0)) return 1;
-  let level = Math.max(1, Math.floor(0.5 + Math.sqrt(0.25 + xp / 50)));
+  let level = Math.max(1, Math.floor(0.5 + Math.sqrt(0.25 + xp / 18)));
   while (xpToReach(level + 1) <= xp) level++;
   while (level > 1 && xpToReach(level) > xp) level--;
   return level;
