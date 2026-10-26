@@ -428,3 +428,7 @@ button.c3-line { padding: 0; min-height: 28px; margin: 0; }
 .c3-toast { top: auto; bottom: calc(var(--c3-bottom, 220px) + 12px); left: 12px; right: 12px; transform: none; max-width: none; width: auto; justify-content: center; border-radius: 20px; padding: 10px 16px 10px 12px; font-size: 14px; animation: c3-toast-up 4.2s ease both; }
 .c3-toast span { text-align: left; }
 @keyframes c3-toast-up { 0% { opacity: 0; transform: translateY(12px) scale(.96); } 8% { opacity: 1; transform: translateY(0) scale(1.01); } 14% { transform: none; } 88% { opacity: 1; } 100% { opacity: 0; transform: translateY(6px); } }
+
+/* Frozen */
+.c3-act.ice, .chip.ice { background: #BFE6FF; color: #12306B; border-color: #BFE6FF; }
+.c3-state.frozen .c3-dot { background: #BFE6FF; }

@@ -22,6 +22,8 @@ export interface Fire {
   rate: number;
   /** True when you set the cooling speed yourself instead of letting the size decide. */
   customRate?: boolean;
+  /** When the fire was frozen. While set, its heat, XP and neglect clock stand still. */
+  frozenAt?: number;
   size: Size;
   color: PaletteId;
   style: FireStyle;
@@ -59,7 +61,7 @@ function fireFrom(raw: unknown): Fire | null {
   const percent = num(r.percent, 0, 100, 0);
   return {
     area: { id: a.id, name, place: 'side', coolingMinutes: 1440, sparks: [`Spend 5 minutes on ${name || 'it'}`], level: 0, levelSince: 0, createdAt: num(a.createdAt, 0, 8.64e15, 0) },
-    percent, xp: Math.round(num(r.xp, 0, 1e12, typeof r.rank === 'number' ? xpToReach(Math.max(1, Math.min(1e5, Math.round(r.rank)))) : -1)), since: num(r.since, 0, 8.64e15, Date.now()), rate: r.customRate === true ? num(r.rate, 1, 2000, SIZE_RATE[size]) : SIZE_RATE[size], customRate: r.customRate === true ? true : undefined,
+    percent, xp: Math.round(num(r.xp, 0, 1e12, typeof r.rank === 'number' ? xpToReach(Math.max(1, Math.min(1e5, Math.round(r.rank)))) : -1)), since: num(r.since, 0, 8.64e15, Date.now()), rate: r.customRate === true ? num(r.rate, 1, 2000, SIZE_RATE[size]) : SIZE_RATE[size], customRate: r.customRate === true ? true : undefined, frozenAt: typeof r.frozenAt === 'number' && r.frozenAt > 0 ? num(r.frozenAt, 0, 8.64e15, 0) : undefined,
     size, color, style, creature,
     main: r.main === true ? true : undefined,
     pos: p && typeof p.x === 'number' && typeof p.z === 'number' ? { x: num(p.x, -40, 40, 0), z: num(p.z, -40, 40, 0) } : undefined,

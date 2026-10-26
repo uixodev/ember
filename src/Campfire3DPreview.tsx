@@ -30,12 +30,13 @@ import './campfire3d.css';
  * Open with ?campfire3d.
  */
 
-type Live = Fire & { draining: boolean; drain: number; smoke: number; pct: number; level: Level; progress: number; lvl: number; tier: Tier; realTier: Tier; ruin: number; coldMs: number };
+type Live = Fire & { frozen: boolean; draining: boolean; drain: number; smoke: number; pct: number; level: Level; progress: number; lvl: number; tier: Tier; realTier: Tier; ruin: number; coldMs: number };
 
 const levelOf = (p: number): Level => (p <= 0 ? 0 : p < 30 ? 1 : p < 70 ? 2 : 3);
 const DAY = 86_400_000;
 /** The XP a fire has right now: it drains while the fire sits at 0%. */
-const currentXp = (f: { percent: number; rate: number; since: number; xp: number }, at: number): number => {
+const currentXp = (f: { percent: number; rate: number; since: number; xp: number; frozenAt?: number }, atReal: number): number => {
+  const at = f.frozenAt ?? atReal;
   const pct = Math.max(0, f.percent - (f.rate * Math.max(0, at - f.since)) / DAY);
   return Math.round(xpAfterCold(f.xp, pct <= 0 ? coldForMs(f.percent, f.rate, f.since, at) : 0));
 };
@@ -98,6 +99,7 @@ export default function Campfire3DPreview() {
   const [collection, setCollection] = useState<Collection>(() => stored.data.collection);
   const [ground, setGround] = useState<GroundGem[]>(() => stored.data.ground);
   const gemTapRef = useRef<(id: string) => void>(() => undefined);
+  const frozenRef = useRef<Set<string>>(new Set());
   const [collectOpen, setCollectOpen] = useState(false);
   const [creatureIcons, setCreatureIcons] = useState<Partial<Record<CreatureId, string>>>({});
   const [toast, setToast] = useState<{ key: number; text: string; gem?: GemDrop } | null>(null);
@@ -151,16 +153,19 @@ export default function Campfire3DPreview() {
   const popId = useRef<string | null>(null);
   popId.current = pop?.id ?? null;
   const shown = useMemo<Live[]>(() => fires.map((f) => {
-    const pct = Math.max(0, f.percent - (f.rate * Math.max(0, now - f.since)) / DAY);
-    const coldMs0 = pct <= 0 ? coldForMs(f.percent, f.rate, f.since, now) : 0;
+    const at = f.frozenAt ?? now;
+    const pct = Math.max(0, f.percent - (f.rate * Math.max(0, at - f.since)) / DAY);
+    const coldMs0 = pct <= 0 ? coldForMs(f.percent, f.rate, f.since, at) : 0;
     const xpNow = Math.round(xpAfterCold(f.xp, coldMs0));
     const lvl = levelOfXp(xpNow);
     const realTier = tierOfLevel(lvl).tier;
     const coldMs = coldMs0;
-    const draining = pct <= 0 && xpNow > 0;
-    return { ...f, xp: xpNow, draining, drain: draining ? drainPerHour(f.xp, coldMs) : 0, smoke: draining ? Math.min(1, 0.3 + (coldMs / HOUR) / 40) : 0, pct, level: levelOf(pct), progress: pct / 100, lvl, realTier, tier: preview[f.area.id] ?? realTier, coldMs, ruin: ruinProgress(deadForMs(f.xp, coldMs), ruinHours) };
+    const frozen = f.frozenAt !== undefined;
+    const draining = pct <= 0 && xpNow > 0 && !frozen;
+    return { ...f, frozen, xp: xpNow, draining, drain: draining ? drainPerHour(f.xp, coldMs) : 0, smoke: draining ? Math.min(1, 0.3 + (coldMs / HOUR) / 40) : 0, pct, level: levelOf(pct), progress: pct / 100, lvl, realTier, tier: preview[f.area.id] ?? realTier, coldMs, ruin: ruinProgress(deadForMs(f.xp, coldMs), ruinHours) };
   }), [fires, now, preview, ruinHours]);
   const chosen = shown.find((f) => f.area.id === sel);
+  frozenRef.current = new Set(shown.filter((f) => f.frozen).map((f) => f.area.id));
   const pendingFire = pending ? shown.find((f) => f.area.id === pending.fireId) : undefined;
   // what each piece of wood is worth right now: more when the selected fire is Warm or Hot
   const dockMult = chosen ? xpMultiplier(chosen.level) : 1;
@@ -194,7 +199,10 @@ export default function Campfire3DPreview() {
         onFrame,
         onSelectFire: (id) => { if (id) { setSel(id); setPop({ id, key: Date.now(), up: false }); } },
         onDrag: (s) => setDrag(s.dragging ? s : null),
-        onDrop: (fireId, kind, stickId) => { play('wood'); setHint(false); setPending({ fireId, kind, stickId }); },
+        onDrop: (fireId, kind, stickId) => {
+          if (frozenRef.current.has(fireId)) { worldRef.current?.returnStick(stickId); play('error'); setToast({ key: Date.now(), text: 'This fire is frozen. Unfreeze it to feed it.' }); return; }
+          play('wood'); setHint(false); setPending({ fireId, kind, stickId });
+        },
         onInteract: () => setHint(false),
         onFireHold: (id, x, y) => { setSel(id); setMenu({ id, x, y }); },
         onGemTap: (id) => gemTapRef.current(id),
@@ -230,7 +238,7 @@ export default function Campfire3DPreview() {
   // only creatures you have unlocked stand on fires: a fire set to a locked one, or to "auto", gets one you own
   const resolveCreature = (c: Fire['creature'], id: string): CreatureId | 'none' => (c === 'none' ? 'none' : c !== 'auto' && collection.creatures.includes(c) ? c : autoCreature(id, collection.creatures));
   useEffect(() => {
-    worldRef.current?.setFires(shown.map((f) => ({ id: f.area.id, level: f.level, progress: f.progress, size: f.size, color: f.color, style: f.style, creature: resolveCreature(f.creature, f.area.id), pos: f.pos, tier: f.tier, ruin: f.ruin, smoke: f.smoke })));
+    worldRef.current?.setFires(shown.map((f) => ({ id: f.area.id, level: f.level, progress: f.progress, size: f.size, color: f.color, style: f.style, creature: resolveCreature(f.creature, f.area.id), pos: f.pos, tier: f.tier, ruin: f.ruin, smoke: f.smoke, frozen: f.frozen })));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shown, collection.creatures]);
   useEffect(() => { if (focusId) { worldRef.current?.focusFire(focusId); setFocusId(null); } }, [focusId, shown]);
@@ -314,11 +322,23 @@ export default function Campfire3DPreview() {
     if (!chosen) return;
     const next = Math.max(0, Math.min(100, Math.round(pct)));
     if (levelOf(next) < chosen.level) playHeat(levelOf(next));
-    setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, percent: next, xp: currentXp(f, Date.now()), since: Date.now() } : f)));
+    setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, percent: next, xp: currentXp(f, Date.now()), since: f.frozenAt ?? Date.now() } : f)));
   };
   // changing the speed keeps today's heat: it counts from the moment of the change
-  const setRate = (rate: number, custom: boolean) => { if (chosen) setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, percent: chosen.pct, xp: currentXp(f, Date.now()), since: Date.now(), rate, customRate: custom || undefined } : f))); };
-  const setSize = (size: Size) => { if (chosen) setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, size, ...(f.customRate ? {} : { percent: chosen.pct, xp: currentXp(f, Date.now()), since: Date.now(), rate: SIZE_RATE[size] }) } : f))); };
+  const setRate = (rate: number, custom: boolean) => { if (chosen) setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, percent: chosen.pct, xp: currentXp(f, Date.now()), since: f.frozenAt ?? Date.now(), rate, customRate: custom || undefined } : f))); };
+  const setSize = (size: Size) => { if (chosen) setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, size, ...(f.customRate ? {} : { percent: chosen.pct, xp: currentXp(f, Date.now()), since: f.frozenAt ?? Date.now(), rate: SIZE_RATE[size] }) } : f))); };
+  // Freezing stops everything about a fire: its heat, its XP, the smoke and the neglect clock. Letting it go moves the
+  // clock forward by exactly the time it was frozen, so it carries on from where it stopped.
+  const setFrozen = (ids: string[] | 'all', on: boolean) => {
+    const at = Date.now();
+    setFires((all) => all.map((f) => {
+      if (ids !== 'all' && !ids.includes(f.area.id)) return f;
+      if (on) return f.frozenAt === undefined ? { ...f, frozenAt: at } : f;
+      return f.frozenAt === undefined ? f : { ...f, since: f.since + (at - f.frozenAt), frozenAt: undefined };
+    }));
+    play(on ? 'heat0' : 'ignite');
+    setToast({ key: Date.now(), text: on ? (ids === 'all' ? 'All fires frozen. Nothing changes until you unfreeze them.' : 'Fire frozen. Nothing changes until you unfreeze it.') : (ids === 'all' ? 'All fires unfrozen' : 'Fire unfrozen. It carries on where it stopped.') });
+  };
   const patch = (change: Partial<Fire>) => { if (chosen) setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, ...change } : f))); };
   const [confirmReset, setConfirmReset] = useState(false);
   const exportData = () => {
@@ -473,7 +493,7 @@ export default function Campfire3DPreview() {
         {chosen && (
           <div className="c3-title" aria-live="polite">
             <h1>{chosen.area.name || 'New area'}</h1>
-            <span className={`c3-state lv${chosen.level}`}><HeatIcon level={chosen.level} size={18} />{chosen.ruin >= 1 ? 'Ruined' : `${LEVEL_NAMES[chosen.level as HeatLevel]} · ${Math.round(chosen.pct)}%`}</span>
+            <span className={`c3-state lv${chosen.level}`}><HeatIcon level={chosen.level} size={18} />{chosen.frozen ? 'Frozen' : chosen.ruin >= 1 ? 'Ruined' : `${LEVEL_NAMES[chosen.level as HeatLevel]} · ${Math.round(chosen.pct)}%`}</span>
           </div>
         )}
       </div>
@@ -573,6 +593,7 @@ export default function Campfire3DPreview() {
                 <button key={d} type="button" className="chip" disabled={chosen.pct <= 0} onClick={() => setHeat(chosen.pct - d)}>Cool by {d}%</button>
               ))}
               <button type="button" className="chip" disabled={chosen.pct <= 0} onClick={() => setHeat(0)}>Put it out</button>
+              <button type="button" className="chip ice" onClick={() => { setFrozen([chosen.area.id], true); setPanel(null); }}>Freeze this fire</button>
             </div>
             <label className="c3-range"><span>Set the heat: <b>{Math.round(chosen.pct)}%</b></span>
               <input type="range" min={0} max={100} value={Math.round(chosen.pct)} onChange={(e) => setHeat(+e.target.value)} />
@@ -588,6 +609,7 @@ export default function Campfire3DPreview() {
               <button type="button" role="switch" aria-checked={saver} className={`c3-pill${saver ? ' on' : ''}`} onClick={toggleSaver}>Battery saver</button>
               {SANDBOX && chosen && <button type="button" className="c3-pill" onClick={() => { const id = chosen.area.id; setFires((all) => all.map((f) => (f.area.id === id ? { ...f, percent: 0, xp: Math.max(f.xp, 400), since: Date.now() - 20 * HOUR } : f))); setPanel(null); }}>Test: fire went out 20 h ago</button>}
               {SANDBOX && chosen && <button type="button" className="c3-pill" onClick={() => { const id = chosen.area.id; setFires((all) => all.map((f) => (f.area.id === id ? { ...f, percent: 0, since: Date.now() - (msUntilNoXp(f.xp) + (ruinHours || DEFAULT_RUIN_HOURS) * HOUR * 0.8) } : f))); setPanel(null); }}>Test: neglect this fire</button>}
+              <button type="button" className="c3-pill" disabled={fires.length === 0} onClick={() => setFrozen('all', !fires.every((f) => f.frozenAt !== undefined))}>{fires.length > 0 && fires.every((f) => f.frozenAt !== undefined) ? 'Unfreeze all' : 'Freeze all'}</button>
               <button type="button" className="c3-pill" onClick={exportData}>Export backup</button>
               <button type="button" className="c3-pill" onClick={() => fileRef.current?.click()}>Import backup (new or classic)</button>
               {fires.length === 0 && <button type="button" className="c3-pill" onClick={loadSample}>Load example fires</button>}
@@ -615,7 +637,7 @@ export default function Campfire3DPreview() {
             {(() => { const xp = progressInLevel(chosen.xp); const info = TIERS[chosen.tier - 1]; return (
               <div className="c3-stats">
                 <button type="button" className="c3-line" aria-expanded={tip === 'heat'} aria-label={`Heat ${Math.round(chosen.pct)} percent. Tap for details`} onClick={() => setTip((t) => (t === 'heat' ? null : 'heat'))}>
-                  <span className="c3-meter heat" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(chosen.pct)}><i style={{ width: `${chosen.pct}%`, background: PALETTES[chosen.color].swatch }} /></span>
+                  <span className="c3-meter heat" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(chosen.pct)}><i style={{ width: `${chosen.pct}%`, background: chosen.frozen ? '#BFE6FF' : PALETTES[chosen.color].swatch }} /></span>
                 </button>
                 <button type="button" className="c3-line" aria-expanded={tip === 'xp'} aria-label={`Level ${chosen.lvl}, ${chosen.xp} XP. Tap for details`} onClick={() => setTip((t) => (t === 'xp' ? null : 'xp'))}>
                   <span className="c3-meter xp" role="progressbar" aria-valuemin={0} aria-valuemax={xp.span} aria-valuenow={xp.into}><i style={{ width: `${xp.fraction * 100}%` }} /></span>
@@ -625,12 +647,12 @@ export default function Campfire3DPreview() {
                     {tip === 'heat' ? (
                       <>
                         <b>Heat · {LEVEL_NAMES[chosen.level as HeatLevel]} · {Math.round(chosen.pct)}%</b>
-                        <span>{chosen.ruin >= 1 ? 'A creature of gloom wrecked this fire after it stayed cold. Feed it any wood to rebuild it. Your level and XP are safe.' : chosen.ruin > 0 ? 'Cold for a while: a creature of gloom is circling. Feed it before it gets in.' : chosen.pct <= 0 ? (chosen.draining ? 'The fire is out and black smoke rises: its XP is draining. Any wood lights it again. Gloom creatures only come once the XP is gone too.' : 'The fire is cold. Any wood lights it again.') : `Loses ${rateText(chosen.rate)}. Fully cooled ${formatWhen(now + coldAfter(chosen.pct, chosen.rate), now)}.`}</span>
+                        <span>{chosen.frozen ? 'Frozen: the heat is held where it is. Tap Unfreeze to let it carry on.' : chosen.ruin >= 1 ? 'A creature of gloom wrecked this fire after it stayed cold. Feed it any wood to rebuild it. Your level and XP are safe.' : chosen.ruin > 0 ? 'Cold for a while: a creature of gloom is circling. Feed it before it gets in.' : chosen.pct <= 0 ? (chosen.draining ? 'The fire is out and black smoke rises: its XP is draining. Any wood lights it again. Gloom creatures only come once the XP is gone too.' : 'The fire is cold. Any wood lights it again.') : `Loses ${rateText(chosen.rate)}. Fully cooled ${formatWhen(now + coldAfter(chosen.pct, chosen.rate), now)}.`}</span>
                       </>
                     ) : (
                       <>
                         <b><Shield level={chosen.lvl} tier={chosen.tier} size={18} /> Level {chosen.lvl} · {info.name} · {chosen.xp} XP</b>
-                        <span>{chosen.draining ? `The fire is out, so its XP is draining (about ${Math.max(1, Math.round(chosen.drain))} an hour, and faster the longer it stays out). Feed it to stop that. ` : ''}{xp.toNext} XP to level {xp.level + 1}. Wood gives 1, 5, 10, 20 or 50 XP, ×2 when Warm, ×3 when Hot.</span>
+                        <span>{chosen.frozen ? 'Frozen: its XP and heat are on hold. Unfreeze it and it carries on.' : ''}{chosen.draining ? `The fire is out, so its XP is draining (about ${Math.max(1, Math.round(chosen.drain))} an hour, and faster the longer it stays out). Feed it to stop that. ` : ''}{xp.toNext} XP to level {xp.level + 1}. Wood gives 1, 5, 10, 20 or 50 XP, ×2 when Warm, ×3 when Hot.</span>
                       </>
                     )}
                   </div>
@@ -638,7 +660,9 @@ export default function Campfire3DPreview() {
               </div>
             ); })()}
             <div className="c3-card-actions">
-              <button type="button" className={`c3-act${panel === 'cool' ? ' on' : ''}`} aria-expanded={panel === 'cool'} onClick={() => togglePanel('cool')}>Cool</button>
+              {chosen.frozen
+                ? <button type="button" className="c3-act ice" onClick={() => setFrozen([chosen.area.id], false)}>Unfreeze</button>
+                : <button type="button" className={`c3-act${panel === 'cool' ? ' on' : ''}`} aria-expanded={panel === 'cool'} onClick={() => togglePanel('cool')}>Cool</button>}
               <button type="button" className="c3-act" onClick={() => togglePanel('customise')}>Customise</button>
             </div>
           </div>

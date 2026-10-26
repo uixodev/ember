@@ -35,6 +35,8 @@ export interface FireSpec {
   ruin?: number;
   /** 0 none; above 0 black smoke rises because the fire is out and its XP is draining. */
   smoke?: number;
+  /** Frozen: the flames, sparks, snow and creatures stand still under ice. */
+  frozen?: boolean;
 }
 export interface LabelPos {
   id: string; x: number; y: number; depth: number; visible: boolean;
@@ -109,7 +111,7 @@ interface FireObj {
   shownF: number; shownCoal: number; shownCold: number; flare: number; excite: number; index: number;
   paintedLevel: Level | null; paintedColor: PaletteId | null;
   tier: Tier; decor: TierDecor | null;
-  smokeTimer?: number; decorGrow: number; tierSeen: boolean; ruinShown: number; charred: boolean; pest: { id: PestId; obj: Creature } | null; pestShown: number;
+  frozenT: number; frozenShown: number; frozenPainted: boolean; ice: THREE.Group | null; smokeTimer?: number; decorGrow: number; tierSeen: boolean; ruinShown: number; charred: boolean; pest: { id: PestId; obj: Creature } | null; pestShown: number;
   flames: THREE.Group; creature: { id: CreatureId; obj: Creature } | null; creatureShown: number; facing: number;
 }
 
@@ -422,7 +424,7 @@ export class CampfireWorld {
     }
 
     this.scene.add(group);
-    return { id: spec.id, spec, group, scale, flames: fireGroup, creature: null, creatureShown: 0, facing: 0, pos: new THREE.Vector3(), tongues, coals, stones, hotPool, coldPool, ring, hit, ash, shownF: FLAME_LEVEL[spec.level], shownCoal: COAL_GLOW[spec.level], shownCold: spec.level === 0 ? 1 : 0, flare: 0, excite: 0, index, paintedLevel: null, paintedColor: spec.color, tier: 1, decor: null, decorGrow: 1, tierSeen: false, ruinShown: 0, charred: false, pest: null, pestShown: 0 };
+    return { id: spec.id, spec, group, scale, flames: fireGroup, creature: null, creatureShown: 0, facing: 0, pos: new THREE.Vector3(), tongues, coals, stones, hotPool, coldPool, ring, hit, ash, shownF: FLAME_LEVEL[spec.level], shownCoal: COAL_GLOW[spec.level], shownCold: spec.level === 0 ? 1 : 0, flare: 0, excite: 0, index, paintedLevel: null, paintedColor: spec.color, tier: 1, decor: null, decorGrow: 1, tierSeen: false, frozenT: 0, frozenShown: 0, frozenPainted: false, ice: null, ruinShown: 0, charred: false, pest: null, pestShown: 0 };
   }
 
   /** Create, update and arrange one campfire per area. */
@@ -1010,7 +1012,8 @@ export class CampfireWorld {
     this.emitLabels();
   };
 
-  private update(dt: number, t: number): void {
+  private update(dt: number, clock: number): void {
+    const t = clock;
     const calm = this.opts.reducedMotion;
     if (this.fly) {
       this.fly.t = Math.min(1, this.fly.t + dt / 0.85);
@@ -1024,12 +1027,16 @@ export class CampfireWorld {
     let anyWarm = false;
 
     for (const f of this.fires.values()) {
+      // a frozen fire keeps the moment it froze at: its flames, decor and creature stand still
+      if (!f.spec.frozen) f.frozenT = clock;
+      const t = f.frozenT;
+      this.updateFreeze(f, dt);
       const lvl = f.spec.level;
       const sparkCols = PALETTES[f.spec.color].sparks.map((c) => new THREE.Color(c));
       const target = FLAME_LEVEL[lvl] * (0.82 + 0.18 * f.spec.progress);
       f.shownF = damp(f.shownF, target, 2.4, dt);
       f.shownCoal = damp(f.shownCoal, COAL_GLOW[lvl], 2.4, dt);
-      f.shownCold = damp(f.shownCold, lvl === 0 ? 1 : 0, 2.2, dt);
+      f.shownCold = damp(f.shownCold, lvl === 0 || f.spec.frozen ? 1 : 0, 2.2, dt);
       f.flare = Math.max(0, f.flare - dt * 1.3);
       if (f.decor && !this.opts.reducedMotion) f.decor.tick(t + f.index, Math.min(1, f.shownF * 1.2 + f.shownCoal * 0.15));
       else if (f.decor) f.decor.tick(0, Math.min(1, f.shownF));
@@ -1082,6 +1089,7 @@ export class CampfireWorld {
 
       for (let n = 0; n < SPARKS_PER; n++) {
         const i = f.index * SPARKS_PER + n;
+        if (f.spec.frozen) continue;
         this.sparkLife[i] -= dt;
         if (this.sparkLife[i] <= 0) {
           if (calm || F < 0.12 || n > 2 + F * 10) { this.sparks.alpha[i] = 0; continue; }
@@ -1107,7 +1115,7 @@ export class CampfireWorld {
           this.snow.size[i] = 0.1 + r() * 0.08;
           this.snow.setColor(i, new THREE.Color('#ffffff'));
         }
-        if (!calm) {
+        if (!calm && !f.spec.frozen) {
           this.snow.pos[i * 3 + 1] -= dt * (0.25 + (n % 5) * 0.08);
           this.snow.pos[i * 3] += Math.sin(t * 0.8 + i) * dt * 0.12;
         }
@@ -1151,6 +1159,53 @@ export class CampfireWorld {
   private creatureFor(f: FireObj): CreatureId | null {
     const c = f.spec.creature;
     return c === 'none' ? null : c === 'auto' ? autoCreature(f.id) : c;
+  }
+
+  /** Ice grows around a frozen fire and melts away when it is let go. The flames stay as they were, locked in. */
+  private updateFreeze(f: FireObj, dt: number): void {
+    const want = f.spec.frozen ? 1 : 0;
+    f.frozenShown = damp(f.frozenShown, want, want ? 3 : 2.2, dt);
+    if (Math.abs(f.frozenShown - want) < 0.003) f.frozenShown = want;
+    if (f.frozenShown > 0 && !f.ice) {
+      const ice = new THREE.Group();
+      const mat = new THREE.MeshStandardMaterial({ color: 0xcdeaff, emissive: 0x7fbfff, emissiveIntensity: 0.35, roughness: 0.15, metalness: 0.1, flatShading: true });
+      const tip = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xbfe6ff, emissiveIntensity: 0.5, roughness: 0.1, flatShading: true });
+      const n = 11;
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2 + 0.3;
+        const h = 0.7 + ((i * 37) % 10) / 10 * 0.9;
+        const spike = new THREE.Mesh(new THREE.ConeGeometry(0.17 + (i % 3) * 0.04, h, 6), i % 3 === 0 ? tip : mat);
+        spike.position.set(Math.cos(a) * 1.18, h / 2, Math.sin(a) * 1.18);
+        spike.rotation.set(Math.sin(a) * 0.35, a, -Math.cos(a) * 0.35);
+        ice.add(spike);
+      }
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2 + 0.9;
+        const cap = new THREE.Mesh(new THREE.OctahedronGeometry(0.2, 0), tip);
+        cap.position.set(Math.cos(a) * 0.55, 1.5 + (i % 2) * 0.3, Math.sin(a) * 0.55);
+        cap.scale.set(1, 1.6, 1);
+        ice.add(cap);
+      }
+      f.group.add(ice);
+      f.ice = ice;
+    }
+    if (f.ice) {
+      const k = f.frozenShown;
+      const e = k >= 1 ? 1 : k <= 0 ? 0 : 1 - Math.pow(1 - k, 3) * Math.cos(k * 4);
+      f.ice.scale.setScalar(Math.max(0.001, e));
+      f.ice.visible = k > 0.002;
+      if (k <= 0) {
+        f.group.remove(f.ice);
+        f.ice.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { m.geometry.dispose(); if (m.material !== undefined) (m.material as THREE.Material).dispose(); } });
+        f.ice = null;
+      }
+    }
+    // the stones frost over
+    const frosty = f.frozenShown > 0.4;
+    if (frosty !== f.frozenPainted) {
+      f.frozenPainted = frosty;
+      if (!f.charred) f.stones.forEach((m, k) => { m.material = (frosty || f.spec.level === 0 ? this.frostMats : this.stoneMats)[k % 3]; });
+    }
   }
 
   private dropPest(f: FireObj): void {
