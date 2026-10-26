@@ -432,3 +432,6 @@ button.c3-line { padding: 0; min-height: 28px; margin: 0; }
 /* Frozen */
 .c3-act.ice, .chip.ice { background: #BFE6FF; color: #12306B; border-color: #BFE6FF; }
 .c3-state.frozen .c3-dot { background: #BFE6FF; }
+.c3-meter { position: relative; }
+.c3-over { position: absolute; left: 0; top: 0; bottom: 0; z-index: 1; border-radius: 999px; background: repeating-linear-gradient(115deg, #ffffff 0 5px, #FFE98A 5px 10px); }
+.c3-meter.heat > i { position: relative; z-index: 0; }

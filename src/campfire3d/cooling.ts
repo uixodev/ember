@@ -14,3 +14,6 @@ export const SIZE_COOLS: Record<Size, string> = { 1: 'Every 4 days', 2: 'Every 3
 /** The speeds you can pick yourself instead, percent per day. */
 export const RATES = [10, 20, 35, 50, 75, 100, 150, 200, 300, 480, 720];
 export const rateText = (r: number): string => (r > 100 ? `${Math.round(r / 24)}% an hour` : `${Math.round(r * 10) / 10}% a day`);
+
+/** A fire can burn above 100%: it then takes that much longer to cool. Up to this much. */
+export const MAX_HEAT = 300;

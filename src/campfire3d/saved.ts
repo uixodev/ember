@@ -1,6 +1,6 @@
 import type { Area } from '../model/types';
 import { CREATURE_IDS, type CreatureId } from './creatures';
-import { SIZE_RATE } from './cooling';
+import { MAX_HEAT, SIZE_RATE } from './cooling';
 import { RARITIES, collectionFromFires, emptyCollection, statsOf, unlockCreatures, type Collection } from './collection';
 import { levelOfXp, xpToReach } from './mastery';
 import { PALETTES, type PaletteId } from './palettes';
@@ -58,7 +58,7 @@ function fireFrom(raw: unknown): Fire | null {
   const p = r.pos as Record<string, unknown> | undefined;
   const name = str(a.name);
   const size = Math.round(num(r.size, 1, 4, 2)) as Size;
-  const percent = num(r.percent, 0, 100, 0);
+  const percent = num(r.percent, 0, MAX_HEAT, 0);
   return {
     area: { id: a.id, name, place: 'side', coolingMinutes: 1440, sparks: [`Spend 5 minutes on ${name || 'it'}`], level: 0, levelSince: 0, createdAt: num(a.createdAt, 0, 8.64e15, 0) },
     percent, xp: Math.round(num(r.xp, 0, 1e12, typeof r.rank === 'number' ? xpToReach(Math.max(1, Math.min(1e5, Math.round(r.rank)))) : -1)), since: num(r.since, 0, 8.64e15, Date.now()), rate: r.customRate === true ? num(r.rate, 1, 2000, SIZE_RATE[size]) : SIZE_RATE[size], customRate: r.customRate === true ? true : undefined, frozenAt: typeof r.frozenAt === 'number' && r.frozenAt > 0 ? num(r.frozenAt, 0, 8.64e15, 0) : undefined,

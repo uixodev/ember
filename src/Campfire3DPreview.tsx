@@ -4,7 +4,7 @@ import { play, playHeat, unlockAudio } from './sound';
 import { HeatIcon } from './components/ui/HeatIcon';
 import { Segmented } from './components/ui/Tabs';
 import { SANDBOX, fromClassic, loadSaved, parseSaved, resetSandbox, save, toJson, type Fire } from './campfire3d/saved';
-import { RATES, SIZE_COOLS, SIZE_RATE, rateText } from './campfire3d/cooling';
+import { MAX_HEAT, RATES, SIZE_COOLS, SIZE_RATE, rateText } from './campfire3d/cooling';
 import { LevelUp } from './campfire3d/LevelUp';
 import { Shield } from './campfire3d/Shield';
 import { TIERS, WOOD_XP, levelOfXp, progressInLevel, tierOfLevel, xpMultiplier, xpToReach, type Tier } from './campfire3d/mastery';
@@ -273,7 +273,7 @@ export default function Campfire3DPreview() {
   const confirm = (entry: FeedEntry & { note: string }) => {
     if (!pending || !pendingFire) return;
     const fire = pendingFire;
-    const to = levelOf(Math.min(100, fire.pct + STICKS[pending.kind].gain));
+    const to = levelOf(Math.min(MAX_HEAT, fire.pct + STICKS[pending.kind].gain));
     play('woodBurn'); window.setTimeout(() => playHeat(to), 450);
     if (pending.stickId) worldRef.current?.consumeStick(pending.stickId); else worldRef.current?.flare(fire.area.id);
     const gain = STICKS[pending.kind].gain;
@@ -291,7 +291,7 @@ export default function Campfire3DPreview() {
       setSel(fire.area.id);
       setPop({ id: fire.area.id, key: Date.now(), up: after > before, text: after > before ? (newDesign ? `New design: ${tierOfLevel(after).name}` : `Level ${after}`) : undefined, gainXp: earned, mult, from: before, to: after, tierFrom: tierOfLevel(before).tier, tierTo: tierOfLevel(after).tier });
     }, 1300);
-    setFires((all) => all.map((f) => (f.area.id === fire.area.id ? { ...f, percent: Math.min(100, fire.pct + gain), xp: currentXp(f, Date.now()) + earned, since: Date.now() } : f)));
+    setFires((all) => all.map((f) => (f.area.id === fire.area.id ? { ...f, percent: Math.min(MAX_HEAT, fire.pct + gain), xp: currentXp(f, Date.now()) + earned, since: Date.now() } : f)));
     if (fire.ruin > 0) window.setTimeout(() => { play('ignite'); setToast({ key: Date.now() + 2, text: fire.ruin >= 1 ? `${fire.area.name || 'The fire'} is rebuilt` : 'The gloom creature runs away' }); }, 700);
     // the collection: wood and XP counted, maybe a gem, maybe a creature
     const drop = rollGem(pending.kind, fire.level, fire.color);
@@ -320,7 +320,7 @@ export default function Campfire3DPreview() {
   const rename = (name: string) => { if (chosen) setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, area: { ...f.area, name, sparks: [`Spend 5 minutes on ${name || 'it'}`] } } : f))); };
   const setHeat = (pct: number) => {
     if (!chosen) return;
-    const next = Math.max(0, Math.min(100, Math.round(pct)));
+    const next = Math.max(0, Math.min(MAX_HEAT, Math.round(pct)));
     if (levelOf(next) < chosen.level) playHeat(levelOf(next));
     setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, percent: next, xp: currentXp(f, Date.now()), since: f.frozenAt ?? Date.now() } : f)));
   };
@@ -596,7 +596,7 @@ export default function Campfire3DPreview() {
               <button type="button" className="chip ice" onClick={() => { setFrozen([chosen.area.id], true); setPanel(null); }}>Freeze this fire</button>
             </div>
             <label className="c3-range"><span>Set the heat: <b>{Math.round(chosen.pct)}%</b></span>
-              <input type="range" min={0} max={100} value={Math.round(chosen.pct)} onChange={(e) => setHeat(+e.target.value)} />
+              <input type="range" min={0} max={MAX_HEAT} value={Math.round(chosen.pct)} onChange={(e) => setHeat(+e.target.value)} />
             </label>
           </section>
         )}
@@ -637,7 +637,7 @@ export default function Campfire3DPreview() {
             {(() => { const xp = progressInLevel(chosen.xp); const info = TIERS[chosen.tier - 1]; return (
               <div className="c3-stats">
                 <button type="button" className="c3-line" aria-expanded={tip === 'heat'} aria-label={`Heat ${Math.round(chosen.pct)} percent. Tap for details`} onClick={() => setTip((t) => (t === 'heat' ? null : 'heat'))}>
-                  <span className="c3-meter heat" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(chosen.pct)}><i style={{ width: `${chosen.pct}%`, background: chosen.frozen ? '#BFE6FF' : PALETTES[chosen.color].swatch }} /></span>
+                  <span className="c3-meter heat" role="progressbar" aria-valuemin={0} aria-valuemax={MAX_HEAT} aria-valuenow={Math.round(chosen.pct)}>{chosen.pct > 100 && <em className="c3-over" style={{ width: `${Math.min(100, ((chosen.pct - 100) / (MAX_HEAT - 100)) * 100)}%` }} />}<i style={{ width: `${Math.min(100, chosen.pct)}%`, background: chosen.frozen ? '#BFE6FF' : PALETTES[chosen.color].swatch }} /></span>
                 </button>
                 <button type="button" className="c3-line" aria-expanded={tip === 'xp'} aria-label={`Level ${chosen.lvl}, ${chosen.xp} XP. Tap for details`} onClick={() => setTip((t) => (t === 'xp' ? null : 'xp'))}>
                   <span className="c3-meter xp" role="progressbar" aria-valuemin={0} aria-valuemax={xp.span} aria-valuenow={xp.into}><i style={{ width: `${xp.fraction * 100}%` }} /></span>
@@ -744,7 +744,7 @@ export default function Campfire3DPreview() {
           area={pendingFire.area} hours={HOURS}
           prefillMinutes={STICKS[pending.kind].minutes} prefillEffort={STICKS[pending.kind].effort}
           simple
-          footNote={<>Adds <b>+{STICKS[pending.kind].gain}%</b>: {pendingFire.area.name || 'this fire'} goes from <b>{Math.round(pendingFire.pct)}%</b> to <b>{Math.min(100, Math.round(pendingFire.pct + STICKS[pending.kind].gain))}%</b>.</>}
+          footNote={<>Adds <b>+{STICKS[pending.kind].gain}%</b>: {pendingFire.area.name || 'this fire'} goes from <b>{Math.round(pendingFire.pct)}%</b> to <b>{Math.min(MAX_HEAT, Math.round(pendingFire.pct + STICKS[pending.kind].gain))}%</b>.</>}
           onClose={cancelPending}
           onConfirm={(entry) => confirm(entry)}
         />
