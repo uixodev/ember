@@ -517,13 +517,29 @@ export default function Campfire3DPreview() {
 
         {chosen && !drag && panel !== 'customise' && (
           <div className="c3-focus">
-            <div className="c3-focus-text"><div className="c3-meter" role="progressbar" aria-label="How warm the fire is" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(chosen.pct)}><i style={{ width: `${chosen.pct}%`, background: PALETTES[chosen.color].swatch }} /></div>
-              {(() => { const xp = progressInLevel(chosen.xp); return (
-                <div className="c3-xp"><div className="c3-meter xp" role="progressbar" aria-label={`Experience to level ${xp.level + 1}`} aria-valuemin={0} aria-valuemax={xp.span} aria-valuenow={xp.into}><i style={{ width: `${xp.fraction * 100}%` }} /></div><b>{chosen.xp} XP</b></div>
-              ); })()}
-              <span>{chosen.pct <= 0 ? 'Cold. Any wood lights it again' : `Fully cooled ${formatWhen(now + coldAfter(chosen.pct, chosen.rate), now)}`}</span></div>
-            <button type="button" className={`c3-act${panel === 'cool' ? ' on' : ''}`} aria-expanded={panel === 'cool'} onClick={() => togglePanel('cool')}>Cool</button>
-            <button type="button" className="c3-act" onClick={() => togglePanel('customise')}>Customise</button>
+            {(() => { const xp = progressInLevel(chosen.xp); const info = TIERS[chosen.tier - 1]; return (
+              <>
+                <div className="c3-stat">
+                  <div className="c3-stat-head">
+                    <span className="c3-stat-name"><HeatIcon level={chosen.level} size={18} />Heat</span>
+                    <span className="c3-stat-sub">{chosen.pct <= 0 ? 'Cold · any wood lights it' : `Cold by ${formatWhen(now + coldAfter(chosen.pct, chosen.rate), now)}`}</span>
+                  </div>
+                  <div className="c3-meter heat" role="progressbar" aria-label="How warm the fire is" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(chosen.pct)}><i style={{ width: `${chosen.pct}%`, background: PALETTES[chosen.color].swatch }} /></div>
+                </div>
+                <div className="c3-stat">
+                  <div className="c3-stat-head">
+                    <span className="c3-stat-name"><Shield level={chosen.lvl} tier={chosen.tier} size={20} />Level {chosen.lvl} · {info.name}</span>
+                    <span className="c3-stat-xp">{chosen.xp} XP</span>
+                  </div>
+                  <div className="c3-meter xp" role="progressbar" aria-label={`Experience to level ${xp.level + 1}`} aria-valuemin={0} aria-valuemax={xp.span} aria-valuenow={xp.into}><i style={{ width: `${xp.fraction * 100}%` }} /></div>
+                  <span className="c3-stat-sub left">{xp.toNext} XP to level {xp.level + 1}</span>
+                </div>
+              </>
+            ); })()}
+            <div className="c3-card-actions">
+              <button type="button" className={`c3-act wide${panel === 'cool' ? ' on' : ''}`} aria-expanded={panel === 'cool'} onClick={() => togglePanel('cool')}>Cool down</button>
+              <button type="button" className="c3-act wide" onClick={() => togglePanel('customise')}>Customise</button>
+            </div>
           </div>
         )}
 

@@ -274,3 +274,17 @@ html.c3-lock body { position: fixed; inset: 0; width: 100%; }
 .c3-slot-xp { color: #BDB2FF; font-weight: 700; }
 .c3-pop-xp { padding: 2px 9px; border-radius: 999px; background: #5B4BD6; color: #fff; font: 750 11px/1.4 var(--font); }
 .c3-pop-gain { padding: 4px 12px; border-radius: 999px; background: #5B4BD6; color: #fff; font: 800 13px/1.2 var(--font); }
+
+/* The fire card: heat, level, then the actions */
+.c3-focus { display: grid; gap: 12px; align-items: stretch; padding: 14px 14px 12px; border-radius: 26px; }
+.c3-stat { display: grid; gap: 6px; }
+.c3-stat-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 22px; }
+.c3-stat-name { display: inline-flex; align-items: center; gap: 7px; font: 750 15px/1 var(--font); letter-spacing: -.01em; }
+.c3-stat-sub { font: 450 12px/1.2 var(--font); color: var(--ink-2); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.c3-stat-sub.left { text-align: left; }
+.c3-stat-xp { font: 800 15px/1 var(--font); color: #BDB2FF; }
+.c3-meter.heat { height: 16px; margin: 0; }
+.c3-stat .c3-meter.xp { height: 12px; }
+.c3-card-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.c3-act.wide { min-height: 48px; font-size: 15px; }
+@media (max-height: 700px) { .c3-stat-sub.left { display: none; } .c3-focus { gap: 8px; padding: 10px 12px; } }
