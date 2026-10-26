@@ -478,12 +478,12 @@ export default function Campfire3DPreview() {
       </div>
 
       {SANDBOX && <div className="c3-testtag" aria-label="Test copy, your real data is safe">Test copy</div>}
-      {pop && (() => { const f = shown.find((x) => x.area.id === pop.id); if (!f) return null; const info = TIERS[f.tier - 1]; return (
+      {pop && (() => { const f = shown.find((x) => x.area.id === pop.id); if (!f) return null; return (
         <div className="c3-pop" ref={popEl} aria-hidden="true">
           <div className={`c3-pop-in${pop.up ? ' up' : ''}`} key={pop.key}>
             {pop.up && <span className="c3-pop-up">{pop.text}</span>}
             <Shield level={f.lvl} tier={f.tier} size={pop.up ? 64 : 52} />
-            <span className="c3-pop-name">{info.name}</span>
+            <span className="c3-pop-name">{f.area.name || 'New area'}</span>
           </div>
         </div>
       ); })()}
