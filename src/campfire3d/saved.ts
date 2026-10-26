@@ -1,5 +1,6 @@
 import type { Area } from '../model/types';
 import { CREATURE_IDS, type CreatureId } from './creatures';
+import { SIZE_RATE } from './cooling';
 import { PALETTES, type PaletteId } from './palettes';
 import { computeHeat } from '../engine/heat';
 import { parseJson } from '../storage/storage';
@@ -17,6 +18,8 @@ export interface Fire {
   rank: number;
   since: number;
   rate: number;
+  /** True when you set the cooling speed yourself instead of letting the size decide. */
+  customRate?: boolean;
   size: Size;
   color: PaletteId;
   style: FireStyle;
@@ -50,11 +53,12 @@ function fireFrom(raw: unknown): Fire | null {
   const creature = (r.creature === 'none' || CREATURE_IDS.includes(r.creature as CreatureId) ? r.creature : 'auto') as Fire['creature'];
   const p = r.pos as Record<string, unknown> | undefined;
   const name = str(a.name);
+  const size = Math.round(num(r.size, 1, 4, 2)) as Size;
   const percent = num(r.percent, 0, 100, 0);
   return {
     area: { id: a.id, name, place: 'side', coolingMinutes: 1440, sparks: [`Spend 5 minutes on ${name || 'it'}`], level: 0, levelSince: 0, createdAt: num(a.createdAt, 0, 8.64e15, 0) },
-    percent, rank: Math.round(num(r.rank, 1, 1e6, -1)), since: num(r.since, 0, 8.64e15, Date.now()), rate: num(r.rate, 1, 2000, 50),
-    size: Math.round(num(r.size, 1, 4, 2)) as Size, color, style, creature,
+    percent, rank: Math.round(num(r.rank, 1, 1e6, -1)), since: num(r.since, 0, 8.64e15, Date.now()), rate: r.customRate === true ? num(r.rate, 1, 2000, SIZE_RATE[size]) : SIZE_RATE[size], customRate: r.customRate === true ? true : undefined,
+    size, color, style, creature,
     main: r.main === true ? true : undefined,
     pos: p && typeof p.x === 'number' && typeof p.z === 'number' ? { x: num(p.x, -40, 40, 0), z: num(p.z, -40, 40, 0) } : undefined,
   };
@@ -135,7 +139,7 @@ export function fromClassic(text: string): Saved | null {
     const perDay = (100 / (3 * Math.max(60, a.coolingMinutes))) * 1440;
     return {
       area: { ...a, name: a.name.slice(0, 24), sparks: a.sparks.length ? a.sparks : [`Spend 5 minutes on ${a.name}`] },
-      percent: PERCENT_OF_LEVEL[heat.level] ?? 0, rank: -1, since: now, rate: Math.round(Math.max(5, Math.min(720, perDay))),
+      percent: PERCENT_OF_LEVEL[heat.level] ?? 0, rank: -1, since: now, rate: Math.round(Math.max(5, Math.min(720, perDay))), customRate: true,
       size: a.place === 'main' ? 4 : 2, color: CLASSIC_COLORS[i % CLASSIC_COLORS.length], style: 'camp', creature: 'auto',
       main: a.place === 'main' || undefined, pos: slots[i],
     };

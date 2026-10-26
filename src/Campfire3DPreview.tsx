@@ -4,6 +4,7 @@ import { play, playHeat, unlockAudio } from './sound';
 import { HeatIcon } from './components/ui/HeatIcon';
 import { Segmented } from './components/ui/Tabs';
 import { SANDBOX, fromClassic, loadSaved, parseSaved, resetSandbox, save, toJson, type Fire } from './campfire3d/saved';
+import { RATES, SIZE_COOLS, SIZE_RATE, rateText } from './campfire3d/cooling';
 import { Shield } from './campfire3d/Shield';
 import { TIERS, tierOfLevel, type Tier } from './campfire3d/mastery';
 import { SparkLog, type LogEvent } from './campfire3d/SparkLog';
@@ -29,13 +30,11 @@ type Live = Fire & { pct: number; level: Level; progress: number; lvl: number; t
 const levelOf = (p: number): Level => (p <= 0 ? 0 : p < 30 ? 1 : p < 70 ? 2 : 3);
 const DAY = 86_400_000;
 /** How fast a fire cools, in percent per day, from slow to fast. */
-const RATES = [10, 20, 35, 50, 75, 100, 150, 240, 480, 720];
-const rateText = (r: number) => (r > 100 ? `${Math.round(r / 24)}% an hour` : `${r}% a day`);
 const coldAfter = (pct: number, rate: number) => (pct / rate) * DAY;
 
-const mk = (id: string, name: string, percent: number, rate: number, size: Size, color: PaletteId, style: FireStyle = 'camp', main = false, rank = 1): Fire => ({
+const mk = (id: string, name: string, percent: number, _rate: number, size: Size, color: PaletteId, style: FireStyle = 'camp', main = false, rank = 1): Fire => ({
   area: { id, name, place: main ? 'main' : 'side', coolingMinutes: main ? 150 : 1440, sparks: [`Spend 5 minutes on ${name || 'it'}`], level: levelOf(percent), levelSince: 0, createdAt: 0 },
-  percent, rank, since: Date.now(), rate, size, color, style, creature: 'auto', main,
+  percent, rank, since: Date.now(), rate: SIZE_RATE[size], size, color, style, creature: 'auto', main,
 });
 
 const SAMPLE: Fire[] = [
@@ -64,7 +63,7 @@ const VIEWS = [{ azimuth: 0, polar: 0.84 }, { azimuth: 0, polar: 0.3 }, { azimut
 
 interface Pending { fireId: string; kind: StickKind; stickId: number | null }
 type Panel = null | 'customise' | 'menu' | 'cool';
-type Tab = 'size' | 'colour' | 'style' | 'creature' | 'cooling' | 'level';
+type Tab = 'size' | 'colour' | 'style' | 'creature' | 'level';
 
 export default function Campfire3DPreview() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -211,7 +210,9 @@ export default function Campfire3DPreview() {
     if (levelOf(next) < chosen.level) playHeat(levelOf(next));
     setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, percent: next, since: Date.now() } : f)));
   };
-  const setRate = (rate: number) => { if (chosen) setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, percent: chosen.pct, since: Date.now(), rate } : f))); };
+  // changing the speed keeps today's heat: it counts from the moment of the change
+  const setRate = (rate: number, custom: boolean) => { if (chosen) setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, percent: chosen.pct, since: Date.now(), rate, customRate: custom || undefined } : f))); };
+  const setSize = (size: Size) => { if (chosen) setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, size, ...(f.customRate ? {} : { percent: chosen.pct, since: Date.now(), rate: SIZE_RATE[size] }) } : f))); };
   const patch = (change: Partial<Fire>) => { if (chosen) setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, ...change } : f))); };
   const [confirmReset, setConfirmReset] = useState(false);
   const exportData = () => {
@@ -377,7 +378,7 @@ export default function Campfire3DPreview() {
               <input className="c3-name" value={chosen.area.name} maxLength={24} placeholder="Name this area" aria-label="Area name" onChange={(e) => rename(e.target.value)} />
               <button type="button" className="c3-x" aria-label="Close" onClick={() => setPanel(null)}>×</button>
             </div>
-            <Segmented value={tab} onChange={setTab} options={[{ value: 'size', label: 'Size' }, { value: 'colour', label: 'Colour' }, { value: 'style', label: 'Style' }, { value: 'creature', label: 'Creature' }, { value: 'cooling', label: 'Cooling' }, { value: 'level', label: 'Level' }]} />
+            <Segmented value={tab} onChange={setTab} options={[{ value: 'size', label: 'Size' }, { value: 'colour', label: 'Colour' }, { value: 'style', label: 'Style' }, { value: 'creature', label: 'Creature' }, { value: 'level', label: 'Level' }]} />
             <div className="c3-panel-body">
               {tab === 'level' && (
                 <div className="c3-level">
@@ -397,24 +398,23 @@ export default function Campfire3DPreview() {
                   <span className="camp-size-note">{chosen.tier === chosen.realTier ? `${TIERS[chosen.tier - 1].look}. The fire goes up a level each time its heat reaches 100%.` : `Preview of ${TIERS[chosen.tier - 1].name} (from level ${TIERS[chosen.tier - 1].from}): ${TIERS[chosen.tier - 1].look}. Tap your own design to go back.`}</span>
                 </div>
               )}
-              {tab === 'cooling' && (
+              {tab === 'size' && (
                 <>
-                  <div className="chips left" role="radiogroup" aria-label="How fast it cools">
-                    {RATES.map((r) => (
-                      <button key={r} type="button" role="radio" aria-checked={chosen.rate === r} className={`chip${chosen.rate === r ? ' on' : ''}`} onClick={() => setRate(r)}>{rateText(r)}</button>
+                  <div className="camp-size-row" role="radiogroup" aria-label="Fire size">
+                    {([1, 2, 3, 4] as Size[]).map((z) => (
+                      <button key={z} type="button" role="radio" aria-checked={chosen.size === z} aria-label={`${SIZE_NAMES[z]}, cools ${SIZE_COOLS[z]}`} className={`camp-size-btn${chosen.size === z ? ' on' : ''}`} onClick={() => setSize(z)}>
+                        <i style={{ height: 6 + z * 4, width: 12 + z * 6, borderRadius: '50%' }} /><span>{SIZE_NAMES[z]}</span><small>{SIZE_COOLS[z]}</small>
+                      </button>
                     ))}
                   </div>
-                  <span className="camp-size-note">Loses {rateText(chosen.rate)}. From full it is cold after {formatSpan(Math.round(coldAfter(100, chosen.rate) / 60000))}.</span>
+                  <div className="chips c3-rates" role="radiogroup" aria-label="Cooling speed">
+                    <button type="button" role="radio" aria-checked={!chosen.customRate} className={`chip${!chosen.customRate ? ' on' : ''}`} onClick={() => setRate(SIZE_RATE[chosen.size], false)}>From size</button>
+                    {RATES.map((r) => (
+                      <button key={r} type="button" role="radio" aria-checked={!!chosen.customRate && chosen.rate === r} className={`chip${chosen.customRate && chosen.rate === r ? ' on' : ''}`} onClick={() => setRate(r, true)}>{rateText(r)}</button>
+                    ))}
+                  </div>
+                  <span className="camp-size-note">{chosen.customRate ? 'Your own speed' : 'The bigger the fire, the faster it cools'}: loses {rateText(chosen.rate)}. From full it is cold after {formatSpan(Math.round(coldAfter(100, chosen.rate) / 60000))}.</span>
                 </>
-              )}
-              {tab === 'size' && (
-                <div className="camp-size-row" role="radiogroup" aria-label="Fire size">
-                  {([1, 2, 3, 4] as Size[]).map((z) => (
-                    <button key={z} type="button" role="radio" aria-checked={chosen.size === z} aria-label={SIZE_NAMES[z]} className={`camp-size-btn${chosen.size === z ? ' on' : ''}`} onClick={() => patch({ size: z })}>
-                      <i style={{ height: 6 + z * 4, width: 12 + z * 6, borderRadius: '50%' }} /><span>{SIZE_NAMES[z]}</span>
-                    </button>
-                  ))}
-                </div>
               )}
               {tab === 'colour' && (
                 <div className="c3-swatches" role="radiogroup" aria-label="Fire colour">
