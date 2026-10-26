@@ -5,6 +5,7 @@ import { HeatIcon } from './components/ui/HeatIcon';
 import { Segmented } from './components/ui/Tabs';
 import { SANDBOX, fromClassic, loadSaved, parseSaved, resetSandbox, save, toJson, type Fire } from './campfire3d/saved';
 import { RATES, SIZE_COOLS, SIZE_RATE, rateText } from './campfire3d/cooling';
+import { LevelUp } from './campfire3d/LevelUp';
 import { Shield } from './campfire3d/Shield';
 import { TIERS, WOOD_XP, levelOfXp, progressInLevel, tierOfLevel, xpMultiplier, xpToReach, type Tier } from './campfire3d/mastery';
 import { CollectionScreen } from './campfire3d/CollectionScreen';
@@ -140,7 +141,7 @@ export default function Campfire3DPreview() {
 
   // trying a design out on a fire: not saved, gone when you reload
   const [preview, setPreview] = useState<Record<string, Tier>>({});
-  const [pop, setPop] = useState<{ id: string; key: number; up: boolean; text?: string; gainXp?: number; mult?: number } | null>(null);
+  const [pop, setPop] = useState<{ id: string; key: number; up: boolean; text?: string; gainXp?: number; mult?: number; from?: number; to?: number; tierFrom?: Tier; tierTo?: Tier } | null>(null);
   const popEl = useRef<HTMLDivElement>(null);
   const popId = useRef<string | null>(null);
   popId.current = pop?.id ?? null;
@@ -172,7 +173,7 @@ export default function Campfire3DPreview() {
   }, []);
   useEffect(() => {
     if (!pop) return;
-    const t = window.setTimeout(() => setPop(null), pop.up ? 3200 : 2400);
+    const t = window.setTimeout(() => setPop(null), pop.up ? (pop.tierTo && pop.tierFrom && pop.tierTo > pop.tierFrom ? 5200 : 3800) : 2400);
     return () => window.clearTimeout(t);
   }, [pop]);
 
@@ -262,9 +263,13 @@ export default function Campfire3DPreview() {
     const before = levelOfXp(fire.xp), after = levelOfXp(fire.xp + earned);
     const newDesign = tierOfLevel(after).tier > tierOfLevel(before).tier;
     window.setTimeout(() => {
-      if (after > before) play('levelUp');
+      if (after > before) {
+        play(newDesign ? 'big' : 'levelUp');
+        const t = TIERS[tierOfLevel(after).tier - 1];
+        worldRef.current?.celebrate(fire.area.id, [t.fill, '#FFFFFF', t.rim], newDesign);
+      }
       setSel(fire.area.id);
-      setPop({ id: fire.area.id, key: Date.now(), up: after > before, text: after > before ? (newDesign ? `New design: ${tierOfLevel(after).name}` : 'Level up') : undefined, gainXp: earned, mult });
+      setPop({ id: fire.area.id, key: Date.now(), up: after > before, text: after > before ? (newDesign ? `New design: ${tierOfLevel(after).name}` : `Level ${after}`) : undefined, gainXp: earned, mult, from: before, to: after, tierFrom: tierOfLevel(before).tier, tierTo: tierOfLevel(after).tier });
     }, 1300);
     setFires((all) => all.map((f) => (f.area.id === fire.area.id ? { ...f, percent: Math.min(100, fire.pct + gain), xp: f.xp + earned, since: Date.now() } : f)));
     if (fire.ruin > 0) window.setTimeout(() => { play('ignite'); setToast({ key: Date.now() + 2, text: fire.ruin >= 1 ? `${fire.area.name || 'The fire'} is rebuilt` : 'The gloom creature runs away' }); }, 700);
@@ -644,9 +649,17 @@ export default function Campfire3DPreview() {
       {pop && (() => { const f = shown.find((x) => x.area.id === pop.id); if (!f) return null; return (
         <div className="c3-pop" ref={popEl} aria-hidden="true">
           <div className={`c3-pop-in${pop.up ? ' up' : ''}`} key={pop.key}>
-            {pop.up && <span className="c3-pop-up">{pop.text}</span>}
-            {pop.gainXp ? <span className="c3-pop-gain">+{pop.gainXp} XP{pop.mult && pop.mult > 1 ? ` · ×${pop.mult}` : ''}</span> : null}
-            <Shield level={f.lvl} tier={f.tier} size={pop.up ? 64 : 52} />
+            {pop.up && pop.from && pop.to && pop.tierFrom && pop.tierTo ? (
+              <>
+                <LevelUp from={pop.from} to={pop.to} tierFrom={pop.tierFrom} tierTo={pop.tierTo} text={pop.text ?? 'Level up'} />
+                {pop.gainXp ? <span className="c3-pop-gain">+{pop.gainXp} XP{pop.mult && pop.mult > 1 ? ` · ×${pop.mult}` : ''}</span> : null}
+              </>
+            ) : (
+              <>
+                {pop.gainXp ? <span className="c3-pop-gain">+{pop.gainXp} XP{pop.mult && pop.mult > 1 ? ` · ×${pop.mult}` : ''}</span> : null}
+                <Shield level={f.lvl} tier={f.tier} size={52} />
+              </>
+            )}
             <span className="c3-pop-name">{f.area.name || 'New area'}</span>
             <span className="c3-pop-xp">{f.xp} / {xpToReach(f.lvl + 1)} XP</span>
           </div>

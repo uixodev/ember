@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { holoMaterial } from './holo';
+import { Celebration } from './celebrate';
 import { buildGem, type GemModel } from './gems3d';
 import type { Rarity } from './collection';
 import { buildTier, type TierDecor } from './tiers';
@@ -105,7 +106,7 @@ interface FireObj {
   shownF: number; shownCoal: number; shownCold: number; flare: number; excite: number; index: number;
   paintedLevel: Level | null; paintedColor: PaletteId | null;
   tier: Tier; decor: TierDecor | null;
-  ruinShown: number; charred: boolean; pest: { id: PestId; obj: Creature } | null; pestShown: number;
+  decorGrow: number; tierSeen: boolean; ruinShown: number; charred: boolean; pest: { id: PestId; obj: Creature } | null; pestShown: number;
   flames: THREE.Group; creature: { id: CreatureId; obj: Creature } | null; creatureShown: number; facing: number;
 }
 
@@ -149,6 +150,7 @@ export class CampfireWorld {
   private readonly snow: Particles;
   private readonly sparkLife = new Float32Array(MAX_FIRES * SPARKS_PER);
   private readonly sparkVel = new Float32Array(MAX_FIRES * SPARKS_PER * 3);
+  private celebration!: Celebration;
   private readonly burstLife = new Float32Array(90);
   private readonly burstVel = new Float32Array(90 * 3);
   private readonly disposables: { dispose: () => void }[] = [];
@@ -212,6 +214,9 @@ export class CampfireWorld {
     this.flies = new Particles(14, glow);
     this.snow = new Particles(MAX_FIRES * SNOW_PER, flake);
     for (const p of [this.sparks, this.burst, this.flies, this.snow]) this.scene.add(p.points);
+    this.celebration = new Celebration(dot);
+    this.scene.add(this.celebration.group);
+    this.disposables.push(this.celebration);
     this.disposables.push(this.sparks, this.burst, this.flies, this.snow);
     const fly = new THREE.Color('#FFE98A');
     for (let i = 0; i < this.flies.count; i++) { this.flies.size[i] = 0.4; this.flies.setColor(i, fly); }
@@ -402,7 +407,7 @@ export class CampfireWorld {
     }
 
     this.scene.add(group);
-    return { id: spec.id, spec, group, scale, flames: fireGroup, creature: null, creatureShown: 0, facing: 0, pos: new THREE.Vector3(), tongues, coals, stones, hotPool, coldPool, ring, hit, ash, shownF: FLAME_LEVEL[spec.level], shownCoal: COAL_GLOW[spec.level], shownCold: spec.level === 0 ? 1 : 0, flare: 0, excite: 0, index, paintedLevel: null, paintedColor: spec.color, tier: 1, decor: null, ruinShown: 0, charred: false, pest: null, pestShown: 0 };
+    return { id: spec.id, spec, group, scale, flames: fireGroup, creature: null, creatureShown: 0, facing: 0, pos: new THREE.Vector3(), tongues, coals, stones, hotPool, coldPool, ring, hit, ash, shownF: FLAME_LEVEL[spec.level], shownCoal: COAL_GLOW[spec.level], shownCold: spec.level === 0 ? 1 : 0, flare: 0, excite: 0, index, paintedLevel: null, paintedColor: spec.color, tier: 1, decor: null, decorGrow: 1, tierSeen: false, ruinShown: 0, charred: false, pest: null, pestShown: 0 };
   }
 
   /** Create, update and arrange one campfire per area. */
@@ -438,6 +443,9 @@ export class CampfireWorld {
   private applyTier(f: FireObj, tier: Tier): void {
     if (f.tier === tier && (f.decor || tier === 1)) return;
     if (f.decor) { f.group.remove(f.decor.group); f.decor.dispose(); f.decor = null; }
+    // a design reached by feeding grows out of the ground when the level-up show starts, a moment after the wood lands
+    if (tier > f.tier && f.tierSeen) f.decorGrow = -1.25;
+    f.tierSeen = true;
     f.tier = tier;
     for (const tg of f.tongues) tg.mesh.material = tier >= 8 ? this.holoMat : this.flameMat;
     if (tier < 8) f.coals.forEach((c) => (c.material as THREE.MeshStandardMaterial).emissive.setHex(PALETTES[f.spec.color].coal));
@@ -535,6 +543,15 @@ export class CampfireWorld {
   setAutoRotate(on: boolean): void { this.controls.autoRotate = on && !this.opts.reducedMotion; }
 
   /** The fire swells and throws sparks, in its own colours. */
+  /** The level-up show on a fire. `big` for a new design: the decor then grows out of the ground too. */
+  celebrate(fireId: string, colors: string[], big: boolean): void {
+    this.boost(4000);
+    const f = this.fires.get(fireId);
+    if (!f) return;
+    f.flare = 1;
+    this.celebration.play(f.pos.x, f.pos.z, f.scale, colors, big, this.opts.reducedMotion);
+  }
+
   flare(fireId: string): void {
     this.boost(3500);
     const f = this.fires.get(fireId);
@@ -910,7 +927,7 @@ export class CampfireWorld {
     this.camera.updateProjectionMatrix();
     this.applyOffset(true);
     const pxH = this.height * this.renderer.getPixelRatio();
-    for (const p of [this.sparks, this.burst, this.flies, this.snow]) p.setScale(pxH, this.camera.fov);
+    for (const p of [this.sparks, this.burst, this.flies, this.snow, this.celebration.stars]) p.setScale(pxH, this.camera.fov);
   }
 
   private loop = (): void => {
@@ -1057,6 +1074,7 @@ export class CampfireWorld {
       this.burst.alpha[i] = Math.max(0, Math.min(1, this.burstLife[i] * 1.6));
     }
     this.burst.commit();
+    this.celebration.update(dt);
 
     const flyOn = anyWarm && !calm;
     for (let i = 0; i < this.flies.count; i++) {
@@ -1115,6 +1133,8 @@ export class CampfireWorld {
     });
     f.ash.scale.set(1 + 0.3 * broken, 0.16, 1 + 0.3 * broken);
     f.coals.forEach((c) => { c.visible = rs < 0.6; });
+    f.decorGrow = Math.min(1, f.decorGrow + dt / 1.1);
+    if (f.decor) { const g = f.decorGrow, eg = g >= 1 ? 1 : 1 - Math.pow(1 - g, 3) * Math.cos(g * 5.5); f.decor.group.scale.setScalar(Math.max(0.001, eg)); }
     if (f.decor) { f.decor.group.rotation.set(broken * 0.1, 0, broken * 0.16); f.decor.group.position.y = -0.12 * broken; }
     // the creature
     const want = target > 0.02;
