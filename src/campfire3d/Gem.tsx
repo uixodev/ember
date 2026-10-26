@@ -33,36 +33,42 @@ export function Gem({ color, rarity, size = 40, dim = false }: { color: string; 
       {rarity === 'epic' && !dim && <circle cx="16" cy="17" r="14" fill={shade(base, 0.2)} opacity=".28" />}
       {rarity === 'common' && (
         <>
-          <ellipse cx="16" cy="19" rx="11" ry="8.500" fill={f(dark)} />
-          <ellipse cx="16" cy="17.500" rx="11" ry="8" fill={f(base)} />
-          <ellipse cx="12.500" cy="14.500" rx="4" ry="2.200" fill={f(light)} />
+          <path d="M5 19c0-6 5-11 11-11s11 5 11 11-5 9-11 9S5 25 5 19Z" fill={f(dark)} />
+          <path d="M5.500 17.500C6.500 11.500 11 8 16 8s9.500 3.500 10.500 9.500C23 21 9 21 5.500 17.500Z" fill={f(base)} />
+          <path d="M9 14c1.500-3 4-4.500 7-4.500-3 1-5.500 3-6.500 6Z" fill={f(lighter)} opacity=".8" />
+          <path d="M14 22c3 .5 7-.5 9-3 0 3-3 6-7 6.500-1.500 0-2.200-1.500-2-3.500Z" fill={f(darker)} opacity=".35" />
         </>
       )}
       {rarity === 'uncommon' && (
         <>
-          <path d="M8 11 12 5h8l4 6-8 16Z" fill={f(base)} />
-          <path d="M8 11h16l-8 16Z" fill={f(dark)} />
-          <path d="M12 5h8l-2 6h-4Z" fill={f(light)} />
-          <path d="M8 11h6l2 16Z" fill={f(shade(base, 0.12))} />
+          <path d="M9 4h14l5 5v14l-5 5H9l-5-5V9Z" fill={f(dark)} />
+          <path d="M10 6h12l4 4v12l-4 4H10l-4-4V10Z" fill={f(base)} />
+          <path d="M12 9h8l3 3v8l-3 3h-8l-3-3v-8Z" fill={f(light)} />
+          <path d="M14 12h4l1 1v6l-1 1h-4l-1-1v-6Z" fill={f(lighter)} />
+          <path d="M10 6h12l-3 3H13ZM26 10v12l-3-3v-6Z" fill={f(lighter)} opacity=".55" />
+          <path d="M6 10l3 3v6l-3 3ZM10 26l3-3h6l3 3Z" fill={f(darker)} opacity=".4" />
         </>
       )}
       {(rarity === 'rare' || rarity === 'epic') && (
         <>
-          <path d="M16 3 26 12 16 29 6 12Z" fill={f(base)} />
-          <path d="M6 12h20L16 29Z" fill={f(dark)} />
-          <path d="M16 3 26 12H6Z" fill={f(light)} />
-          <path d="M16 12 6 12 16 29Z" fill={f(shade(base, 0.1))} />
-          <path d="M16 3 12 12h8Z" fill={f(lighter)} />
-          {rarity === 'epic' && <path d="M25 3v5M22.500 5.500h5" stroke={f('#fff')} strokeWidth="1.600" strokeLinecap="round" />}
+          <path d="M5 12 10 5h12l5 7-11 17Z" fill={f(base)} />
+          <path d="M5 12h22L16 29Z" fill={f(dark)} />
+          <path d="M5 12 10 5l3 7Z" fill={f(light)} />
+          <path d="M10 5h12l-3 7h-6Z" fill={f(lighter)} />
+          <path d="M22 5l5 7h-8Z" fill={f(shade(base, 0.3))} />
+          <path d="M5 12h8l3 17ZM19 12h8l-11 17Z" fill={f(shade(base, 0.08))} />
+          <path d="M13 12l3 17 3-17Z" fill={f(dark)} opacity=".45" />
+          <path d="M5 12h22M10 5l3 7M22 5l-3 7M16 5v7" stroke={f('#fff')} strokeWidth=".5" opacity=".6" fill="none" />
+          {rarity === 'epic' && <path d="M26 2v5M23.500 4.500h5M5 22v4M3 24h4" stroke={f('#fff')} strokeWidth="1.500" strokeLinecap="round" />}
         </>
       )}
       {rarity === 'legendary' && (
         <>
-          <path d="M16 2 27 12 16 30 5 12Z" fill={dim ? '#2C2778' : `url(#${id})`} stroke={f('#fff')} strokeWidth="1.400" strokeLinejoin="round" />
-          <path d="M5 12h22L16 30Z" fill={f(darker)} opacity=".18" />
-          <path d="M16 2 12 12h8Z" fill={f('#fff')} opacity=".7" />
-          <path d="M5 12h22M12 12l4 18 4-18" stroke={f('#fff')} strokeWidth=".8" fill="none" opacity=".7" />
-          {!dim && <path d="M27 3v5M24.500 5.500h5M5 22v4M3 24h4" stroke="#fff" strokeWidth="1.500" strokeLinecap="round" />}
+          <path d="M5 12 10 4h12l5 8-11 18Z" fill={dim ? '#2C2778' : `url(#${id})`} stroke={f('#fff')} strokeWidth="1.300" strokeLinejoin="round" />
+          <path d="M5 12h22L16 30Z" fill={f(darker)} opacity=".16" />
+          <path d="M10 4h12l-3 8h-6Z" fill={f('#fff')} opacity=".6" />
+          <path d="M5 12h22M10 4l3 8M22 4l-3 8M13 12l3 18 3-18" stroke={f('#fff')} strokeWidth=".7" fill="none" opacity=".75" />
+          {!dim && <path d="M27 2v5M24.500 4.500h5M4 21v5M1.500 23.500h5" stroke="#fff" strokeWidth="1.500" strokeLinecap="round" />}
         </>
       )}
     </svg>

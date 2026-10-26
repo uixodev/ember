@@ -14,10 +14,12 @@ import { PALETTE_IDS, PALETTES } from './palettes';
 type Tab = 'hearth' | 'creatures' | 'gems' | 'sky';
 
 /** Everything you have collected, in one place. */
-export function CollectionScreen({ collection, fires, creatureIcons, onClose }: {
+export function CollectionScreen({ collection, fires, creatureIcons, onGround = 0, onClose }: {
   collection: Collection;
   fires: { level: number }[];
   creatureIcons: Partial<Record<CreatureId, string>>;
+  /** Gems lying on the ground that you have not picked up yet. */
+  onGround?: number;
   onClose: () => void;
 }) {
   const [tab, setTab] = useState<Tab>('hearth');
@@ -81,7 +83,7 @@ export function CollectionScreen({ collection, fires, creatureIcons, onClose }: 
 
         {tab === 'gems' && (
           <section>
-            <p className="cl-note">Wood sometimes drops a gem in the colour of its fire. Bigger wood and a hotter fire drop more, and better ones. {totalGems} gems so far.</p>
+            <p className="cl-note">Wood sometimes drops a gem in the colour of its fire. Bigger wood and a hotter fire drop more, and better ones. {totalGems} gems so far.{onGround > 0 ? ` ${onGround} more ${onGround === 1 ? 'is' : 'are'} lying on the ground by your fires: tap them to pick them up.` : ''}</p>
             <div className="cl-grid gems">
               {PALETTE_IDS.map((id) => {
                 const best = bestRarity(collection, id);

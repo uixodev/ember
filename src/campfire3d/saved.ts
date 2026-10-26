@@ -1,12 +1,12 @@
 import type { Area } from '../model/types';
 import { CREATURE_IDS, type CreatureId } from './creatures';
 import { SIZE_RATE } from './cooling';
-import { collectionFromFires, emptyCollection, statsOf, unlockCreatures, type Collection } from './collection';
+import { RARITIES, collectionFromFires, emptyCollection, statsOf, unlockCreatures, type Collection } from './collection';
 import { levelOfXp, xpToReach } from './mastery';
 import { PALETTES, type PaletteId } from './palettes';
 import { computeHeat } from '../engine/heat';
 import { parseJson } from '../storage/storage';
-import { FIRE_STYLES, layoutFires, type FireStyle, type Size } from './world';
+import { FIRE_STYLES, layoutFires, type FireStyle, type GroundGem, type Size } from './world';
 import type { LogEvent } from './SparkLog';
 
 /**
@@ -30,7 +30,7 @@ export interface Fire {
   pos?: { x: number; z: number };
 }
 
-export interface Saved { fires: Fire[]; events: LogEvent[]; collection: Collection }
+export interface Saved { fires: Fire[]; events: LogEvent[]; collection: Collection; /** Gems still lying on the ground, waiting to be picked up. */ ground: GroundGem[] }
 
 const REAL_KEY = 'ember:campfire:v1';
 const TEST_KEY = 'ember:campfire:test:v1';
@@ -100,6 +100,16 @@ function collectionFrom(raw: unknown, fires: Fire[], events: LogEvent[]): Collec
   return unlockCreatures(c, statsOf(c, levels)).collection;
 }
 
+function groundFrom(raw: unknown): GroundGem[] {
+  if (!Array.isArray(raw)) return [];
+  const out: GroundGem[] = [];
+  for (const g of raw as Record<string, unknown>[]) {
+    if (!g || typeof g.id !== 'string' || typeof g.color !== 'string' || !(g.color in PALETTES) || !RARITIES.some((r) => r.id === g.rarity)) continue;
+    out.push({ id: g.id.slice(0, 40), color: g.color as PaletteId, rarity: g.rarity as GroundGem['rarity'], x: num(g.x, -60, 60, 0), z: num(g.z, -60, 60, 0), born: num(g.born, 0, 8.64e15, 0) });
+  }
+  return out.slice(-40);
+}
+
 /** Turn anything (stored or imported) into safe data. Returns null if it isn't ours. */
 export function parseSaved(text: string): Saved | null {
   try {
@@ -108,7 +118,7 @@ export function parseSaved(text: string): Saved | null {
     const fires = d.fires.map(fireFrom).filter((f): f is Fire => f !== null).slice(0, 12);
     const events = (Array.isArray(d.events) ? d.events : []).map(eventFrom).filter((e): e is LogEvent => e !== null).slice(-2000);
     withXp(fires, events);
-    return { fires, events, collection: collectionFrom((d as { collection?: unknown }).collection, fires, events) };
+    return { fires, events, collection: collectionFrom((d as { collection?: unknown }).collection, fires, events), ground: groundFrom((d as { ground?: unknown }).ground) };
   } catch {
     return null;
   }
@@ -121,11 +131,11 @@ export function loadSaved(): { data: Saved; problem: boolean } {
       text = window.localStorage.getItem(REAL_KEY);
       if (text !== null) window.localStorage.setItem(TEST_KEY, text);
     }
-    if (text === null) return { data: { fires: [], events: [], collection: emptyCollection() }, problem: false };
+    if (text === null) return { data: { fires: [], events: [], collection: emptyCollection(), ground: [] }, problem: false };
     const data = parseSaved(text);
-    return data ? { data, problem: false } : { data: { fires: [], events: [], collection: emptyCollection() }, problem: true };
+    return data ? { data, problem: false } : { data: { fires: [], events: [], collection: emptyCollection(), ground: [] }, problem: true };
   } catch {
-    return { data: { fires: [], events: [], collection: emptyCollection() }, problem: true };
+    return { data: { fires: [], events: [], collection: emptyCollection(), ground: [] }, problem: true };
   }
 }
 
@@ -175,5 +185,5 @@ export function fromClassic(text: string): Saved | null {
     return [{ id: now + i, areaId: f.area.id, areaName: f.area.name, swatch: PALETTES[f.color].swatch, at: e.at, note: (e.note ?? '').slice(0, 160), minutes: Math.round(Math.max(1, Math.min(1440, e.minutes ?? 5))), gain: e.type === 'big' ? 100 : 10 }];
   }).slice(-2000);
   withXp(fires, events);
-  return { fires, events, collection: collectionFrom(null, fires, events) };
+  return { fires, events, collection: collectionFrom(null, fires, events), ground: [] };
 }

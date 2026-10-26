@@ -15,7 +15,7 @@ import { SparkLog, type LogEvent } from './campfire3d/SparkLog';
 import { ConfirmSheet } from './components/ui/Sheets';
 import { LEVEL_NAMES, formatSpan, formatWhen } from './engine/format';
 import { DEFAULT_ACTIVE_HOURS, type Level as HeatLevel } from './engine/heat';
-import { CampfireWorld, FIRE_STYLES, layoutFires, type DragState, type FireStyle, type LabelPos, type Level, type Size } from './campfire3d/world';
+import { CampfireWorld, FIRE_STYLES, layoutFires, type GroundGem, type DragState, type FireStyle, type LabelPos, type Level, type Size } from './campfire3d/world';
 import { CREATURE_IDS, CREATURE_NAMES, autoCreature, type CreatureId } from './campfire3d/creatures';
 import { PALETTES, PALETTE_IDS, type PaletteId } from './campfire3d/palettes';
 import { STICKS, type StickKind } from './campfire3d/sticks';
@@ -90,10 +90,12 @@ export default function Campfire3DPreview() {
   useEffect(() => { const t = window.setInterval(() => setNow(Date.now()), 10_000); return () => window.clearInterval(t); }, []);
   const [events, setEvents] = useState<LogEvent[]>(() => stored.data.events);
   const [collection, setCollection] = useState<Collection>(() => stored.data.collection);
+  const [ground, setGround] = useState<GroundGem[]>(() => stored.data.ground);
+  const gemTapRef = useRef<(id: string) => void>(() => undefined);
   const [collectOpen, setCollectOpen] = useState(false);
   const [creatureIcons, setCreatureIcons] = useState<Partial<Record<CreatureId, string>>>({});
   const [toast, setToast] = useState<{ key: number; text: string; gem?: GemDrop } | null>(null);
-  useEffect(() => { setSaveFailed(!save({ fires, events, collection })); }, [fires, events, collection]);
+  useEffect(() => { setSaveFailed(!save({ fires, events, collection, ground })); }, [fires, events, collection, ground]);
   useEffect(() => { if (!toast) return; const t = window.setTimeout(() => setToast(null), 4200); return () => window.clearTimeout(t); }, [toast]);
   const [logOpen, setLogOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
@@ -186,6 +188,7 @@ export default function Campfire3DPreview() {
         onDrop: (fireId, kind, stickId) => { play('wood'); setHint(false); setPending({ fireId, kind, stickId }); },
         onInteract: () => setHint(false),
         onFireHold: (id, x, y) => { setSel(id); setMenu({ id, x, y }); },
+        onGemTap: (id) => gemTapRef.current(id),
         onFireMoved: (id, x, z) => setFires((all) => all.map((f) => (f.area.id === id ? { ...f, pos: { x, z } } : f))),
         reducedMotion: reduced,
       });
@@ -219,6 +222,7 @@ export default function Campfire3DPreview() {
   }, [shown, collection.creatures]);
   useEffect(() => { if (focusId) { worldRef.current?.focusFire(focusId); setFocusId(null); } }, [focusId, shown]);
   useEffect(() => { worldRef.current?.setMoveMode(moving); }, [moving]);
+  useEffect(() => { worldRef.current?.setGems(ground); }, [ground]);
   useEffect(() => { worldRef.current?.setSelected(sel); }, [sel]);
   useEffect(() => { worldRef.current?.setCreaturesAlways(creaturesAll); }, [creaturesAll]);
 
@@ -226,6 +230,24 @@ export default function Campfire3DPreview() {
     if (pending?.stickId) worldRef.current?.returnStick(pending.stickId);
     setPending(null);
   };
+
+  const groundRef = useRef<GroundGem[]>([]);
+  groundRef.current = ground;
+  const pickUpRef = useRef<(id: string, quiet?: boolean) => void>(() => undefined);
+  const pickUp = (id: string, quiet = false) => {
+    const g = groundRef.current.find((x) => x.id === id);
+    if (!g) return;
+    worldRef.current?.collectGem(id);
+    setGround((all) => all.filter((x) => x.id !== id));
+    const col = addGem(collection, { color: g.color, rarity: g.rarity });
+    const u = unlockCreatures(col, statsOf(col, shown.map((x) => ({ level: x.lvl }))));
+    setCollection(u.collection);
+    if (quiet) return;
+    play('fed');
+    setToast({ key: Date.now(), text: u.newly.length ? `New creature: ${CREATURE_NAMES[u.newly[0]]}` : `${RARITIES.find((x) => x.id === g.rarity)?.name} ${PALETTES[g.color].name} gem collected`, gem: { color: g.color, rarity: g.rarity } });
+  };
+  pickUpRef.current = pickUp;
+  gemTapRef.current = (id) => pickUp(id);
 
   const confirm = (entry: FeedEntry & { note: string }) => {
     if (!pending || !pendingFire) return;
@@ -249,11 +271,20 @@ export default function Campfire3DPreview() {
     // the collection: wood and XP counted, maybe a gem, maybe a creature
     const drop = rollGem(pending.kind, fire.level, fire.color);
     let col = recordFeed(collection, { kind: pending.kind, xp: earned, levelsGained: after - before, at: Date.now() });
-    if (drop) col = addGem(col, drop);
     const levels = shown.map((x) => ({ level: x.area.id === fire.area.id ? after : x.lvl }));
     const unlocked = unlockCreatures(col, statsOf(col, levels));
     setCollection(unlocked.collection);
-    if (drop) window.setTimeout(() => { play('levelUp'); setToast({ key: Date.now(), text: `${RARITIES.find((r) => r.id === drop.rarity)?.name} ${PALETTES[fire.color].name} gem`, gem: drop }); }, 1500);
+    // a gem hops out of the fire and lands on the ground: tap it to pick it up
+    if (drop) window.setTimeout(() => {
+      const scale = [0.78, 0.92, 1.08, 1.28][fire.size - 1];
+      const a = Math.random() * Math.PI * 2, r = (1.9 + Math.random() * 0.9) * scale;
+      const origin = fire.pos ?? { x: 0, z: 0 };
+      const gem: GroundGem = { id: `g${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, color: drop.color as PaletteId, rarity: drop.rarity, x: origin.x + Math.cos(a) * r, z: origin.z + Math.sin(a) * r, born: Date.now(), fromX: origin.x, fromZ: origin.z };
+      if (groundRef.current.length >= 30) pickUpRef.current(groundRef.current[0].id, true);
+      setGround((all) => [...all, gem]);
+      play('levelUp');
+      setToast({ key: Date.now(), text: `A ${RARITIES.find((x) => x.id === drop.rarity)?.name.toLowerCase()} ${PALETTES[fire.color].name} gem dropped. Tap it to pick it up.`, gem: drop });
+    }, 1500);
     if (unlocked.newly.length) window.setTimeout(() => { play('levelUp'); setToast({ key: Date.now() + 1, text: `New creature: ${CREATURE_NAMES[unlocked.newly[0]]}${unlocked.newly.length > 1 ? ` and ${unlocked.newly.length - 1} more` : ''}` }); }, drop ? 5800 : 1500);
     setEvents((all) => [...all, { id: Date.now(), areaId: fire.area.id, areaName: fire.area.name, swatch: PALETTES[fire.color].swatch, at: Date.now(), note: entry.note, minutes: entry.minutes ?? 5, gain: STICKS[pending.kind].gain, xp: earned }]);
     setPending(null);
@@ -274,7 +305,7 @@ export default function Campfire3DPreview() {
   const patch = (change: Partial<Fire>) => { if (chosen) setFires((all) => all.map((f) => (f.area.id === chosen.area.id ? { ...f, ...change } : f))); };
   const [confirmReset, setConfirmReset] = useState(false);
   const exportData = () => {
-    const url = URL.createObjectURL(new Blob([toJson({ fires, events, collection })], { type: 'application/json' }));
+    const url = URL.createObjectURL(new Blob([toJson({ fires, events, collection, ground })], { type: 'application/json' }));
     const a = document.createElement('a');
     a.href = url; a.download = `ember-campfires-${new Date().toISOString().slice(0, 10)}.json`; a.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -286,7 +317,7 @@ export default function Campfire3DPreview() {
     file.text().then((text) => {
       const data = parseSaved(text) ?? fromClassic(text);
       if (!data) { window.alert('That file is not an Ember backup.'); return; }
-      setFires(data.fires); setEvents(data.events); setCollection(data.collection); setSel(data.fires[0]?.area.id ?? null); setPanel(null);
+      setFires(data.fires); setEvents(data.events); setCollection(data.collection); setGround(data.ground); setSel(data.fires[0]?.area.id ?? null); setPanel(null);
     }).catch(() => window.alert('Could not read that file.'));
   };
   const loadSample = () => {
@@ -294,7 +325,7 @@ export default function Campfire3DPreview() {
     setFires(SAMPLE.slice(0, 5).map((f) => ({ ...f, since: t })));
     setSel(SAMPLE[0].area.id); setPanel(null);
   };
-  const eraseAll = () => { setFires([]); setEvents([]); setCollection(emptyCollection()); setSel(null); setPanel(null); setConfirmReset(false); play('delete'); };
+  const eraseAll = () => { setFires([]); setEvents([]); setCollection(emptyCollection()); setGround([]); setSel(null); setPanel(null); setConfirmReset(false); play('delete'); };
   // Coming back after a while in the background the screen can be stale or the 3D view frozen: bring the heat up to
   // date, and after a few minutes away start fresh (everything is already saved) unless something is being filled in.
   const busy = useRef(false);
@@ -627,7 +658,7 @@ export default function Campfire3DPreview() {
           <span>{toast.text}</span>
         </div>
       )}
-      {collectOpen && <CollectionScreen collection={collection} fires={shown.map((f) => ({ level: f.lvl }))} creatureIcons={creatureIcons} onClose={() => setCollectOpen(false)} />}
+      {collectOpen && <CollectionScreen collection={collection} fires={shown.map((f) => ({ level: f.lvl }))} creatureIcons={creatureIcons} onGround={ground.length} onClose={() => setCollectOpen(false)} />}
       {logOpen && (
         <SparkLog
           events={events} now={now}

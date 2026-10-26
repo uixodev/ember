@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { holoMaterial } from './holo';
+import { buildGem, type GemModel } from './gems3d';
+import type { Rarity } from './collection';
 import { buildTier, type TierDecor } from './tiers';
 import type { Tier } from './mastery';
 import { buildCreature, buildPest, pestFor, autoCreature, CREATURE_IDS, type Creature, type CreatureId, type PestId } from './creatures';
@@ -38,6 +40,9 @@ export interface LabelPos {
 }
 export interface CameraView { azimuth: number; polar: number; distance?: number }
 
+/** A gem lying on the ground. `born` is when it dropped: a fresh one hops out of its fire, an old one is just there. */
+export interface GroundGem { id: string; color: PaletteId; rarity: Rarity; x: number; z: number; born: number; fromX?: number; fromZ?: number }
+
 export interface DragState {
   dragging: boolean;
   kind?: StickKind;
@@ -58,6 +63,8 @@ export interface WorldOptions {
   /** A fire was carried to a new spot (move mode). */
   /** A fire was pressed and held without moving: where on the canvas, in pixels. */
   onFireHold?: (id: string, x: number, y: number) => void;
+  /** A gem lying on the ground was tapped. */
+  onGemTap?: (id: string) => void;
   onFireMoved?: (id: string, x: number, z: number) => void;
   reducedMotion: boolean;
 }
@@ -788,9 +795,78 @@ export class CampfireWorld {
     if (Math.hypot(e.clientX - this.down.x, e.clientY - this.down.y) > 8 || performance.now() - this.down.t > 450) return;
     const rect = this.canvas.getBoundingClientRect();
     this.raycaster.setFromCamera(new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1), this.camera);
+    const gem = this.raycaster.intersectObjects([...this.gems.values()].filter((g) => g.anim?.kind !== 'collect').map((g) => g.hit), false)[0];
+    if (gem) { this.opts.onGemTap?.(gem.object.userData.gemId as string); return; }
     const hit = this.raycaster.intersectObjects([...this.fires.values()].map((f) => f.hit), false)[0];
     this.opts.onSelectFire(hit ? (hit.object.userData.fireId as string) : null);
   };
+  // ---- gems on the ground -------------------------------------------------------------------------
+
+  private readonly gems = new Map<string, { id: string; model: GemModel; hit: THREE.Mesh; at: THREE.Vector3; anim: { kind: 'hop' | 'collect'; t: number; dur: number; from: THREE.Vector3; to: THREE.Vector3 } | null; spec: GroundGem }>();
+  private glowTex: THREE.Texture | null = null;
+
+  /** Bring the gems on the ground in line with this list: new ones appear (hopping out of the fire if they just dropped), gone ones vanish. */
+  setGems(list: GroundGem[]): void {
+    this.boost(1500);
+    const ids = new Set(list.map((x) => x.id));
+    for (const [id, o] of this.gems) if (!ids.has(id) && o.anim?.kind !== 'collect') this.removeGem(id);
+    for (const sp of list) {
+      if (this.gems.has(sp.id)) continue;
+      if (!this.glowTex) { this.glowTex = TX.glowSprite(); this.textures.push(this.glowTex); }
+      const model = buildGem(sp.color, sp.rarity, this.holoMat, this.glowTex);
+      const hit = new THREE.Mesh(new THREE.SphereGeometry(0.62, 8, 6), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, colorWrite: false }));
+      hit.position.y = 0.3;
+      model.group.add(hit);
+      hit.userData.gemId = sp.id;
+      const at = new THREE.Vector3(sp.x, 0, sp.z);
+      model.group.position.copy(at);
+      this.scene.add(model.group);
+      const fresh = performance.now() > 0 && Date.now() - sp.born < 1500 && sp.fromX !== undefined;
+      const rec = { id: sp.id, model, hit, at, anim: null as null | { kind: 'hop' | 'collect'; t: number; dur: number; from: THREE.Vector3; to: THREE.Vector3 }, spec: sp };
+      if (fresh) { rec.anim = { kind: 'hop', t: 0, dur: 0.9, from: new THREE.Vector3(sp.fromX, 0.8, sp.fromZ), to: at.clone() }; model.group.position.copy(rec.anim.from); }
+      this.gems.set(sp.id, rec);
+    }
+  }
+
+  private removeGem(id: string): void {
+    const o = this.gems.get(id);
+    if (!o) return;
+    this.scene.remove(o.model.group);
+    (o.hit.geometry as THREE.BufferGeometry).dispose();
+    (o.hit.material as THREE.Material).dispose();
+    o.model.dispose();
+    this.gems.delete(id);
+  }
+
+  /** The gem flies up to the top right of the screen, where the menu is, and is gone. */
+  collectGem(id: string): void {
+    const o = this.gems.get(id);
+    if (!o || o.anim?.kind === 'collect') return;
+    this.boost(2000);
+    const target = new THREE.Vector3(0.78, 0.86, 0.5).unproject(this.camera);
+    o.anim = { kind: 'collect', t: 0, dur: 0.75, from: o.model.group.position.clone(), to: target };
+  }
+
+  private updateGems(dt: number, t: number): void {
+    for (const [id, o] of this.gems) {
+      const a = o.anim;
+      if (a) {
+        a.t = Math.min(1, a.t + dt / a.dur);
+        const k = a.t;
+        if (a.kind === 'hop') {
+          o.model.group.position.set(a.from.x + (a.to.x - a.from.x) * k, a.from.y * (1 - k) + Math.sin(Math.PI * k) * 1.6 + Math.abs(Math.sin(k * 9)) * 0.1 * (1 - k) * k * 4, a.from.z + (a.to.z - a.from.z) * k);
+          o.model.stone.rotation.x = (1 - k) * 5;
+        } else {
+          const e = k * k;
+          o.model.group.position.lerpVectors(a.from, a.to, e);
+          o.model.group.scale.setScalar(Math.max(0.05, (1 - e * 0.9)) * (o.model.group.userData.base ??= o.model.group.scale.x));
+        }
+        if (a.t >= 1) { if (a.kind === 'collect') { this.removeGem(id); continue; } o.anim = null; o.model.stone.rotation.x = 0; o.model.group.position.copy(o.at); }
+      }
+      o.model.update(t + o.at.x);
+    }
+  }
+
   private quality: 'full' | 'saver' = 'full';
   private activeUntil = 0;
   private pixelRatioFor(q: 'full' | 'saver'): number { return Math.min(window.devicePixelRatio || 1, q === 'saver' ? 1 : 1.5); }
@@ -853,6 +929,7 @@ export class CampfireWorld {
     this.applyOffset();
     this.holoMat.uniforms.uTime.value = this.elapsed;
     this.update(dt, this.elapsed);
+    this.updateGems(dt, this.elapsed);
     this.controls.update();
     // two-finger panning stays over the fires: pull the target back and carry the camera with it
     const t = this.controls.target;
@@ -1242,6 +1319,7 @@ export class CampfireWorld {
     this.canvas.removeEventListener('pointercancel', this.onUp);
     this.controls.dispose();
     for (const f of this.fires.values()) { this.dropCreature(f); this.dropPest(f); }
+    for (const id of [...this.gems.keys()]) this.removeGem(id);
     this.disposables.forEach((d) => d.dispose());
     this.textures.forEach((t) => t.dispose());
     this.scene.traverse((o) => { const m = o as THREE.Mesh; if (m.geometry) m.geometry.dispose(); });
