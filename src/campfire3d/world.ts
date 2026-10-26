@@ -738,6 +738,9 @@ export class CampfireWorld {
   };
   private onVis = () => { this.running = document.visibilityState === 'visible'; };
 
+  /** Back from the background: forget the time that passed and fit the screen again. */
+  wake(): void { this.last = performance.now(); this.running = document.visibilityState === 'visible'; this.resize(); }
+
   // ---- frame ----------------------------------------------------------------------------------
 
   private resize(): void {

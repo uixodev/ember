@@ -12,9 +12,11 @@
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <title>Ember</title>
+    <script>try { if (sessionStorage.getItem('ember:resumed')) { sessionStorage.removeItem('ember:resumed'); document.documentElement.className = 'resumed'; } } catch (e) {}</script>
     <style>
       html, body { margin: 0; background: #3F38B4; }
       #splash { position: fixed; inset: 0; z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; background: #3F38B4; color: #fff; font-family: 'Inter Tight', system-ui, sans-serif; transition: opacity .5s ease, transform .5s ease; overflow: hidden; }
+      html.resumed #splash { display: none; }
       #splash.out { opacity: 0; transform: scale(1.06); pointer-events: none; }
       .sp-glow { position: absolute; width: 520px; height: 520px; max-width: 150vw; border-radius: 50%; background: #4D45C6; top: 50%; left: 50%; margin: -300px 0 0 -260px; animation: sp-breathe 3.2s ease-in-out infinite; }
       .sp-art { position: relative; overflow: visible; animation: sp-rise .9s cubic-bezier(.2, .8, .2, 1) both; }

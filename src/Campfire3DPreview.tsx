@@ -236,6 +236,27 @@ export default function Campfire3DPreview() {
     setSel(SAMPLE[0].area.id); setPanel(null);
   };
   const eraseAll = () => { setFires([]); setEvents([]); setSel(null); setPanel(null); setConfirmReset(false); play('delete'); };
+  // Coming back after a while in the background the screen can be stale or the 3D view frozen: bring the heat up to
+  // date, and after a few minutes away start fresh (everything is already saved) unless something is being filled in.
+  const busy = useRef(false);
+  busy.current = !!(pending || logOpen || confirmDel || confirmReset || menu);
+  useEffect(() => {
+    let hiddenAt = 0;
+    const back = () => {
+      if (document.visibilityState !== 'visible') { hiddenAt = hiddenAt || Date.now(); return; }
+      const away = hiddenAt ? Date.now() - hiddenAt : 0;
+      hiddenAt = 0;
+      setNow(Date.now());
+      if (away > 3 * 60_000 && !busy.current) {
+        try { window.sessionStorage.setItem('ember:resumed', '1'); } catch { /* the splash just shows once more */ }
+        window.location.reload();
+      } else worldRef.current?.wake();
+    };
+    document.addEventListener('visibilitychange', back);
+    window.addEventListener('pageshow', back);
+    return () => { document.removeEventListener('visibilitychange', back); window.removeEventListener('pageshow', back); };
+  }, []);
+
   // Check for a newer version, then reload (the installed app has no reload button of its own).
   const refresh = () => {
     const done = () => window.location.reload();
