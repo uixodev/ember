@@ -6,7 +6,7 @@ import { Segmented } from './components/ui/Tabs';
 import { SANDBOX, fromClassic, loadSaved, parseSaved, resetSandbox, save, toJson, type Fire } from './campfire3d/saved';
 import { RATES, SIZE_COOLS, SIZE_RATE, rateText } from './campfire3d/cooling';
 import { Shield } from './campfire3d/Shield';
-import { TIERS, tierOfLevel, type Tier } from './campfire3d/mastery';
+import { TIERS, WOOD_XP, levelOfXp, progressInLevel, tierOfLevel, xpMultiplier, xpToReach, type Tier } from './campfire3d/mastery';
 import { SparkLog, type LogEvent } from './campfire3d/SparkLog';
 import { ConfirmSheet } from './components/ui/Sheets';
 import { LEVEL_NAMES, formatSpan, formatWhen } from './engine/format';
@@ -32,9 +32,9 @@ const DAY = 86_400_000;
 /** How fast a fire cools, in percent per day, from slow to fast. */
 const coldAfter = (pct: number, rate: number) => (pct / rate) * DAY;
 
-const mk = (id: string, name: string, percent: number, _rate: number, size: Size, color: PaletteId, style: FireStyle = 'camp', main = false, rank = 1): Fire => ({
+const mk = (id: string, name: string, percent: number, _rate: number, size: Size, color: PaletteId, style: FireStyle = 'camp', main = false, xp = 0): Fire => ({
   area: { id, name, place: main ? 'main' : 'side', coolingMinutes: main ? 150 : 1440, sparks: [`Spend 5 minutes on ${name || 'it'}`], level: levelOf(percent), levelSince: 0, createdAt: 0 },
-  percent, rank, since: Date.now(), rate: SIZE_RATE[size], size, color, style, creature: 'auto', main,
+  percent, xp, since: Date.now(), rate: SIZE_RATE[size], size, color, style, creature: 'auto', main,
 });
 
 const SAMPLE: Fire[] = [
@@ -52,7 +52,7 @@ const SAMPLE: Fire[] = [
   mk('garden', 'Garden', 28, 20, 1, 'lime', 'candle'),
 ];
 // hand every area a different creature in turn, so the Hot fires don't all get the same one
-[11, 5, 2, 16, 1, 43, 28, 10, 6, 61, 3, 9].forEach((rank, i) => { SAMPLE[i].rank = rank; });
+[11, 5, 2, 16, 1, 43, 28, 10, 6, 61, 3, 9].forEach((level, i) => { SAMPLE[i].xp = xpToReach(level) + (i * 7) % 20; });
 SAMPLE.forEach((f, i) => { f.creature = CREATURE_IDS[(i + 5) % CREATURE_IDS.length]; });
 
 layoutFires(SAMPLE.length).forEach((p, i) => { SAMPLE[i].pos = p; });
@@ -122,13 +122,13 @@ export default function Campfire3DPreview() {
 
   // trying a design out on a fire: not saved, gone when you reload
   const [preview, setPreview] = useState<Record<string, Tier>>({});
-  const [pop, setPop] = useState<{ id: string; key: number; up: boolean; text?: string } | null>(null);
+  const [pop, setPop] = useState<{ id: string; key: number; up: boolean; text?: string; gainXp?: number; mult?: number } | null>(null);
   const popEl = useRef<HTMLDivElement>(null);
   const popId = useRef<string | null>(null);
   popId.current = pop?.id ?? null;
   const shown = useMemo<Live[]>(() => fires.map((f) => {
     const pct = Math.max(0, f.percent - (f.rate * Math.max(0, now - f.since)) / DAY);
-    const lvl = f.rank;
+    const lvl = levelOfXp(f.xp);
     const realTier = tierOfLevel(lvl).tier;
     return { ...f, pct, level: levelOf(pct), progress: pct / 100, lvl, realTier, tier: preview[f.area.id] ?? realTier };
   }), [fires, now, preview]);
@@ -212,15 +212,18 @@ export default function Campfire3DPreview() {
     play('woodBurn'); window.setTimeout(() => playHeat(to), 450);
     if (pending.stickId) worldRef.current?.consumeStick(pending.stickId); else worldRef.current?.flare(fire.area.id);
     const gain = STICKS[pending.kind].gain;
-    // every time the heat reaches 100% the fire goes up a level
-    const full = fire.pct < 100 && fire.pct + gain >= 100;
-    if (full) {
-      const to = fire.rank + 1;
-      const newDesign = tierOfLevel(to).tier > tierOfLevel(fire.rank).tier;
-      window.setTimeout(() => { play('levelUp'); setSel(fire.area.id); setPop({ id: fire.area.id, key: Date.now(), up: true, text: newDesign ? `New design: ${tierOfLevel(to).name}` : 'Level up' }); }, 1300);
-    }
-    setFires((all) => all.map((f) => (f.area.id === fire.area.id ? { ...f, percent: Math.min(100, fire.pct + gain), rank: f.rank + (full ? 1 : 0), since: Date.now() } : f)));
-    setEvents((all) => [...all, { id: Date.now(), areaId: fire.area.id, areaName: fire.area.name, swatch: PALETTES[fire.color].swatch, at: Date.now(), note: entry.note, minutes: entry.minutes ?? 5, gain: STICKS[pending.kind].gain }]);
+    // XP: what the wood is worth, doubled when the fire is Warm and tripled when it is Hot. Nothing is wasted.
+    const mult = xpMultiplier(fire.level);
+    const earned = WOOD_XP[pending.kind] * mult;
+    const before = levelOfXp(fire.xp), after = levelOfXp(fire.xp + earned);
+    const newDesign = tierOfLevel(after).tier > tierOfLevel(before).tier;
+    window.setTimeout(() => {
+      if (after > before) play('levelUp');
+      setSel(fire.area.id);
+      setPop({ id: fire.area.id, key: Date.now(), up: after > before, text: after > before ? (newDesign ? `New design: ${tierOfLevel(after).name}` : 'Level up') : undefined, gainXp: earned, mult });
+    }, 1300);
+    setFires((all) => all.map((f) => (f.area.id === fire.area.id ? { ...f, percent: Math.min(100, fire.pct + gain), xp: f.xp + earned, since: Date.now() } : f)));
+    setEvents((all) => [...all, { id: Date.now(), areaId: fire.area.id, areaName: fire.area.name, swatch: PALETTES[fire.color].swatch, at: Date.now(), note: entry.note, minutes: entry.minutes ?? 5, gain: STICKS[pending.kind].gain, xp: earned }]);
     setPending(null);
   };
 
@@ -403,24 +406,29 @@ export default function Campfire3DPreview() {
             </div>
             <Segmented value={tab} onChange={setTab} options={[{ value: 'size', label: 'Size' }, { value: 'colour', label: 'Colour' }, { value: 'style', label: 'Style' }, { value: 'creature', label: 'Creature' }, { value: 'level', label: 'Level' }]} />
             <div className="c3-panel-body">
-              {tab === 'level' && (
-                <div className="c3-level">
-                  <div className="c3-level-head">
-                    <Shield level={chosen.lvl} tier={chosen.tier} size={56} />
-                    <div><b>Level {chosen.lvl}</b><span>{TIERS[chosen.tier - 1].name} design · {chosen.pct >= 100 ? 'full, ready to level up on the next fill' : `${Math.round(100 - chosen.pct)}% of heat to the next level`}</span></div>
+              {tab === 'level' && (() => {
+                const xp = progressInLevel(chosen.xp);
+                return (
+                  <div className="c3-level">
+                    <div className="c3-level-head">
+                      <Shield level={chosen.lvl} tier={chosen.tier} size={56} />
+                      <div><b>Level {chosen.lvl} · {chosen.xp} XP</b><span>{TIERS[chosen.tier - 1].name} design · {xp.toNext} XP to level {xp.level + 1}</span></div>
+                    </div>
+                    <div className="c3-meter xp" role="progressbar" aria-label="Experience to the next level" aria-valuemin={0} aria-valuemax={xp.span} aria-valuenow={xp.into}><i style={{ width: `${xp.fraction * 100}%` }} /></div>
+                    <div className="chips left" role="radiogroup" aria-label="Preview a design">
+                      {TIERS.map((t) => (
+                        <button key={t.tier} type="button" role="radio" aria-checked={chosen.tier === t.tier} className={`chip c3-tierchip${chosen.tier === t.tier ? ' on' : ''}`}
+                          onClick={() => setPreview((p) => { const n = { ...p }; if (t.tier === chosen.realTier) delete n[chosen.area.id]; else n[chosen.area.id] = t.tier; return n; })}>
+                          <Shield level={t.from} tier={t.tier} size={20} />{t.name}
+                        </button>
+                      ))}
+                    </div>
+                    <span className="camp-size-note">{chosen.tier === chosen.realTier
+                      ? `Wood gives XP: kindling 1, branch 5, split log 10, log 20, big log 50. ×2 when the fire is Warm, ×3 when it is Hot. Level ${xp.level + 1} needs ${xpToReach(xp.level + 1)} XP in all.`
+                      : `Preview of ${TIERS[chosen.tier - 1].name} (from level ${TIERS[chosen.tier - 1].from}): ${TIERS[chosen.tier - 1].look}. Tap your own design to go back.`}</span>
                   </div>
-                  <div className="c3-meter" role="progressbar" aria-label="Heat toward the next level" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(chosen.pct)}><i style={{ width: `${chosen.pct}%`, background: TIERS[chosen.tier - 1].fill }} /></div>
-                  <div className="chips left" role="radiogroup" aria-label="Preview a design">
-                    {TIERS.map((t) => (
-                      <button key={t.tier} type="button" role="radio" aria-checked={chosen.tier === t.tier} className={`chip c3-tierchip${chosen.tier === t.tier ? ' on' : ''}`}
-                        onClick={() => setPreview((p) => { const n = { ...p }; if (t.tier === chosen.realTier) delete n[chosen.area.id]; else n[chosen.area.id] = t.tier; return n; })}>
-                        <Shield level={t.from} tier={t.tier} size={20} />{t.name}
-                      </button>
-                    ))}
-                  </div>
-                  <span className="camp-size-note">{chosen.tier === chosen.realTier ? `${TIERS[chosen.tier - 1].look}. The fire goes up a level each time its heat reaches 100%.` : `Preview of ${TIERS[chosen.tier - 1].name} (from level ${TIERS[chosen.tier - 1].from}): ${TIERS[chosen.tier - 1].look}. Tap your own design to go back.`}</span>
-                </div>
-              )}
+                );
+              })()}
               {tab === 'size' && (
                 <>
                   <div className="camp-size-row" role="radiogroup" aria-label="Fire size">
@@ -510,6 +518,9 @@ export default function Campfire3DPreview() {
         {chosen && !drag && panel !== 'customise' && (
           <div className="c3-focus">
             <div className="c3-focus-text"><div className="c3-meter" role="progressbar" aria-label="How warm the fire is" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(chosen.pct)}><i style={{ width: `${chosen.pct}%`, background: PALETTES[chosen.color].swatch }} /></div>
+              {(() => { const xp = progressInLevel(chosen.xp); return (
+                <div className="c3-xp"><div className="c3-meter xp" role="progressbar" aria-label={`Experience to level ${xp.level + 1}`} aria-valuemin={0} aria-valuemax={xp.span} aria-valuenow={xp.into}><i style={{ width: `${xp.fraction * 100}%` }} /></div><b>{chosen.xp} XP</b></div>
+              ); })()}
               <span>{chosen.pct <= 0 ? 'Cold. Any wood lights it again' : `Fully cooled ${formatWhen(now + coldAfter(chosen.pct, chosen.rate), now)}`}</span></div>
             <button type="button" className={`c3-act${panel === 'cool' ? ' on' : ''}`} aria-expanded={panel === 'cool'} onClick={() => togglePanel('cool')}>Cool</button>
             <button type="button" className="c3-act" onClick={() => togglePanel('customise')}>Customise</button>
@@ -524,6 +535,7 @@ export default function Campfire3DPreview() {
               <span className="c3-slot-img">{icons[k] ? <img src={icons[k]} alt="" draggable={false} /> : <i className={`c3-slot-fallback ${k}`} />}</span>
               <b>{STICKS[k].name}</b>
               <span>+{STICKS[k].gain}%</span>
+              <span className="c3-slot-xp">{WOOD_XP[k]} XP</span>
             </button>
           ))}
         </section>}
@@ -534,8 +546,10 @@ export default function Campfire3DPreview() {
         <div className="c3-pop" ref={popEl} aria-hidden="true">
           <div className={`c3-pop-in${pop.up ? ' up' : ''}`} key={pop.key}>
             {pop.up && <span className="c3-pop-up">{pop.text}</span>}
+            {pop.gainXp ? <span className="c3-pop-gain">+{pop.gainXp} XP{pop.mult && pop.mult > 1 ? ` · ×${pop.mult}` : ''}</span> : null}
             <Shield level={f.lvl} tier={f.tier} size={pop.up ? 64 : 52} />
             <span className="c3-pop-name">{f.area.name || 'New area'}</span>
+            <span className="c3-pop-xp">{f.xp} XP</span>
           </div>
         </div>
       ); })()}

@@ -1,7 +1,34 @@
 /**
- * Levels for a campfire. A fire goes up one level every time its heat reaches 100%: feed it wood until it is full.
- * Levels never end. The fire's look changes through eight mastery designs as the level grows.
+ * Levels for a campfire come from experience (XP). Every piece of wood adds XP, nothing is wasted, and a fire that is
+ * Warm gives double, a fire that is Hot triple. Levels never end. The fire's look changes through eight mastery
+ * designs as the level grows.
  */
+
+/** XP for each piece of wood, before the multiplier. */
+export const WOOD_XP = { kindling: 1, branch: 5, split: 10, log: 20, big: 50 } as const;
+
+/** The multiplier for the heat the fire has when it is fed: Cold and Embers x1, Warm x2, Hot x3. */
+export const xpMultiplier = (heatLevel: 0 | 1 | 2 | 3): number => (heatLevel === 3 ? 3 : heatLevel === 2 ? 2 : 1);
+
+/** Total XP needed to reach `level` (level 1 needs none): 20, 60, 120, 200 ... */
+export const xpToReach = (level: number): number => 10 * level * (level - 1);
+
+export function levelOfXp(xp: number): number {
+  if (!(xp > 0)) return 1;
+  let level = Math.max(1, Math.floor(0.5 + Math.sqrt(0.25 + xp / 10)));
+  while (xpToReach(level + 1) <= xp) level++;
+  while (level > 1 && xpToReach(level) > xp) level--;
+  return level;
+}
+
+/** Where the fire is inside its current level. */
+export function progressInLevel(xp: number): { level: number; into: number; span: number; fraction: number; toNext: number } {
+  const level = levelOfXp(xp);
+  const from = xpToReach(level);
+  const span = xpToReach(level + 1) - from;
+  const into = Math.max(0, xp - from);
+  return { level, into, span, fraction: Math.min(1, into / span), toNext: Math.max(0, span - into) };
+}
 
 export type Tier = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 

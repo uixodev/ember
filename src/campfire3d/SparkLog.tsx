@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Sheet } from '../components/ui/Sheet';
 
-export interface LogEvent { id: number; areaId: string; areaName: string; swatch: string; at: number; note: string; minutes: number; gain: number }
+export interface LogEvent { id: number; areaId: string; areaName: string; swatch: string; at: number; note: string; minutes: number; gain: number; /** Experience it earned (missing on older entries). */ xp?: number }
 
 const clock = (t: number) => new Date(t).toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit' });
 const startOfDay = (t: number) => { const d = new Date(t); return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); };
@@ -68,7 +68,7 @@ export function SparkLog({ events, now, onEdit, onDelete, onClose }: {
                 ) : (
                   <>
                     <p className="log-note">{e.note || 'No note'}</p>
-                    <p className="log-meta">{e.minutes} min · +{e.gain}%</p>
+                    <p className="log-meta">{e.minutes} min · +{e.gain}%{e.xp ? ` · +${e.xp} XP` : ''}</p>
                     {asking === e.id ? (
                       <div className="log-actions">
                         <span>Delete this spark?</span>

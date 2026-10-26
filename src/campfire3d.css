@@ -264,3 +264,13 @@ html.c3-lock body { position: fixed; inset: 0; width: 100%; }
 .c3-rates { display: flex; flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; gap: 8px; padding-bottom: 4px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .c3-rates::-webkit-scrollbar { display: none; }
 .c3-rates .chip { flex: none; }
+
+/* Experience: purple */
+.c3-meter.xp { height: 8px; margin: 0; background: rgba(15, 12, 60, .55); }
+.c3-meter.xp i { background: #9B8CFF; }
+.c3-xp { display: flex; align-items: center; gap: 8px; margin: 2px 0 4px; }
+.c3-xp .c3-meter { flex: 1; }
+.c3-xp b { flex: none; font: 750 12px/1 var(--font); color: #BDB2FF; }
+.c3-slot-xp { color: #BDB2FF; font-weight: 700; }
+.c3-pop-xp { padding: 2px 9px; border-radius: 999px; background: #5B4BD6; color: #fff; font: 750 11px/1.4 var(--font); }
+.c3-pop-gain { padding: 4px 12px; border-radius: 999px; background: #5B4BD6; color: #fff; font: 800 13px/1.2 var(--font); }

@@ -1,6 +1,7 @@
 import type { Area } from '../model/types';
 import { CREATURE_IDS, type CreatureId } from './creatures';
 import { SIZE_RATE } from './cooling';
+import { xpToReach } from './mastery';
 import { PALETTES, type PaletteId } from './palettes';
 import { computeHeat } from '../engine/heat';
 import { parseJson } from '../storage/storage';
@@ -14,8 +15,8 @@ import type { LogEvent } from './SparkLog';
 export interface Fire {
   area: Area;
   percent: number;
-  /** Level: goes up by one each time the fire's heat reaches 100%. Decides the look. */
-  rank: number;
+  /** Experience from the wood you fed. Decides the level and the look. */
+  xp: number;
   since: number;
   rate: number;
   /** True when you set the cooling speed yourself instead of letting the size decide. */
@@ -57,23 +58,23 @@ function fireFrom(raw: unknown): Fire | null {
   const percent = num(r.percent, 0, 100, 0);
   return {
     area: { id: a.id, name, place: 'side', coolingMinutes: 1440, sparks: [`Spend 5 minutes on ${name || 'it'}`], level: 0, levelSince: 0, createdAt: num(a.createdAt, 0, 8.64e15, 0) },
-    percent, rank: Math.round(num(r.rank, 1, 1e6, -1)), since: num(r.since, 0, 8.64e15, Date.now()), rate: r.customRate === true ? num(r.rate, 1, 2000, SIZE_RATE[size]) : SIZE_RATE[size], customRate: r.customRate === true ? true : undefined,
+    percent, xp: Math.round(num(r.xp, 0, 1e12, typeof r.rank === 'number' ? xpToReach(Math.max(1, Math.min(1e5, Math.round(r.rank)))) : -1)), since: num(r.since, 0, 8.64e15, Date.now()), rate: r.customRate === true ? num(r.rate, 1, 2000, SIZE_RATE[size]) : SIZE_RATE[size], customRate: r.customRate === true ? true : undefined,
     size, color, style, creature,
     main: r.main === true ? true : undefined,
     pos: p && typeof p.x === 'number' && typeof p.z === 'number' ? { x: num(p.x, -40, 40, 0), z: num(p.z, -40, 40, 0) } : undefined,
   };
 }
 
-/** Backups from before levels worked this way have no level: one for every 100% of heat the sparks gave. */
-function withRank(fires: Fire[], events: LogEvent[]): void {
-  for (const f of fires) if (f.rank < 1) f.rank = 1 + Math.floor(events.filter((e) => e.areaId === f.area.id).reduce((n, e) => n + e.gain, 0) / 100);
+/** Data from before XP existed has none: work it out from the sparks list. */
+function withXp(fires: Fire[], events: LogEvent[]): void {
+  for (const f of fires) if (f.xp < 0) f.xp = Math.round(events.filter((e) => e.areaId === f.area.id).reduce((n, e) => n + (e.xp ?? e.gain), 0));
 }
 
 function eventFrom(raw: unknown): LogEvent | null {
   if (!raw || typeof raw !== 'object') return null;
   const r = raw as Record<string, unknown>;
   if (typeof r.areaId !== 'string') return null;
-  return { id: num(r.id, 0, 8.64e15, Date.now()), areaId: r.areaId, areaName: str(r.areaName), swatch: str(r.swatch, '#FF9A2E'), at: num(r.at, 0, 8.64e15, Date.now()), note: typeof r.note === 'string' ? r.note.slice(0, 160) : '', minutes: Math.round(num(r.minutes, 1, 1440, 5)), gain: num(r.gain, 0, 100, 0) };
+  return { id: num(r.id, 0, 8.64e15, Date.now()), areaId: r.areaId, areaName: str(r.areaName), swatch: str(r.swatch, '#FF9A2E'), at: num(r.at, 0, 8.64e15, Date.now()), note: typeof r.note === 'string' ? r.note.slice(0, 160) : '', minutes: Math.round(num(r.minutes, 1, 1440, 5)), gain: num(r.gain, 0, 100, 0), xp: typeof r.xp === 'number' ? Math.round(num(r.xp, 0, 1e6, 0)) : undefined };
 }
 
 /** Turn anything (stored or imported) into safe data. Returns null if it isn't ours. */
@@ -83,7 +84,7 @@ export function parseSaved(text: string): Saved | null {
     if (!d || typeof d !== 'object' || !Array.isArray(d.fires)) return null;
     const fires = d.fires.map(fireFrom).filter((f): f is Fire => f !== null).slice(0, 12);
     const events = (Array.isArray(d.events) ? d.events : []).map(eventFrom).filter((e): e is LogEvent => e !== null).slice(-2000);
-    withRank(fires, events);
+    withXp(fires, events);
     return { fires, events };
   } catch {
     return null;
@@ -139,7 +140,7 @@ export function fromClassic(text: string): Saved | null {
     const perDay = (100 / (3 * Math.max(60, a.coolingMinutes))) * 1440;
     return {
       area: { ...a, name: a.name.slice(0, 24), sparks: a.sparks.length ? a.sparks : [`Spend 5 minutes on ${a.name}`] },
-      percent: PERCENT_OF_LEVEL[heat.level] ?? 0, rank: -1, since: now, rate: Math.round(Math.max(5, Math.min(720, perDay))), customRate: true,
+      percent: PERCENT_OF_LEVEL[heat.level] ?? 0, xp: -1, since: now, rate: Math.round(Math.max(5, Math.min(720, perDay))), customRate: true,
       size: a.place === 'main' ? 4 : 2, color: CLASSIC_COLORS[i % CLASSIC_COLORS.length], style: 'camp', creature: 'auto',
       main: a.place === 'main' || undefined, pos: slots[i],
     };
@@ -150,6 +151,6 @@ export function fromClassic(text: string): Saved | null {
     if (!f) return [];
     return [{ id: now + i, areaId: f.area.id, areaName: f.area.name, swatch: PALETTES[f.color].swatch, at: e.at, note: (e.note ?? '').slice(0, 160), minutes: Math.round(Math.max(1, Math.min(1440, e.minutes ?? 5))), gain: e.type === 'big' ? 100 : 10 }];
   }).slice(-2000);
-  withRank(fires, events);
+  withXp(fires, events);
   return { fires, events };
 }
