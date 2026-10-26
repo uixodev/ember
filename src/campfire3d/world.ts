@@ -33,6 +33,8 @@ export interface FireSpec {
   tier?: Tier;
   /** 0 all is well; above 0 a creature of gloom has found the fire; 1 it is wrecked. */
   ruin?: number;
+  /** 0 none; above 0 black smoke rises because the fire is out and its XP is draining. */
+  smoke?: number;
 }
 export interface LabelPos {
   id: string; x: number; y: number; depth: number; visible: boolean;
@@ -78,6 +80,7 @@ const GX = 3.5;
 const GZ = 3.2;
 const SPARKS_PER = 12;
 const SNOW_PER = 34;
+const SMOKE_PER = 14;
 const MAX_FIRES = 12;
 const DECOR_KINDS: StickKind[] = ['branch', 'kindling', 'log', 'split', 'branch', 'kindling'];
 
@@ -106,7 +109,7 @@ interface FireObj {
   shownF: number; shownCoal: number; shownCold: number; flare: number; excite: number; index: number;
   paintedLevel: Level | null; paintedColor: PaletteId | null;
   tier: Tier; decor: TierDecor | null;
-  decorGrow: number; tierSeen: boolean; ruinShown: number; charred: boolean; pest: { id: PestId; obj: Creature } | null; pestShown: number;
+  smokeTimer?: number; decorGrow: number; tierSeen: boolean; ruinShown: number; charred: boolean; pest: { id: PestId; obj: Creature } | null; pestShown: number;
   flames: THREE.Group; creature: { id: CreatureId; obj: Creature } | null; creatureShown: number; facing: number;
 }
 
@@ -151,6 +154,13 @@ export class CampfireWorld {
   private readonly sparkLife = new Float32Array(MAX_FIRES * SPARKS_PER);
   private readonly sparkVel = new Float32Array(MAX_FIRES * SPARKS_PER * 3);
   private celebration!: Celebration;
+  private smoke!: Particles;
+  private readonly smokeLife = new Float32Array(MAX_FIRES * SMOKE_PER);
+  private readonly smokeAge = new Float32Array(MAX_FIRES * SMOKE_PER);
+  private readonly smokeVel = new Float32Array(MAX_FIRES * SMOKE_PER * 3);
+  private readonly smokeBase = new Float32Array(MAX_FIRES * SMOKE_PER);
+  private smokeCursor = 0;
+  private smokeClock = 0;
   private readonly burstLife = new Float32Array(90);
   private readonly burstVel = new Float32Array(90 * 3);
   private readonly disposables: { dispose: () => void }[] = [];
@@ -214,6 +224,11 @@ export class CampfireWorld {
     this.flies = new Particles(14, glow);
     this.snow = new Particles(MAX_FIRES * SNOW_PER, flake);
     for (const p of [this.sparks, this.burst, this.flies, this.snow]) this.scene.add(p.points);
+    this.smoke = new Particles(MAX_FIRES * SMOKE_PER, glow);
+    this.scene.add(this.smoke.points);
+    this.disposables.push(this.smoke);
+    const ink = new THREE.Color('#0B0924');
+    for (let i = 0; i < this.smoke.count; i++) this.smoke.setColor(i, ink);
     this.celebration = new Celebration(dot);
     this.scene.add(this.celebration.group);
     this.disposables.push(this.celebration);
@@ -543,6 +558,44 @@ export class CampfireWorld {
   setAutoRotate(on: boolean): void { this.controls.autoRotate = on && !this.opts.reducedMotion; }
 
   /** The fire swells and throws sparks, in its own colours. */
+  /** Black smoke curls up from a fire that is out but still has XP left to lose. More of it the longer it goes on. */
+  private updateSmoke(dt: number): void {
+    const n = this.smoke.count;
+    let any = false;
+    for (let i = 0; i < n; i++) {
+      if (this.smokeLife[i] <= 0) { this.smoke.alpha[i] = 0; continue; }
+      any = true;
+      this.smokeAge[i] += dt;
+      this.smokeLife[i] -= dt;
+      const k = this.smokeAge[i] / (this.smokeAge[i] + Math.max(0.0001, this.smokeLife[i]));
+      for (let c = 0; c < 3; c++) this.smoke.pos[i * 3 + c] += this.smokeVel[i * 3 + c] * dt;
+      this.smokeVel[i * 3] += Math.sin(this.smokeAge[i] * 2 + i) * 0.25 * dt;
+      this.smoke.size[i] = this.smokeBase[i] * (0.7 + k * 2.1);
+      this.smoke.alpha[i] = Math.min(1, this.smokeAge[i] * 3) * (1 - k) * 0.85;
+    }
+    if (!this.opts.reducedMotion) {
+      for (const f of this.fires.values()) {
+        const amount = f.spec.smoke ?? 0;
+        if (amount <= 0) continue;
+        any = true;
+        this.smokeClock += dt;
+        const every = 1 / (3 + amount * 7);
+        // one puff per tick of this fire's own clock
+        f.smokeTimer = (f.smokeTimer ?? 0) + dt;
+        while (f.smokeTimer >= every) {
+          f.smokeTimer -= every;
+          const i = this.smokeCursor++ % n;
+          const life = 1.8 + Math.random() * 1.2;
+          this.smokeLife[i] = life; this.smokeAge[i] = 0;
+          this.smoke.pos.set([f.pos.x + (Math.random() - 0.5) * 0.7 * f.scale, 0.25 * f.scale, f.pos.z + (Math.random() - 0.5) * 0.7 * f.scale], i * 3);
+          this.smokeVel.set([(Math.random() - 0.5) * 0.18, 0.55 + Math.random() * 0.4 + amount * 0.3, (Math.random() - 0.5) * 0.18], i * 3);
+          this.smokeBase[i] = (0.8 + Math.random() * 0.5) * f.scale * (0.8 + amount * 0.6);
+        }
+      }
+    }
+    if (any) this.smoke.commit();
+  }
+
   /** The level-up show on a fire. `big` for a new design: the decor then grows out of the ground too. */
   celebrate(fireId: string, colors: string[], big: boolean): void {
     this.boost(4000);
@@ -927,7 +980,7 @@ export class CampfireWorld {
     this.camera.updateProjectionMatrix();
     this.applyOffset(true);
     const pxH = this.height * this.renderer.getPixelRatio();
-    for (const p of [this.sparks, this.burst, this.flies, this.snow, this.celebration.stars]) p.setScale(pxH, this.camera.fov);
+    for (const p of [this.sparks, this.burst, this.flies, this.snow, this.smoke, this.celebration.stars]) p.setScale(pxH, this.camera.fov);
   }
 
   private loop = (): void => {
@@ -1074,6 +1127,7 @@ export class CampfireWorld {
       this.burst.alpha[i] = Math.max(0, Math.min(1, this.burstLife[i] * 1.6));
     }
     this.burst.commit();
+    this.updateSmoke(dt);
     this.celebration.update(dt);
 
     const flyOn = anyWarm && !calm;

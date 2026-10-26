@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DAY, HOUR, coldForMs, neglectStage, ruinProgress } from './neglect';
+import { DAY, HOUR, coldForMs, deadForMs, drainPerHour, msUntilNoXp, neglectStage, ruinProgress, xpAfterCold } from './neglect';
 
 describe('how long a fire has been cold', () => {
   it('is zero while it still has heat', () => {
@@ -34,5 +34,39 @@ describe('ruin', () => {
     expect(neglectStage(0.2)).toBe('watched');
     expect(neglectStage(0.5)).toBe('attacked');
     expect(neglectStage(1)).toBe('ruined');
+  });
+});
+
+describe('XP draining while cold', () => {
+  it('loses nothing at first, then a little, then more and more', () => {
+    expect(xpAfterCold(1000, 0)).toBe(1000);
+    const lost = (h: number) => 1000 - xpAfterCold(1000, h * HOUR);
+    expect(lost(1)).toBeLessThan(5);
+    expect(lost(12)).toBeLessThan(lost(24));
+    // each next day takes more than the one before in absolute terms until little is left
+    const d1 = lost(24), d2 = lost(48) - lost(24);
+    expect(d2).toBeGreaterThan(d1);
+    expect(lost(24)).toBeGreaterThan(150);
+    expect(lost(24)).toBeLessThan(350);
+  });
+  it('ends at zero, and an empty fire has nothing to lose', () => {
+    expect(xpAfterCold(1000, 200 * HOUR)).toBe(0);
+    expect(xpAfterCold(0, 5 * HOUR)).toBe(0);
+  });
+  it('knows when the XP will be gone', () => {
+    const ms = msUntilNoXp(1000);
+    expect(xpAfterCold(1000, ms - HOUR)).toBeGreaterThan(0);
+    expect(xpAfterCold(1000, ms + HOUR)).toBe(0);
+    expect(msUntilNoXp(0)).toBe(0);
+    expect(msUntilNoXp(5000)).toBeGreaterThan(msUntilNoXp(100));
+  });
+  it('drains faster the longer it has been cold', () => {
+    expect(drainPerHour(1000, 24 * HOUR)).toBeGreaterThan(drainPerHour(1000, 1 * HOUR));
+  });
+  it('only counts the creature timer once the XP is gone too', () => {
+    const gone = msUntilNoXp(1000);
+    expect(deadForMs(1000, gone - HOUR)).toBe(0);
+    expect(deadForMs(1000, gone + 5 * HOUR)).toBeCloseTo(5 * HOUR, -2);
+    expect(deadForMs(0, 3 * HOUR)).toBe(3 * HOUR);
   });
 });
