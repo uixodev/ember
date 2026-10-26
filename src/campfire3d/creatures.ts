@@ -505,6 +505,94 @@ function spirit(ramp: string[]): Creature {
   });
 }
 
+
+// ---- Pests: creatures of gloom that find fires nobody has fed for a long time --------------------
+// Dark and cold, with bright eyes. They are not in the collection and never stand on a fire.
+
+export type PestId = 'gloom' | 'chill' | 'gnaw' | 'smoke';
+export const PEST_IDS: PestId[] = ['gloom', 'chill', 'gnaw', 'smoke'];
+export const PEST_NAMES: Record<PestId, string> = { gloom: 'Gloom', chill: 'Chill', gnaw: 'Gnaw', smoke: 'Smoke' };
+const NIGHT = ['#B5ADFF', '#8077E8', '#5B52BC', '#3F3884', '#2B2570'];
+const FROST = ['#EAF4FF', '#A9D4FF', '#5F95E8', '#34609F', '#243F70'];
+
+function gloom(): Creature {
+  const b = new Builder();
+  const g = b.group;
+  b.add(g, sph(0.3), 0, 0.36, 0, 1, 1.05, 0.95);
+  const tail: THREE.Mesh[] = [];
+  for (let i = 0; i < 4; i++) tail.push(b.add(g, sph(0.2 - i * 0.04), 0, 0.12 - i * 0.02, -0.2 - i * 0.14));
+  b.eye(g, 0.085, -0.11, 0.44, 0.24, true); b.eye(g, 0.085, 0.11, 0.44, 0.24, true);
+  b.eye(g, 0.04, -0.11, 0.44, 0.31); b.eye(g, 0.04, 0.11, 0.44, 0.31);
+  const arms: THREE.Group[] = [];
+  for (const side of [-1, 1]) {
+    const a = b.pivot(g, side * 0.27, 0.34, 0.05);
+    b.add(a, cone(0.05, 0.3), side * 0.12, -0.1, 0, 1, 1, 1, 0, 0, side * 2.2);
+    arms.push(a);
+  }
+  return b.finish(NIGHT, (t) => {
+    tail.forEach((m, i) => { m.position.x = Math.sin(t * 3 + i) * 0.06 * (i + 1); });
+    arms[0].rotation.z = Math.sin(t * 5) * 0.4; arms[1].rotation.z = -Math.sin(t * 5 + 1) * 0.4;
+    g.userData.bob = Math.sin(t * 2.4) * 0.04;
+  });
+}
+
+function chill(): Creature {
+  const b = new Builder();
+  const g = b.group;
+  b.add(g, sph(0.24), 0, 0.34, 0, 1, 1.15, 1);
+  for (let i = 0; i < 9; i++) {
+    const a = (i / 9) * Math.PI * 2;
+    b.add(g, cone(0.055, 0.26), Math.cos(a) * 0.2, 0.42 + (i % 3) * 0.08, Math.sin(a) * 0.2 - 0.04, 1, 1, 1, Math.sin(a) * 0.9, 0, -Math.cos(a) * 0.9);
+  }
+  b.add(g, cone(0.08, 0.32), 0, 0.62, 0);
+  b.eye(g, 0.06, -0.09, 0.4, 0.2, true); b.eye(g, 0.06, 0.09, 0.4, 0.2, true);
+  b.eye(g, 0.028, -0.09, 0.4, 0.25); b.eye(g, 0.028, 0.09, 0.4, 0.25);
+  const legs: THREE.Mesh[] = [];
+  for (const x of [-0.1, 0.1]) legs.push(b.add(g, cone(0.07, 0.2), x, 0, 0.04, 1, 1, 1, Math.PI));
+  return b.finish(FROST, (t) => {
+    legs[0].rotation.x = Math.PI + Math.sin(t * 6) * 0.3; legs[1].rotation.x = Math.PI - Math.sin(t * 6) * 0.3;
+    g.userData.bob = Math.abs(Math.sin(t * 4)) * 0.05;
+    g.rotation.z = Math.sin(t * 2) * 0.05;
+  });
+}
+
+function gnaw(): Creature {
+  const b = new Builder();
+  const g = b.group;
+  b.add(g, sph(0.2), 0, 0.26, -0.04, 0.95, 0.9, 1.5);
+  const head = b.pivot(g, 0, 0.3, 0.26);
+  b.add(head, sph(0.13), 0, 0, 0, 1, 0.95, 1.1);
+  b.add(head, cone(0.07, 0.22), 0, -0.03, 0.1, 1, 1, 1, Math.PI / 2);
+  b.add(head, sph(0.075), -0.1, 0.12, -0.03, 1, 1, 0.4); b.add(head, sph(0.075), 0.1, 0.12, -0.03, 1, 1, 0.4);
+  b.eye(head, 0.04, -0.06, 0.04, 0.1, true); b.eye(head, 0.04, 0.06, 0.04, 0.1, true);
+  b.eye(head, 0.02, -0.06, 0.04, 0.135); b.eye(head, 0.02, 0.06, 0.04, 0.135);
+  for (const [x, z] of [[-0.09, 0.14], [0.09, 0.14], [-0.09, -0.16], [0.09, -0.16]]) b.add(g, cone(0.05, 0.16), x, 0.14, z, 1, 1, 1, Math.PI);
+  const tail: THREE.Mesh[] = [];
+  for (let i = 0; i < 7; i++) tail.push(b.add(g, sph(0.035 - i * 0.002), 0, 0.22 - i * 0.01, -0.3 - i * 0.1));
+  return b.finish(NIGHT, (t) => {
+    head.rotation.y = Math.sin(t * 2.2) * 0.4; head.rotation.x = Math.sin(t * 7) * 0.08;
+    tail.forEach((m, i) => { m.position.x = Math.sin(t * 4 + i * 0.7) * 0.05 * (i + 1) * 0.6; });
+    g.userData.bob = Math.abs(Math.sin(t * 5)) * 0.03;
+  });
+}
+
+function smoke(): Creature {
+  const b = new Builder();
+  const g = b.group;
+  const puffs: THREE.Mesh[] = [];
+  for (let i = 0; i < 5; i++) puffs.push(b.add(g, sph(0.26 - i * 0.035), 0, 0.2 + i * 0.17, 0));
+  b.eye(g, 0.07, -0.1, 0.78, 0.15, true); b.eye(g, 0.07, 0.1, 0.78, 0.15, true);
+  b.eye(g, 0.032, -0.1, 0.78, 0.21); b.eye(g, 0.032, 0.1, 0.78, 0.21);
+  return b.finish(NIGHT, (t) => {
+    puffs.forEach((m, i) => { m.position.x = Math.sin(t * 2.2 + i * 0.9) * 0.07 * (i + 1) * 0.5; m.position.z = Math.cos(t * 1.8 + i) * 0.04; });
+    g.userData.bob = Math.sin(t * 1.6) * 0.05;
+  });
+}
+
+const PEST_BUILDERS: Record<PestId, () => Creature> = { gloom, chill, gnaw, smoke };
+export const buildPest = (id: PestId): Creature => PEST_BUILDERS[id]();
+export const pestFor = (areaId: string): PestId => PEST_IDS[Math.abs([...areaId].reduce((h, c) => (Math.imul(h, 31) + c.charCodeAt(0)) | 0, 7)) % PEST_IDS.length];
+
 const BUILDERS: Record<CreatureId, (ramp: string[]) => Creature> = { phoenix, fox, dragon, salamander, imp, owl, wolf, cat, rabbit, serpent, bear, turtle, stag, spirit };
 
 export function buildCreature(id: CreatureId, ramp: string[]): Creature {

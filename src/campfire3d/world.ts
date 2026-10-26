@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { holoMaterial } from './holo';
 import { buildTier, type TierDecor } from './tiers';
 import type { Tier } from './mastery';
-import { buildCreature, autoCreature, CREATURE_IDS, type Creature, type CreatureId } from './creatures';
+import { buildCreature, buildPest, pestFor, autoCreature, CREATURE_IDS, type Creature, type CreatureId, type PestId } from './creatures';
 import { flameGeometry, type FlameShape } from './flame';
 import { PALETTES, type PaletteId } from './palettes';
 import { Particles } from './particles';
@@ -28,6 +28,8 @@ export interface FireSpec {
   pos?: { x: number; z: number };
   /** Mastery design, 1 to 7. */
   tier?: Tier;
+  /** 0 all is well; above 0 a creature of gloom has found the fire; 1 it is wrecked. */
+  ruin?: number;
 }
 export interface LabelPos {
   id: string; x: number; y: number; depth: number; visible: boolean;
@@ -96,6 +98,7 @@ interface FireObj {
   shownF: number; shownCoal: number; shownCold: number; flare: number; excite: number; index: number;
   paintedLevel: Level | null; paintedColor: PaletteId | null;
   tier: Tier; decor: TierDecor | null;
+  ruinShown: number; charred: boolean; pest: { id: PestId; obj: Creature } | null; pestShown: number;
   flames: THREE.Group; creature: { id: CreatureId; obj: Creature } | null; creatureShown: number; facing: number;
 }
 
@@ -124,6 +127,7 @@ export class CampfireWorld {
   private readonly wood: WoodMaterials;
   private readonly stoneMats: THREE.MeshStandardMaterial[];
   private readonly frostMats: THREE.MeshStandardMaterial[];
+  private readonly charMats: THREE.MeshStandardMaterial[];
   private readonly coalGeo = new THREE.IcosahedronGeometry(0.17, 0);
   private readonly stoneGeo = new THREE.IcosahedronGeometry(0.28, 1);
   private readonly discGeo = new THREE.CircleGeometry(2.3, 36);
@@ -184,7 +188,8 @@ export class CampfireWorld {
 
     this.stoneMats = [0x8f88ec, 0x7d76df, 0xa59ff2].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.9, flatShading: true }));
     this.frostMats = [0xaebbe8, 0x9aa9dc, 0xc4cff2].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.7, flatShading: true }));
-    this.disposables.push(...this.stoneMats, ...this.frostMats, this.flameMat, this.holoMat, this.coalGeo, this.stoneGeo, this.discGeo, this.ringGeo, this.hitGeo, this.ashGeo);
+    this.charMats = [0x35305f, 0x2b2752, 0x403a70].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 1, flatShading: true }));
+    this.disposables.push(...this.stoneMats, ...this.frostMats, ...this.charMats, this.flameMat, this.holoMat, this.coalGeo, this.stoneGeo, this.discGeo, this.ringGeo, this.hitGeo, this.ashGeo);
 
     this.scene.add(new THREE.HemisphereLight(0xcfc9ff, 0x2c2266, 1.05));
     const sun = new THREE.DirectionalLight(0xdad5ff, 0.7);
@@ -319,6 +324,7 @@ export class CampfireWorld {
       m.position.set(Math.cos(a) * 0.98, 0.1, Math.sin(a) * 0.98);
       m.scale.set(1.15, 0.64, 0.95 + r() * 0.25);
       m.rotation.y = r() * 6;
+      m.userData.ruin = { a, ry: m.rotation.y, k: [r(), r(), r(), r()] };
       group.add(m);
       stones.push(m);
     }
@@ -389,7 +395,7 @@ export class CampfireWorld {
     }
 
     this.scene.add(group);
-    return { id: spec.id, spec, group, scale, flames: fireGroup, creature: null, creatureShown: 0, facing: 0, pos: new THREE.Vector3(), tongues, coals, stones, hotPool, coldPool, ring, hit, ash, shownF: FLAME_LEVEL[spec.level], shownCoal: COAL_GLOW[spec.level], shownCold: spec.level === 0 ? 1 : 0, flare: 0, excite: 0, index, paintedLevel: null, paintedColor: spec.color, tier: 1, decor: null };
+    return { id: spec.id, spec, group, scale, flames: fireGroup, creature: null, creatureShown: 0, facing: 0, pos: new THREE.Vector3(), tongues, coals, stones, hotPool, coldPool, ring, hit, ash, shownF: FLAME_LEVEL[spec.level], shownCoal: COAL_GLOW[spec.level], shownCold: spec.level === 0 ? 1 : 0, flare: 0, excite: 0, index, paintedLevel: null, paintedColor: spec.color, tier: 1, decor: null, ruinShown: 0, charred: false, pest: null, pestShown: 0 };
   }
 
   /** Create, update and arrange one campfire per area. */
@@ -397,11 +403,11 @@ export class CampfireWorld {
     this.boost(1500);
     const capped = specs.slice(0, MAX_FIRES);
     const ids = new Set(capped.map((s) => s.id));
-    for (const [id, f] of this.fires) if (!ids.has(id)) { this.dropCreature(f); f.decor?.dispose(); this.scene.remove(f.group); this.fires.delete(id); }
+    for (const [id, f] of this.fires) if (!ids.has(id)) { this.dropCreature(f); this.dropPest(f); f.decor?.dispose(); this.scene.remove(f.group); this.fires.delete(id); }
     const slots = layoutFires(capped.length);
     capped.forEach((spec, i) => {
       let f = this.fires.get(spec.id);
-      if (f && (f.spec.size !== spec.size || f.spec.style !== spec.style)) { this.dropCreature(f); f.decor?.dispose(); this.scene.remove(f.group); f = undefined; }
+      if (f && (f.spec.size !== spec.size || f.spec.style !== spec.style)) { this.dropCreature(f); this.dropPest(f); f.decor?.dispose(); this.scene.remove(f.group); f = undefined; }
       if (!f) { f = this.buildFire(spec, i); this.fires.set(spec.id, f); }
       f.spec = spec;
       f.index = i;
@@ -411,7 +417,7 @@ export class CampfireWorld {
       if (f.paintedColor !== spec.color) this.paint(f, spec.color);
       if (f.paintedLevel !== spec.level) {
         const cold = spec.level === 0;
-        f.stones.forEach((m, k) => { m.material = (cold ? this.frostMats : this.stoneMats)[k % 3]; });
+        if (!f.charred) f.stones.forEach((m, k) => { m.material = (cold ? this.frostMats : this.stoneMats)[k % 3]; });
         (f.ash.material as THREE.MeshStandardMaterial).color.set(cold ? 0x4a5384 : 0x2a1820);
         f.paintedLevel = spec.level;
       }
@@ -913,6 +919,7 @@ export class CampfireWorld {
         }
       }
       this.updateCreature(f, dt, t);
+      this.updateRuin(f, dt, t);
       f.coals.forEach((c, i) => {
         const m = c.material as THREE.MeshStandardMaterial;
         const pulse = calm ? 0.5 : Math.sin(t * (lvl === 1 ? 2.2 : 3.2) + i * 1.7) * 0.5 + 0.5;
@@ -995,6 +1002,71 @@ export class CampfireWorld {
   private creatureFor(f: FireObj): CreatureId | null {
     const c = f.spec.creature;
     return c === 'none' ? null : c === 'auto' ? autoCreature(f.id) : c;
+  }
+
+  private dropPest(f: FireObj): void {
+    if (!f.pest) return;
+    this.scene.remove(f.pest.obj.group);
+    f.pest.obj.dispose();
+    f.pest = null;
+    f.pestShown = 0;
+  }
+
+  /**
+   * A fire nobody has fed for a long time: a creature of gloom circles it, then comes closer, and finally the stones
+   * are knocked about and the ring lies in ruins. The wreck stays; feeding the fire builds it back up.
+   */
+  private updateRuin(f: FireObj, dt: number, t: number): void {
+    const target = Math.max(0, Math.min(1, f.spec.ruin ?? 0));
+    f.ruinShown = damp(f.ruinShown, target, target < f.ruinShown ? 3.2 : 1.1, dt);
+    if (Math.abs(f.ruinShown - target) < 0.002) f.ruinShown = target;
+    const rs = f.ruinShown;
+    // the stones
+    const broken = rs * rs * (3 - 2 * rs);
+    const char = rs > 0.55;
+    if (char !== f.charred) {
+      f.charred = char;
+      f.stones.forEach((m, k) => { m.material = char ? this.charMats[k % 3] : (f.spec.level === 0 ? this.frostMats : this.stoneMats)[k % 3]; });
+      (f.ash.material as THREE.MeshStandardMaterial).color.set(char ? 0x14102e : f.spec.level === 0 ? 0x4a5384 : 0x2a1820);
+    }
+    f.stones.forEach((m) => {
+      const d = m.userData.ruin as { a: number; ry: number; k: number[] };
+      const out = 0.98 + broken * (0.15 + d.k[0] * 0.55);
+      const a = d.a + broken * (d.k[1] - 0.5) * 0.5;
+      m.position.set(Math.cos(a) * out, 0.1 - broken * 0.05 * d.k[2], Math.sin(a) * out);
+      m.rotation.set(broken * (d.k[2] - 0.5) * 1.5, d.ry + broken * d.k[3] * 2, broken * (d.k[3] - 0.5) * 1.5);
+    });
+    f.ash.scale.set(1 + 0.3 * broken, 0.16, 1 + 0.3 * broken);
+    f.coals.forEach((c) => { c.visible = rs < 0.6; });
+    if (f.decor) { f.decor.group.rotation.set(broken * 0.1, 0, broken * 0.16); f.decor.group.position.y = -0.12 * broken; }
+    // the creature
+    const want = target > 0.02;
+    f.pestShown = damp(f.pestShown, want ? 1 : 0, want ? 1.4 : 4, dt);
+    if (want && !f.pest) {
+      const id = pestFor(f.id);
+      const obj = buildPest(id);
+      this.scene.add(obj.group);
+      f.pest = { id, obj };
+      f.pestShown = 0;
+    }
+    if (!f.pest) return;
+    if (!want && f.pestShown < 0.01) { this.dropPest(f); return; }
+    const near = Math.min(1, Math.max(0, (rs - 0.08) / 0.8));
+    const radius = (2.7 - 2.1 * near * near) * f.scale;
+    const angle = f.index * 1.9 + t * 0.4 * (1 - near) + (rs >= 0.999 ? Math.sin(t * 0.7) * 0.4 : 0);
+    const hop = near > 0.3 && rs < 0.999 ? Math.abs(Math.sin(t * 6)) * 0.1 * f.scale : 0;
+    const px = f.pos.x + Math.cos(angle) * radius;
+    const pz = f.pos.z + Math.sin(angle) * radius;
+    const e = 1 - Math.pow(1 - f.pestShown, 3);
+    f.pest.obj.group.position.set(px, hop, pz);
+    f.pest.obj.group.scale.setScalar(Math.max(0.001, f.scale * 1.35 * e));
+    // it watches the fire from afar, and once it is in the wreck it turns to you
+    const toFire = Math.atan2(f.pos.x - px, f.pos.z - pz);
+    const toYou = Math.atan2(this.camera.position.x - px, this.camera.position.z - pz);
+    const turn = Math.atan2(Math.sin(toYou - toFire), Math.cos(toYou - toFire));
+    f.pest.obj.group.rotation.y = toFire + turn * Math.min(1, Math.max(0, (near - 0.6) / 0.35));
+    f.pest.obj.group.visible = f.pestShown > 0.01;
+    if (!this.opts.reducedMotion) f.pest.obj.tick(t + f.index);
   }
 
   private dropCreature(f: FireObj): void {
@@ -1169,7 +1241,7 @@ export class CampfireWorld {
     this.canvas.removeEventListener('pointermove', this.onMove);
     this.canvas.removeEventListener('pointercancel', this.onUp);
     this.controls.dispose();
-    for (const f of this.fires.values()) this.dropCreature(f);
+    for (const f of this.fires.values()) { this.dropCreature(f); this.dropPest(f); }
     this.disposables.forEach((d) => d.dispose());
     this.textures.forEach((t) => t.dispose());
     this.scene.traverse((o) => { const m = o as THREE.Mesh; if (m.geometry) m.geometry.dispose(); });

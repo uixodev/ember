@@ -10,6 +10,7 @@ import { TIERS, WOOD_XP, levelOfXp, progressInLevel, tierOfLevel, xpMultiplier, 
 import { CollectionScreen } from './campfire3d/CollectionScreen';
 import { Gem } from './campfire3d/Gem';
 import { CREATURE_GOALS, RARITIES, addGem, emptyCollection, recordFeed, rollGem, statsOf, unlockCreatures, type Collection, type GemDrop } from './campfire3d/collection';
+import { DEFAULT_RUIN_HOURS, RUIN_CHOICES, coldForMs, ruinProgress } from './campfire3d/neglect';
 import { SparkLog, type LogEvent } from './campfire3d/SparkLog';
 import { ConfirmSheet } from './components/ui/Sheets';
 import { LEVEL_NAMES, formatSpan, formatWhen } from './engine/format';
@@ -28,7 +29,7 @@ import './campfire3d.css';
  * Open with ?campfire3d.
  */
 
-type Live = Fire & { pct: number; level: Level; progress: number; lvl: number; tier: Tier; realTier: Tier };
+type Live = Fire & { pct: number; level: Level; progress: number; lvl: number; tier: Tier; realTier: Tier; ruin: number; coldMs: number };
 
 const levelOf = (p: number): Level => (p <= 0 ? 0 : p < 30 ? 1 : p < 70 ? 2 : 3);
 const DAY = 86_400_000;
@@ -102,6 +103,9 @@ export default function Campfire3DPreview() {
   // Battery saver: lower resolution and slower drawing. You can switch it yourself; otherwise it turns on when the battery is low.
   const [saverPref, setSaverPref] = useState<'on' | 'off' | null>(() => { try { const v = window.localStorage.getItem('ember:saver'); return v === 'on' || v === 'off' ? v : null; } catch { return null; } });
   const [batteryLow, setBatteryLow] = useState(false);
+  // How long a fire may stay cold before a creature of gloom wrecks it (hours; 0 = never).
+  const [ruinHours, setRuinHours] = useState<number>(() => { try { const v = window.localStorage.getItem('ember:neglect'); if (v === 'off') return 0; const n = Number(v); return RUIN_CHOICES.includes(n) ? n : DEFAULT_RUIN_HOURS; } catch { return DEFAULT_RUIN_HOURS; } });
+  const chooseRuin = (h: number) => { setRuinHours(h); try { window.localStorage.setItem('ember:neglect', h ? String(h) : 'off'); } catch { /* not remembered */ } };
   const saver = saverPref ? saverPref === 'on' : batteryLow;
   const saverRef = useRef(saver);
   saverRef.current = saver;
@@ -142,8 +146,9 @@ export default function Campfire3DPreview() {
     const pct = Math.max(0, f.percent - (f.rate * Math.max(0, now - f.since)) / DAY);
     const lvl = levelOfXp(f.xp);
     const realTier = tierOfLevel(lvl).tier;
-    return { ...f, pct, level: levelOf(pct), progress: pct / 100, lvl, realTier, tier: preview[f.area.id] ?? realTier };
-  }), [fires, now, preview]);
+    const coldMs = pct <= 0 ? coldForMs(f.percent, f.rate, f.since, now) : 0;
+    return { ...f, pct, level: levelOf(pct), progress: pct / 100, lvl, realTier, tier: preview[f.area.id] ?? realTier, coldMs, ruin: ruinProgress(coldMs, ruinHours) };
+  }), [fires, now, preview, ruinHours]);
   const chosen = shown.find((f) => f.area.id === sel);
   const pendingFire = pending ? shown.find((f) => f.area.id === pending.fireId) : undefined;
   // what each piece of wood is worth right now: more when the selected fire is Warm or Hot
@@ -209,7 +214,7 @@ export default function Campfire3DPreview() {
   // only creatures you have unlocked stand on fires: a fire set to a locked one, or to "auto", gets one you own
   const resolveCreature = (c: Fire['creature'], id: string): CreatureId | 'none' => (c === 'none' ? 'none' : c !== 'auto' && collection.creatures.includes(c) ? c : autoCreature(id, collection.creatures));
   useEffect(() => {
-    worldRef.current?.setFires(shown.map((f) => ({ id: f.area.id, level: f.level, progress: f.progress, size: f.size, color: f.color, style: f.style, creature: resolveCreature(f.creature, f.area.id), pos: f.pos, tier: f.tier })));
+    worldRef.current?.setFires(shown.map((f) => ({ id: f.area.id, level: f.level, progress: f.progress, size: f.size, color: f.color, style: f.style, creature: resolveCreature(f.creature, f.area.id), pos: f.pos, tier: f.tier, ruin: f.ruin })));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shown, collection.creatures]);
   useEffect(() => { if (focusId) { worldRef.current?.focusFire(focusId); setFocusId(null); } }, [focusId, shown]);
@@ -240,6 +245,7 @@ export default function Campfire3DPreview() {
       setPop({ id: fire.area.id, key: Date.now(), up: after > before, text: after > before ? (newDesign ? `New design: ${tierOfLevel(after).name}` : 'Level up') : undefined, gainXp: earned, mult });
     }, 1300);
     setFires((all) => all.map((f) => (f.area.id === fire.area.id ? { ...f, percent: Math.min(100, fire.pct + gain), xp: f.xp + earned, since: Date.now() } : f)));
+    if (fire.ruin > 0) window.setTimeout(() => { play('ignite'); setToast({ key: Date.now() + 2, text: fire.ruin >= 1 ? `${fire.area.name || 'The fire'} is rebuilt` : 'The gloom creature runs away' }); }, 700);
     // the collection: wood and XP counted, maybe a gem, maybe a creature
     const drop = rollGem(pending.kind, fire.level, fire.color);
     let col = recordFeed(collection, { kind: pending.kind, xp: earned, levelsGained: after - before, at: Date.now() });
@@ -419,7 +425,7 @@ export default function Campfire3DPreview() {
         {chosen && (
           <div className="c3-title" aria-live="polite">
             <h1>{chosen.area.name || 'New area'}</h1>
-            <span className={`c3-state lv${chosen.level}`}><HeatIcon level={chosen.level} size={18} />{LEVEL_NAMES[chosen.level as HeatLevel]} · {Math.round(chosen.pct)}%</span>
+            <span className={`c3-state lv${chosen.level}`}><HeatIcon level={chosen.level} size={18} />{chosen.ruin >= 1 ? 'Ruined' : `${LEVEL_NAMES[chosen.level as HeatLevel]} · ${Math.round(chosen.pct)}%`}</span>
           </div>
         )}
       </div>
@@ -532,10 +538,17 @@ export default function Campfire3DPreview() {
             <div className="c3-switches">
               <button type="button" role="switch" aria-checked={creaturesAll} className={`c3-pill${creaturesAll ? ' on' : ''}`} onClick={() => setCreaturesAll((n) => !n)}>Creatures everywhere</button>
               <button type="button" role="switch" aria-checked={saver} className={`c3-pill${saver ? ' on' : ''}`} onClick={toggleSaver}>Battery saver</button>
+              {SANDBOX && chosen && <button type="button" className="c3-pill" onClick={() => { const id = chosen.area.id; setFires((all) => all.map((f) => (f.area.id === id ? { ...f, percent: 0, since: Date.now() - (ruinHours || DEFAULT_RUIN_HOURS) * 3_600_000 * 0.8 } : f))); setPanel(null); }}>Test: neglect this fire</button>}
               <button type="button" className="c3-pill" onClick={exportData}>Export backup</button>
               <button type="button" className="c3-pill" onClick={() => fileRef.current?.click()}>Import backup (new or classic)</button>
               {fires.length === 0 && <button type="button" className="c3-pill" onClick={loadSample}>Load example fires</button>}
               <button type="button" className="c3-pill danger" disabled={fires.length === 0 && events.length === 0} onClick={() => setConfirmReset(true)}>Erase everything</button>
+            </div>
+            <div className="c3-switches" role="radiogroup" aria-label="Creatures of gloom">
+              <span className="c3-lab-inline">Gloom creatures wreck a cold fire after</span>
+              {[0, ...RUIN_CHOICES].map((h) => (
+                <button key={h} type="button" role="radio" aria-checked={ruinHours === h} className={`c3-pill${ruinHours === h ? ' on' : ''}`} onClick={() => chooseRuin(h)}>{h === 0 ? 'Never' : h === 24 ? '1 day' : h === 168 ? '1 week' : `${h / 24} days`}</button>
+              ))}
             </div>
             <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={importData} />
             {SANDBOX && (
@@ -563,7 +576,7 @@ export default function Campfire3DPreview() {
                     {tip === 'heat' ? (
                       <>
                         <b>Heat · {LEVEL_NAMES[chosen.level as HeatLevel]} · {Math.round(chosen.pct)}%</b>
-                        <span>{chosen.pct <= 0 ? 'The fire is cold. Any wood lights it again.' : `Loses ${rateText(chosen.rate)}. Fully cooled ${formatWhen(now + coldAfter(chosen.pct, chosen.rate), now)}.`}</span>
+                        <span>{chosen.ruin >= 1 ? 'A creature of gloom wrecked this fire after it stayed cold. Feed it any wood to rebuild it. Your level and XP are safe.' : chosen.ruin > 0 ? 'Cold for a while: a creature of gloom is circling. Feed it before it gets in.' : chosen.pct <= 0 ? 'The fire is cold. Any wood lights it again.' : `Loses ${rateText(chosen.rate)}. Fully cooled ${formatWhen(now + coldAfter(chosen.pct, chosen.rate), now)}.`}</span>
                       </>
                     ) : (
                       <>
