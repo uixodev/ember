@@ -316,3 +316,17 @@ button.c3-line:focus-visible { outline: 3px solid var(--sun); outline-offset: 2p
 .c3-tip b { display: flex; align-items: center; gap: 6px; font: 800 14px/1.2 var(--font); }
 .c3-tip span { font: 450 13px/1.35 var(--font); color: #4A4675; }
 .c3-tip::after { content: ''; position: absolute; left: 36px; bottom: -6px; width: 14px; height: 14px; background: #fff; transform: rotate(45deg); border-radius: 3px; }
+
+/* No emoji pictures here: small text tags and a colour dot */
+.c3-tag { flex: none; width: 34px; font: 750 10px/1 var(--font); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); text-align: left; }
+.c3-tag.xp { color: #BDB2FF; }
+.c3-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #6FD2FF; flex: none; }
+.c3-state.lv1 .c3-dot { background: #E8553A; }
+.c3-state.lv2 .c3-dot { background: #FFB030; }
+.c3-state.lv3 .c3-dot { background: #FF6A2E; }
+.c3-focus.compact { padding: 6px 8px 6px 14px; gap: 8px; border-radius: 22px; }
+.c3-focus.compact .c3-stats { gap: 0; }
+button.c3-line { padding: 0; min-height: 28px; margin: 0; }
+.c3-focus.compact .c3-round { width: 42px; height: 42px; }
+.c3-line .c3-meter.heat { height: 9px; }
+.c3-line .c3-meter.xp { height: 6px; }

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FeedSheet } from './components/ui/FeedSheet';
 import { play, playHeat, unlockAudio } from './sound';
-import { HeatIcon } from './components/ui/HeatIcon';
 import { Segmented } from './components/ui/Tabs';
 import { SANDBOX, fromClassic, loadSaved, parseSaved, resetSandbox, save, toJson, type Fire } from './campfire3d/saved';
 import { RATES, SIZE_COOLS, SIZE_RATE, rateText } from './campfire3d/cooling';
@@ -394,7 +393,7 @@ export default function Campfire3DPreview() {
         {chosen && (
           <div className="c3-title" aria-live="polite">
             <h1>{chosen.area.name || 'New area'}</h1>
-            <span className={`c3-state lv${chosen.level}`}><HeatIcon level={chosen.level} size={18} />{LEVEL_NAMES[chosen.level as HeatLevel]} · {Math.round(chosen.pct)}%</span>
+            <span className={`c3-state lv${chosen.level}`}><i className="c3-dot" aria-hidden="true" />{LEVEL_NAMES[chosen.level as HeatLevel]} · {Math.round(chosen.pct)}%</span>
           </div>
         )}
       </div>
@@ -524,11 +523,11 @@ export default function Campfire3DPreview() {
             {(() => { const xp = progressInLevel(chosen.xp); const info = TIERS[chosen.tier - 1]; return (
               <div className="c3-stats">
                 <button type="button" className="c3-line" aria-expanded={tip === 'heat'} aria-label={`Heat ${Math.round(chosen.pct)} percent. Tap for details`} onClick={() => setTip((t) => (t === 'heat' ? null : 'heat'))}>
-                  <HeatIcon level={chosen.level} size={16} />
+                  <span className="c3-tag">Heat</span>
                   <span className="c3-meter heat" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(chosen.pct)}><i style={{ width: `${chosen.pct}%`, background: PALETTES[chosen.color].swatch }} /></span>
                 </button>
                 <button type="button" className="c3-line" aria-expanded={tip === 'xp'} aria-label={`Level ${chosen.lvl}, ${chosen.xp} XP. Tap for details`} onClick={() => setTip((t) => (t === 'xp' ? null : 'xp'))}>
-                  <span className="c3-gem" aria-hidden="true" />
+                  <span className="c3-tag xp">XP</span>
                   <span className="c3-meter xp" role="progressbar" aria-valuemin={0} aria-valuemax={xp.span} aria-valuenow={xp.into}><i style={{ width: `${xp.fraction * 100}%` }} /></span>
                 </button>
                 {tip && (
