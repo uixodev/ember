@@ -207,7 +207,11 @@ export default function Campfire3DPreview() {
 
   // keep the fires centred in the part of the screen the controls leave free
   useEffect(() => {
-    const measure = () => worldRef.current?.setInsets(topRef.current?.offsetHeight ?? 0, bottomRef.current?.offsetHeight ?? 0);
+    const measure = () => {
+      const bottom = bottomRef.current?.offsetHeight ?? 0;
+      stageRef.current?.style.setProperty('--c3-bottom', `${bottom}px`);
+      worldRef.current?.setInsets(topRef.current?.offsetHeight ?? 0, bottom);
+    };
     measure();
     const ro = new ResizeObserver(measure);
     if (topRef.current) ro.observe(topRef.current);
@@ -288,7 +292,7 @@ export default function Campfire3DPreview() {
       if (groundRef.current.length >= 30) pickUpRef.current(groundRef.current[0].id, true);
       setGround((all) => [...all, gem]);
       play('levelUp');
-      setToast({ key: Date.now(), text: `A ${RARITIES.find((x) => x.id === drop.rarity)?.name.toLowerCase()} ${PALETTES[fire.color].name} gem dropped. Tap it to pick it up.`, gem: drop });
+      setToast({ key: Date.now(), text: `${RARITIES.find((x) => x.id === drop.rarity)?.name} ${PALETTES[fire.color].name} gem! Tap it to pick up`, gem: drop });
     }, 1500);
     if (unlocked.newly.length) window.setTimeout(() => { play('levelUp'); setToast({ key: Date.now() + 1, text: `New creature: ${CREATURE_NAMES[unlocked.newly[0]]}${unlocked.newly.length > 1 ? ` and ${unlocked.newly.length - 1} more` : ''}` }); }, drop ? 5800 : 1500);
     setEvents((all) => [...all, { id: Date.now(), areaId: fire.area.id, areaName: fire.area.name, swatch: PALETTES[fire.color].swatch, at: Date.now(), note: entry.note, minutes: entry.minutes ?? 5, gain: STICKS[pending.kind].gain, xp: earned }]);

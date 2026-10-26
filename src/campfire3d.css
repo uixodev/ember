@@ -423,3 +423,8 @@ button.c3-line { padding: 0; min-height: 28px; margin: 0; }
 @keyframes lu-spark { 0% { opacity: 1; transform: rotate(var(--a)) translateY(-16px) scale(1); } 100% { opacity: 0; transform: rotate(var(--a)) translateY(-86px) scale(.2); } }
 @keyframes lu-flash { 0% { opacity: .95; transform: scale(.3); } 100% { opacity: 0; transform: scale(2.2); } }
 @media (prefers-reduced-motion: reduce) { .lu-spin, .lu-ring, .lu-sparks i, .lu-design::after { animation: none !important; } .lu-shield, .lu-shield.f1, .lu-design .lu-shield.f1 { animation: none !important; } .lu-rays { animation: none; } }
+
+/* Notices sit just above the cards at the bottom, wide enough to read */
+.c3-toast { top: auto; bottom: calc(var(--c3-bottom, 220px) + 12px); left: 12px; right: 12px; transform: none; max-width: none; width: auto; justify-content: center; border-radius: 20px; padding: 10px 16px 10px 12px; font-size: 14px; animation: c3-toast-up 4.2s ease both; }
+.c3-toast span { text-align: left; }
+@keyframes c3-toast-up { 0% { opacity: 0; transform: translateY(12px) scale(.96); } 8% { opacity: 1; transform: translateY(0) scale(1.01); } 14% { transform: none; } 88% { opacity: 1; } 100% { opacity: 0; transform: translateY(6px); } }
