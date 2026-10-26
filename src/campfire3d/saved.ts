@@ -1,7 +1,8 @@
 import type { Area } from '../model/types';
 import { CREATURE_IDS, type CreatureId } from './creatures';
 import { SIZE_RATE } from './cooling';
-import { xpToReach } from './mastery';
+import { collectionFromFires, emptyCollection, statsOf, unlockCreatures, type Collection } from './collection';
+import { levelOfXp, xpToReach } from './mastery';
 import { PALETTES, type PaletteId } from './palettes';
 import { computeHeat } from '../engine/heat';
 import { parseJson } from '../storage/storage';
@@ -29,7 +30,7 @@ export interface Fire {
   pos?: { x: number; z: number };
 }
 
-export interface Saved { fires: Fire[]; events: LogEvent[] }
+export interface Saved { fires: Fire[]; events: LogEvent[]; collection: Collection }
 
 const REAL_KEY = 'ember:campfire:v1';
 const TEST_KEY = 'ember:campfire:test:v1';
@@ -77,6 +78,28 @@ function eventFrom(raw: unknown): LogEvent | null {
   return { id: num(r.id, 0, 8.64e15, Date.now()), areaId: r.areaId, areaName: str(r.areaName), swatch: str(r.swatch, '#FF9A2E'), at: num(r.at, 0, 8.64e15, Date.now()), note: typeof r.note === 'string' ? r.note.slice(0, 160) : '', minutes: Math.round(num(r.minutes, 1, 1440, 5)), gain: num(r.gain, 0, 100, 0), xp: typeof r.xp === 'number' ? Math.round(num(r.xp, 0, 1e6, 0)) : undefined };
 }
 
+function collectionFrom(raw: unknown, fires: Fire[], events: LogEvent[]): Collection {
+  const levels = fires.map((f) => ({ xp: f.xp, level: levelOfXp(f.xp) }));
+  const r = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : null;
+  let c: Collection;
+  if (!r) c = collectionFromFires(levels, events.length);
+  else {
+    const gems: Record<string, number> = {};
+    if (r.gems && typeof r.gems === 'object') for (const [k, v] of Object.entries(r.gems as Record<string, unknown>)) if (/^[a-z]+:[a-z]+$/.test(k) && typeof v === 'number' && v > 0) gems[k] = Math.min(1e6, Math.floor(v));
+    const wood: Collection['wood'] = {};
+    if (r.wood && typeof r.wood === 'object') for (const k of ['kindling', 'branch', 'split', 'log', 'big'] as const) { const v = (r.wood as Record<string, unknown>)[k]; if (typeof v === 'number' && v > 0) wood[k] = Math.min(1e6, Math.floor(v)); }
+    const creatures = Array.isArray(r.creatures) ? (r.creatures.filter((x) => CREATURE_IDS.includes(x as CreatureId)) as CreatureId[]) : [];
+    c = {
+      ...emptyCollection(),
+      lifetimeXp: Math.round(num(r.lifetimeXp, 0, 1e12, 0)), feeds: Math.round(num(r.feeds, 0, 1e9, 0)), levelUps: Math.round(num(r.levelUps, 0, 1e6, 0)),
+      daysFed: Math.round(num(r.daysFed, 0, 1e6, 0)), streak: Math.round(num(r.streak, 0, 1e6, 0)), bestStreak: Math.round(num(r.bestStreak, 0, 1e6, 0)),
+      lastDay: typeof r.lastDay === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.lastDay) ? r.lastDay : '', wood, gems,
+      creatures: [...new Set<CreatureId>(['fox', ...creatures])],
+    };
+  }
+  return unlockCreatures(c, statsOf(c, levels)).collection;
+}
+
 /** Turn anything (stored or imported) into safe data. Returns null if it isn't ours. */
 export function parseSaved(text: string): Saved | null {
   try {
@@ -85,7 +108,7 @@ export function parseSaved(text: string): Saved | null {
     const fires = d.fires.map(fireFrom).filter((f): f is Fire => f !== null).slice(0, 12);
     const events = (Array.isArray(d.events) ? d.events : []).map(eventFrom).filter((e): e is LogEvent => e !== null).slice(-2000);
     withXp(fires, events);
-    return { fires, events };
+    return { fires, events, collection: collectionFrom((d as { collection?: unknown }).collection, fires, events) };
   } catch {
     return null;
   }
@@ -98,11 +121,11 @@ export function loadSaved(): { data: Saved; problem: boolean } {
       text = window.localStorage.getItem(REAL_KEY);
       if (text !== null) window.localStorage.setItem(TEST_KEY, text);
     }
-    if (text === null) return { data: { fires: [], events: [] }, problem: false };
+    if (text === null) return { data: { fires: [], events: [], collection: emptyCollection() }, problem: false };
     const data = parseSaved(text);
-    return data ? { data, problem: false } : { data: { fires: [], events: [] }, problem: true };
+    return data ? { data, problem: false } : { data: { fires: [], events: [], collection: emptyCollection() }, problem: true };
   } catch {
-    return { data: { fires: [], events: [] }, problem: true };
+    return { data: { fires: [], events: [], collection: emptyCollection() }, problem: true };
   }
 }
 
@@ -152,5 +175,5 @@ export function fromClassic(text: string): Saved | null {
     return [{ id: now + i, areaId: f.area.id, areaName: f.area.name, swatch: PALETTES[f.color].swatch, at: e.at, note: (e.note ?? '').slice(0, 160), minutes: Math.round(Math.max(1, Math.min(1440, e.minutes ?? 5))), gain: e.type === 'big' ? 100 : 10 }];
   }).slice(-2000);
   withXp(fires, events);
-  return { fires, events };
+  return { fires, events, collection: collectionFrom(null, fires, events) };
 }

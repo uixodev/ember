@@ -512,10 +512,10 @@ export function buildCreature(id: CreatureId, ramp: string[]): Creature {
 }
 
 /** A stable pick per area, so the same area keeps the same creature. */
-export function autoCreature(areaId: string): CreatureId {
+export function autoCreature(areaId: string, pool: CreatureId[] = CREATURE_IDS): CreatureId {
   // FNV-1a with a final mix, so short names that differ by a letter still land on different creatures
   let h = 2166136261;
   for (let i = 0; i < areaId.length; i++) { h ^= areaId.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
   h ^= h >>> 15; h = Math.imul(h, 2246822519) >>> 0; h ^= h >>> 13;
-  return CREATURE_IDS[(h >>> 0) % CREATURE_IDS.length];
+  return pool[(h >>> 0) % pool.length];
 }

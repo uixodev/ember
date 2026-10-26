@@ -338,3 +338,61 @@ button.c3-line { padding: 0; min-height: 28px; margin: 0; }
 .c3-focus.compact .c3-act.on { background: var(--sun); color: var(--navy); border-color: var(--sun); }
 .c3-slot-xp.boost { color: #fff; background: #5B4BD6; border-radius: 999px; padding: 1px 7px; }
 .c3-slot-xp { white-space: nowrap; }
+
+/* ---- Collection ---- */
+.cl-screen { position: fixed; inset: 0; z-index: 200; display: flex; flex-direction: column; background: #2A2578; color: #fff; padding: calc(14px + env(safe-area-inset-top)) 16px calc(14px + env(safe-area-inset-bottom)); animation: fade .2s ease; }
+.cl-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.cl-head h2 { margin: 0; font: 800 28px/1.1 var(--font); letter-spacing: -.03em; }
+.cl-head p { margin: 4px 0 0; font: 450 12px/1.4 var(--font); color: var(--ink-2); }
+.cl-x { position: static; flex: none; }
+.cl-tabs { margin: 12px 0; }
+.cl-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 12px; text-align: left; }
+.cl-note { margin: 8px 0; font: 450 13px/1.4 var(--font); color: var(--ink-2); }
+.cl-hearth { display: grid; gap: 4px; justify-items: stretch; }
+.cl-hearth h3 { margin: 6px 0 0; font: 800 20px/1.2 var(--font); letter-spacing: -.02em; text-align: center; }
+.cl-hearth .cl-note { text-align: center; }
+.hearth-art { width: 100%; max-height: 260px; }
+.hearth-flame { transform-box: fill-box; transform-origin: 50% 100%; animation: hearth-flicker 1.3s ease-in-out infinite; }
+.hearth-orbit { animation: hearth-glow 1.8s ease-in-out infinite; }
+.hearth-crown { animation: hearth-glow 2.4s ease-in-out infinite; }
+@keyframes hearth-flicker { 0%, 100% { transform: scale(1, 1); } 40% { transform: scale(.97, 1.04); } 70% { transform: scale(1.02, .97); } }
+@keyframes hearth-glow { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+.cl-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.cl-stats span { padding: 10px 12px; border-radius: 14px; background: rgba(255, 255, 255, .08); font: 450 13px/1.2 var(--font); color: var(--ink-2); }
+.cl-stats b { display: block; font: 800 20px/1.1 var(--font); color: #fff; }
+.cl-grid { display: grid; gap: 10px; }
+.cl-grid.creatures { grid-template-columns: 1fr 1fr; }
+.cl-grid.gems { grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.cl-card { display: grid; justify-items: center; gap: 4px; padding: 10px 8px 12px; border-radius: 18px; background: rgba(255, 255, 255, .09); text-align: center; }
+.cl-card b { font: 750 14px/1.2 var(--font); }
+.cl-goal { font: 450 12px/1.3 var(--font); color: var(--ink-2); }
+.cl-pic { width: 96px; height: 96px; display: grid; place-items: center; }
+.cl-pic img { width: 100%; height: 100%; object-fit: contain; }
+.cl-pic-fallback { font: 800 36px/1 var(--font); }
+.cl-card.locked .cl-pic img { filter: brightness(0); opacity: .35; }
+.c3-meter.small { width: 100%; height: 6px; margin: 2px 0; }
+.cl-gem { position: relative; display: grid; justify-items: center; gap: 2px; padding: 8px 2px 6px; border: 1px solid transparent; border-radius: 14px; background: rgba(255, 255, 255, .08); color: #fff; font: 600 11px/1.1 var(--font); cursor: pointer; touch-action: manipulation; min-height: 44px; }
+.cl-gem.on { border-color: #fff; background: rgba(255, 255, 255, .16); }
+.cl-gem.empty { opacity: .55; }
+.cl-gem i { position: absolute; top: 4px; right: 4px; min-width: 18px; padding: 1px 5px; border-radius: 999px; background: #5B4BD6; font: 750 10px/1.4 var(--font); font-style: normal; text-align: center; }
+.cl-detail { margin-top: 12px; padding: 12px; border-radius: 18px; background: rgba(255, 255, 255, .1); display: grid; gap: 10px; }
+.cl-rarities { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; text-align: center; }
+.cl-rarities div { display: grid; justify-items: center; gap: 2px; font: 600 10px/1.2 var(--font); }
+.cl-rarities div.none { opacity: .5; }
+.cl-rarities i { font: 800 13px/1 var(--font); font-style: normal; color: #BDB2FF; }
+.gem.dim { opacity: .8; }
+.gem-epic:not(.dim), .gem-legendary:not(.dim) { animation: gem-shine 2.6s ease-in-out infinite; }
+@keyframes gem-shine { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+.sky { display: grid; gap: 10px; }
+.sky-card { padding: 10px 12px 6px; border-radius: 18px; background: #1B1760; }
+.sky-card.dark { opacity: .7; }
+.sky-card header { display: flex; justify-content: space-between; font: 750 13px/1.2 var(--font); }
+.sky-card header span { color: #BDB2FF; }
+.sky-card svg { width: 100%; height: 130px; }
+.star { transform-box: fill-box; transform-origin: center; animation: star-twinkle 2.6s ease-in-out infinite; }
+@keyframes star-twinkle { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .hearth-flame, .hearth-orbit, .hearth-crown, .star, .gem-epic, .gem-legendary { animation: none !important; } }
+
+.c3-toast { position: absolute; top: calc(84px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 160; display: flex; align-items: center; gap: 10px; max-width: calc(100% - 140px); padding: 8px 16px 8px 10px; border-radius: 999px; background: #fff; color: var(--navy); font: 750 13px/1.25 var(--font); animation: c3-toast 4.2s ease both; pointer-events: none; }
+@keyframes c3-toast { 0% { opacity: 0; transform: translate(-50%, -10px) scale(.9); } 8% { opacity: 1; transform: translate(-50%, 0) scale(1.03); } 14% { transform: translate(-50%, 0) scale(1); } 88% { opacity: 1; } 100% { opacity: 0; } }
+.chip.locked { opacity: .6; }

@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { holoMaterial } from './holo';
 import { buildTier, type TierDecor } from './tiers';
 import type { Tier } from './mastery';
-import { buildCreature, autoCreature, type Creature, type CreatureId } from './creatures';
+import { buildCreature, autoCreature, CREATURE_IDS, type Creature, type CreatureId } from './creatures';
 import { flameGeometry, type FlameShape } from './flame';
 import { PALETTES, type PaletteId } from './palettes';
 import { Particles } from './particles';
@@ -611,6 +611,48 @@ export class CampfireWorld {
       }
     } catch {
       /* icons are a nicety: the inventory falls back to plain shapes */
+    } finally {
+      this.renderer.setRenderTarget(prevTarget);
+      rt.dispose();
+    }
+    return out;
+  }
+
+  /** A little picture of each creature, for the collection. */
+  renderCreatureIcons(): Partial<Record<CreatureId, string>> {
+    const out: Partial<Record<CreatureId, string>> = {};
+    const W = 160, H = 160;
+    const rt = new THREE.WebGLRenderTarget(W, H, { samples: 4 });
+    const scene = new THREE.Scene();
+    const cam = new THREE.OrthographicCamera(-0.85, 0.85, 0.85, -0.85, 0.1, 20);
+    cam.position.set(0, 0.7, 4);
+    cam.lookAt(0, 0.7, 0);
+    const buf = new Uint8Array(W * H * 4);
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    const g = canvas.getContext('2d')!;
+    const prevTarget = this.renderer.getRenderTarget();
+    try {
+      for (const id of CREATURE_IDS) {
+        const c = buildCreature(id, PALETTES.classic.ramp);
+        c.tick(1.2);
+        c.group.position.y = 0;
+        scene.add(c.group);
+        this.renderer.setRenderTarget(rt);
+        this.renderer.setClearColor(0x000000, 0);
+        this.renderer.clear();
+        this.renderer.render(scene, cam);
+        this.renderer.readRenderTargetPixels(rt, 0, 0, W, H, buf);
+        const img = g.createImageData(W, H);
+        for (let y = 0; y < H; y++) img.data.set(buf.subarray((H - 1 - y) * W * 4, (H - y) * W * 4), y * W * 4);
+        g.clearRect(0, 0, W, H);
+        g.putImageData(img, 0, 0);
+        out[id] = canvas.toDataURL('image/png');
+        scene.remove(c.group);
+        c.dispose();
+      }
+    } catch {
+      /* pictures are a nicety: the collection falls back to names */
     } finally {
       this.renderer.setRenderTarget(prevTarget);
       rt.dispose();
