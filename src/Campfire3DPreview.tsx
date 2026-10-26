@@ -88,6 +88,9 @@ export default function Campfire3DPreview() {
   useEffect(() => { setSaveFailed(!save({ fires, events })); }, [fires, events]);
   const [logOpen, setLogOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
+  // the little help bubble over the heat and XP bars
+  const [tip, setTip] = useState<'heat' | 'xp' | null>(null);
+  useEffect(() => { if (!tip) return; const t = window.setTimeout(() => setTip(null), 6000); return () => window.clearTimeout(t); }, [tip]);
   // Battery saver: lower resolution and slower drawing. You can switch it yourself; otherwise it turns on when the battery is low.
   const [saverPref, setSaverPref] = useState<'on' | 'off' | null>(() => { try { const v = window.localStorage.getItem('ember:saver'); return v === 'on' || v === 'off' ? v : null; } catch { return null; } });
   const [batteryLow, setBatteryLow] = useState(false);
@@ -119,6 +122,7 @@ export default function Campfire3DPreview() {
   const [pending, setPending] = useState<Pending | null>(null);
   const [panel, setPanel] = useState<Panel>(null);
   const [tab, setTab] = useState<Tab>('size');
+  useEffect(() => { setTip(null); }, [sel, panel]);
 
   // trying a design out on a fire: not saved, gone when you reload
   const [preview, setPreview] = useState<Record<string, Tier>>({});
@@ -519,20 +523,29 @@ export default function Campfire3DPreview() {
           <div className="c3-focus compact">
             {(() => { const xp = progressInLevel(chosen.xp); const info = TIERS[chosen.tier - 1]; return (
               <div className="c3-stats">
-                <div className="c3-stat-head">
-                  <span className="c3-stat-name"><Shield level={chosen.lvl} tier={chosen.tier} size={20} />Level {chosen.lvl} · {info.name}</span>
-                  <span className="c3-stat-xp" title={`${xp.toNext} XP to level ${xp.level + 1}`}>{chosen.xp} XP</span>
-                </div>
-                <div className="c3-line">
+                <button type="button" className="c3-line" aria-expanded={tip === 'heat'} aria-label={`Heat ${Math.round(chosen.pct)} percent. Tap for details`} onClick={() => setTip((t) => (t === 'heat' ? null : 'heat'))}>
                   <HeatIcon level={chosen.level} size={16} />
-                  <div className="c3-meter heat" role="progressbar" aria-label="How warm the fire is" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(chosen.pct)}><i style={{ width: `${chosen.pct}%`, background: PALETTES[chosen.color].swatch }} /></div>
-                  <span className="c3-stat-sub">{chosen.pct <= 0 ? 'cold' : `cold ${formatWhen(now + coldAfter(chosen.pct, chosen.rate), now).replace('tomorrow', 'tmrw')}`}</span>
-                </div>
-                <div className="c3-line">
+                  <span className="c3-meter heat" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(chosen.pct)}><i style={{ width: `${chosen.pct}%`, background: PALETTES[chosen.color].swatch }} /></span>
+                </button>
+                <button type="button" className="c3-line" aria-expanded={tip === 'xp'} aria-label={`Level ${chosen.lvl}, ${chosen.xp} XP. Tap for details`} onClick={() => setTip((t) => (t === 'xp' ? null : 'xp'))}>
                   <span className="c3-gem" aria-hidden="true" />
-                  <div className="c3-meter xp" role="progressbar" aria-label={`Experience to level ${xp.level + 1}`} aria-valuemin={0} aria-valuemax={xp.span} aria-valuenow={xp.into}><i style={{ width: `${xp.fraction * 100}%` }} /></div>
-                  <span className="c3-stat-sub">{xp.toNext} to Lv {xp.level + 1}</span>
-                </div>
+                  <span className="c3-meter xp" role="progressbar" aria-valuemin={0} aria-valuemax={xp.span} aria-valuenow={xp.into}><i style={{ width: `${xp.fraction * 100}%` }} /></span>
+                </button>
+                {tip && (
+                  <div className="c3-tip" role="status">
+                    {tip === 'heat' ? (
+                      <>
+                        <b>Heat · {LEVEL_NAMES[chosen.level as HeatLevel]} · {Math.round(chosen.pct)}%</b>
+                        <span>{chosen.pct <= 0 ? 'The fire is cold. Any wood lights it again.' : `Loses ${rateText(chosen.rate)}. Fully cooled ${formatWhen(now + coldAfter(chosen.pct, chosen.rate), now)}.`}</span>
+                      </>
+                    ) : (
+                      <>
+                        <b><Shield level={chosen.lvl} tier={chosen.tier} size={18} /> Level {chosen.lvl} · {info.name} · {chosen.xp} XP</b>
+                        <span>{xp.toNext} XP to level {xp.level + 1}. Wood gives 1, 5, 10, 20 or 50 XP, ×2 when Warm, ×3 when Hot.</span>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             ); })()}
             <div className="c3-card-actions">
