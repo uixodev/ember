@@ -288,3 +288,20 @@ html.c3-lock body { position: fixed; inset: 0; width: 100%; }
 .c3-card-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .c3-act.wide { min-height: 48px; font-size: 15px; }
 @media (max-height: 700px) { .c3-stat-sub.left { display: none; } .c3-focus { gap: 8px; padding: 10px 12px; } }
+
+/* Compact fire card: level and XP on top, two thin bars, two round buttons */
+.c3-focus.compact { display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 14px; border-radius: 24px; }
+.c3-focus.compact .c3-stats { flex: 1; min-width: 0; display: grid; gap: 7px; }
+.c3-focus.compact .c3-stat-head { min-height: 22px; }
+.c3-focus.compact .c3-stat-name { font-size: 14px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.c3-focus.compact .c3-stat-xp { font-size: 14px; flex: none; }
+.c3-line { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.c3-line .c3-meter { flex: 1; min-width: 0; margin: 0; }
+.c3-line .c3-meter.heat { height: 10px; }
+.c3-line .c3-meter.xp { height: 7px; }
+.c3-line .c3-stat-sub { flex: none; width: 108px; font-size: 11px; text-align: right; }
+.c3-gem { flex: none; width: 10px; height: 10px; margin: 0 3px; background: #9B8CFF; transform: rotate(45deg); border-radius: 2px; }
+.c3-focus.compact .c3-card-actions { display: flex; gap: 6px; flex: none; }
+.c3-focus.compact .c3-round { width: 44px; height: 44px; background: rgba(255, 255, 255, .12); border: 1px solid var(--glass-line); }
+.c3-focus.compact .c3-round.on { background: var(--sun); color: var(--navy); border-color: var(--sun); }
+@media (max-height: 700px) { .c3-focus.compact { padding: 8px 8px 8px 12px; } }
