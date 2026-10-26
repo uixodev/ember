@@ -330,3 +330,6 @@ button.c3-line { padding: 0; min-height: 28px; margin: 0; }
 .c3-focus.compact .c3-round { width: 42px; height: 42px; }
 .c3-line .c3-meter.heat { height: 9px; }
 .c3-line .c3-meter.xp { height: 6px; }
+
+/* Heat and XP bars: the same height */
+.c3-line .c3-meter.heat, .c3-line .c3-meter.xp, .c3-stat .c3-meter.xp { height: 9px; }
