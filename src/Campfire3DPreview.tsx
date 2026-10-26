@@ -88,6 +88,28 @@ export default function Campfire3DPreview() {
   useEffect(() => { setSaveFailed(!save({ fires, events })); }, [fires, events]);
   const [logOpen, setLogOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
+  // Battery saver: lower resolution and slower drawing. You can switch it yourself; otherwise it turns on when the battery is low.
+  const [saverPref, setSaverPref] = useState<'on' | 'off' | null>(() => { try { const v = window.localStorage.getItem('ember:saver'); return v === 'on' || v === 'off' ? v : null; } catch { return null; } });
+  const [batteryLow, setBatteryLow] = useState(false);
+  const saver = saverPref ? saverPref === 'on' : batteryLow;
+  const saverRef = useRef(saver);
+  saverRef.current = saver;
+  useEffect(() => {
+    type Battery = EventTarget & { level: number; charging: boolean };
+    let bat: Battery | null = null;
+    const check = () => { if (bat) setBatteryLow(bat.level <= 0.2 && !bat.charging); };
+    (navigator as unknown as { getBattery?: () => Promise<Battery> }).getBattery?.().then((b) => {
+      bat = b; check();
+      b.addEventListener('levelchange', check); b.addEventListener('chargingchange', check);
+    }).catch(() => undefined);
+    return () => { bat?.removeEventListener('levelchange', check); bat?.removeEventListener('chargingchange', check); };
+  }, []);
+  useEffect(() => { worldRef.current?.setQuality(saver ? 'saver' : 'full'); }, [saver]);
+  const toggleSaver = () => {
+    const next = saver ? 'off' : 'on';
+    setSaverPref(next);
+    try { window.localStorage.setItem('ember:saver', next); } catch { /* it just will not be remembered */ }
+  };
   const [focusId, setFocusId] = useState<string | null>(null);
   const sparksToday = useMemo(() => { const d = new Date(now); return events.filter((e) => e.at >= new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()).length; }, [events, now]);
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -149,6 +171,7 @@ export default function Campfire3DPreview() {
         reducedMotion: reduced,
       });
       worldRef.current = world;
+      world.setQuality(saverRef.current ? 'saver' : 'full');
       (window as unknown as { __world: CampfireWorld }).__world = world;
       window.requestAnimationFrame(() => window.requestAnimationFrame(() => window.dispatchEvent(new Event('ember-ready'))));
       const t = window.setTimeout(() => setIcons(world.renderIcons()), 250);
@@ -467,6 +490,7 @@ export default function Campfire3DPreview() {
             <div className="c3-panel-head"><b>Options</b><button type="button" className="c3-x" aria-label="Close" onClick={() => setPanel(null)}>×</button></div>
             <div className="c3-switches">
               <button type="button" role="switch" aria-checked={creaturesAll} className={`c3-pill${creaturesAll ? ' on' : ''}`} onClick={() => setCreaturesAll((n) => !n)}>Creatures everywhere</button>
+              <button type="button" role="switch" aria-checked={saver} className={`c3-pill${saver ? ' on' : ''}`} onClick={toggleSaver}>Battery saver</button>
               <button type="button" className="c3-pill" onClick={exportData}>Export backup</button>
               <button type="button" className="c3-pill" onClick={() => fileRef.current?.click()}>Import backup (new or classic)</button>
               {fires.length === 0 && <button type="button" className="c3-pill" onClick={loadSample}>Load example fires</button>}
@@ -478,6 +502,7 @@ export default function Campfire3DPreview() {
                 <button type="button" className="c3-pill" onClick={() => { resetSandbox(); window.location.reload(); }}>Reset the test copy</button>
               </div>
             )}
+            <span className="camp-size-note">Battery saver draws fewer, smaller frames. It turns on by itself when the battery drops to 20%.</span>
             <span className="camp-size-note">{SANDBOX ? 'Test copy: it started as a copy of your data. Nothing here changes your real fires.' : saveFailed ? 'This browser is not letting the app save. Export a backup so you do not lose anything.' : 'Everything is saved on this device. Export a backup now and then.'}</span>
           </section>
         )}

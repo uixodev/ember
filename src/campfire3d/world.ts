@@ -170,8 +170,8 @@ export class CampfireWorld {
   private io: IntersectionObserver;
 
   constructor(private readonly canvas: HTMLCanvasElement, private readonly opts: WorldOptions) {
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance', preserveDrawingBuffer: false });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'default', preserveDrawingBuffer: false });
+    this.renderer.setPixelRatio(this.pixelRatioFor('full'));
     this.renderer.setClearColor(0x000000, 0);
 
     this.wood = makeWoodMaterials();
@@ -222,6 +222,7 @@ export class CampfireWorld {
     this.controls.maxPolarAngle = 1.42;
     this.controls.autoRotate = false;
     this.controls.addEventListener('start', () => this.interacted());
+    this.controls.addEventListener('change', () => this.boost(800));
 
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(canvas.parentElement ?? canvas);
@@ -393,6 +394,7 @@ export class CampfireWorld {
 
   /** Create, update and arrange one campfire per area. */
   setFires(specs: FireSpec[]): void {
+    this.boost(1500);
     const capped = specs.slice(0, MAX_FIRES);
     const ids = new Set(capped.map((s) => s.id));
     for (const [id, f] of this.fires) if (!ids.has(id)) { this.dropCreature(f); f.decor?.dispose(); this.scene.remove(f.group); this.fires.delete(id); }
@@ -452,6 +454,7 @@ export class CampfireWorld {
 
   /** Glide the camera in close to one fire. */
   focusFire(id: string): void {
+    this.boost(2500);
     const f = this.fires.get(id);
     if (!f) return;
     this.focusTarget = new THREE.Vector3(f.pos.x, 0.7, f.pos.z);
@@ -520,6 +523,7 @@ export class CampfireWorld {
 
   /** The fire swells and throws sparks, in its own colours. */
   flare(fireId: string): void {
+    this.boost(3500);
     const f = this.fires.get(fireId);
     if (!f) return;
     f.flare = 1;
@@ -536,6 +540,7 @@ export class CampfireWorld {
 
   /** The held stick flies into its fire and burns away. */
   consumeStick(stickId: number): void {
+    this.boost(3500);
     const run = this.sticks.get(stickId);
     if (!run || !run.fireId) return;
     run.state = 'anim';
@@ -552,6 +557,7 @@ export class CampfireWorld {
   }
 
   flyTo(view: CameraView): void {
+    this.boost(2500);
     this.focusTarget = null;
     const from = this.current();
     let d = view.azimuth - from.azimuth;
@@ -695,6 +701,7 @@ export class CampfireWorld {
   private clearHold(): void { window.clearTimeout(this.holdTimer); this.holdTimer = 0; }
 
   private onDown = (e: PointerEvent) => {
+    this.boost();
     this.down = { x: e.clientX, y: e.clientY, t: performance.now() };
     this.lastPointer = { x: e.clientX, y: e.clientY };
     if (!e.isPrimary) this.clearHold();
@@ -736,6 +743,20 @@ export class CampfireWorld {
     const hit = this.raycaster.intersectObjects([...this.fires.values()].map((f) => f.hit), false)[0];
     this.opts.onSelectFire(hit ? (hit.object.userData.fireId as string) : null);
   };
+  private quality: 'full' | 'saver' = 'full';
+  private activeUntil = 0;
+  private pixelRatioFor(q: 'full' | 'saver'): number { return Math.min(window.devicePixelRatio || 1, q === 'saver' ? 1 : 1.5); }
+  /** Keep drawing at full speed for a moment (something is moving or about to). */
+  private boost(ms = 2500): void { this.activeUntil = Math.max(this.activeUntil, performance.now() + ms); }
+
+  /** Battery saver: lower resolution and a slower frame rate. */
+  setQuality(q: 'full' | 'saver'): void {
+    if (q === this.quality) return;
+    this.quality = q;
+    this.renderer.setPixelRatio(this.pixelRatioFor(q));
+    this.resize();
+  }
+
   private onVis = () => { this.running = document.visibilityState === 'visible'; };
 
   /** Back from the background: forget the time that passed and fit the screen again. */
@@ -771,6 +792,10 @@ export class CampfireWorld {
   private loop = (): void => {
     this.raf = requestAnimationFrame(this.loop);
     const now = performance.now();
+    // Save battery: when nothing is being touched or fed, draw about half as often (the flames still look alive)
+    const busy = now < this.activeUntil || this.drag !== null || this.fireDrag !== null || this.fly !== null || this.sticks.size > 0 && [...this.sticks.values()].some((x) => x.state !== 'hold' || x.anim !== null);
+    const fps = this.quality === 'saver' ? (busy ? 30 : 15) : (busy ? 60 : 30);
+    if (now - this.last < 1000 / fps - 3) return;
     const dt = Math.min(0.05, (now - this.last) / 1000);
     this.last = now;
     if (!this.running || !this.visible) return;
