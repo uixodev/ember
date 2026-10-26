@@ -575,7 +575,7 @@ export default function Campfire3DPreview() {
             {pop.gainXp ? <span className="c3-pop-gain">+{pop.gainXp} XP{pop.mult && pop.mult > 1 ? ` · ×${pop.mult}` : ''}</span> : null}
             <Shield level={f.lvl} tier={f.tier} size={pop.up ? 64 : 52} />
             <span className="c3-pop-name">{f.area.name || 'New area'}</span>
-            <span className="c3-pop-xp">{f.xp} XP</span>
+            <span className="c3-pop-xp">{f.xp} / {xpToReach(f.lvl + 1)} XP</span>
           </div>
         </div>
       ); })()}
