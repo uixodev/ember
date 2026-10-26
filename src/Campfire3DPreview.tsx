@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FeedSheet } from './components/ui/FeedSheet';
 import { play, playHeat, unlockAudio } from './sound';
+import { HeatIcon } from './components/ui/HeatIcon';
 import { Segmented } from './components/ui/Tabs';
 import { SANDBOX, fromClassic, loadSaved, parseSaved, resetSandbox, save, toJson, type Fire } from './campfire3d/saved';
 import { RATES, SIZE_COOLS, SIZE_RATE, rateText } from './campfire3d/cooling';
@@ -393,7 +394,7 @@ export default function Campfire3DPreview() {
         {chosen && (
           <div className="c3-title" aria-live="polite">
             <h1>{chosen.area.name || 'New area'}</h1>
-            <span className={`c3-state lv${chosen.level}`}><i className="c3-dot" aria-hidden="true" />{LEVEL_NAMES[chosen.level as HeatLevel]} · {Math.round(chosen.pct)}%</span>
+            <span className={`c3-state lv${chosen.level}`}><HeatIcon level={chosen.level} size={18} />{LEVEL_NAMES[chosen.level as HeatLevel]} · {Math.round(chosen.pct)}%</span>
           </div>
         )}
       </div>
@@ -523,11 +524,9 @@ export default function Campfire3DPreview() {
             {(() => { const xp = progressInLevel(chosen.xp); const info = TIERS[chosen.tier - 1]; return (
               <div className="c3-stats">
                 <button type="button" className="c3-line" aria-expanded={tip === 'heat'} aria-label={`Heat ${Math.round(chosen.pct)} percent. Tap for details`} onClick={() => setTip((t) => (t === 'heat' ? null : 'heat'))}>
-                  <span className="c3-tag">Heat</span>
                   <span className="c3-meter heat" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(chosen.pct)}><i style={{ width: `${chosen.pct}%`, background: PALETTES[chosen.color].swatch }} /></span>
                 </button>
                 <button type="button" className="c3-line" aria-expanded={tip === 'xp'} aria-label={`Level ${chosen.lvl}, ${chosen.xp} XP. Tap for details`} onClick={() => setTip((t) => (t === 'xp' ? null : 'xp'))}>
-                  <span className="c3-tag xp">XP</span>
                   <span className="c3-meter xp" role="progressbar" aria-valuemin={0} aria-valuemax={xp.span} aria-valuenow={xp.into}><i style={{ width: `${xp.fraction * 100}%` }} /></span>
                 </button>
                 {tip && (
@@ -548,12 +547,8 @@ export default function Campfire3DPreview() {
               </div>
             ); })()}
             <div className="c3-card-actions">
-              <button type="button" className={`c3-round${panel === 'cool' ? ' on' : ''}`} aria-label="Cool down" aria-expanded={panel === 'cool'} onClick={() => togglePanel('cool')}>
-                <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M4.200 7.500l15.600 9M19.800 7.500l-15.600 9M9.500 4.500 12 6.500l2.500-2M9.500 19.500 12 17.500l2.500 2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-              </button>
-              <button type="button" className="c3-round" aria-label="Customise" onClick={() => togglePanel('customise')}>
-                <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" fill="none" /><circle cx="16" cy="7" r="2.4" fill="currentColor" /><circle cx="8" cy="17" r="2.4" fill="currentColor" /></svg>
-              </button>
+              <button type="button" className={`c3-act${panel === 'cool' ? ' on' : ''}`} aria-expanded={panel === 'cool'} onClick={() => togglePanel('cool')}>Cool</button>
+              <button type="button" className="c3-act" onClick={() => togglePanel('customise')}>Customise</button>
             </div>
           </div>
         )}

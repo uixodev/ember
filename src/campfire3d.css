@@ -333,3 +333,6 @@ button.c3-line { padding: 0; min-height: 28px; margin: 0; }
 
 /* Heat and XP bars: the same height */
 .c3-line .c3-meter.heat, .c3-line .c3-meter.xp, .c3-stat .c3-meter.xp { height: 9px; }
+.c3-focus.compact .c3-card-actions { gap: 8px; }
+.c3-focus.compact .c3-act { min-height: 44px; padding: 0 16px; font-size: 14px; }
+.c3-focus.compact .c3-act.on { background: var(--sun); color: var(--navy); border-color: var(--sun); }
