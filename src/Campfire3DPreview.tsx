@@ -300,6 +300,12 @@ export default function Campfire3DPreview() {
   };
 
   const stageH = stageRef.current?.clientHeight ?? 700;
+  // Customising: the camera comes in close to the fire and only the panel stays at the bottom.
+  const wasCustomising = useRef(false);
+  useEffect(() => {
+    if (panel === 'customise' && sel) { worldRef.current?.focusFire(sel); wasCustomising.current = true; }
+    else if (wasCustomising.current && panel !== 'customise') { wasCustomising.current = false; worldRef.current?.flyTo(VIEWS[viewIndex.current]); }
+  }, [panel, sel]);
   const togglePanel = (p: Exclude<Panel, null>) => setPanel((cur) => (cur === p ? null : p));
 
   return (
@@ -476,16 +482,16 @@ export default function Campfire3DPreview() {
           </section>
         )}
 
-        {chosen && !drag && (
+        {chosen && !drag && panel !== 'customise' && (
           <div className="c3-focus">
             <div className="c3-focus-text"><div className="c3-meter" role="progressbar" aria-label="How warm the fire is" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(chosen.pct)}><i style={{ width: `${chosen.pct}%`, background: PALETTES[chosen.color].swatch }} /></div>
               <span>{chosen.pct <= 0 ? 'Cold. Any wood lights it again' : `Fully cooled ${formatWhen(now + coldAfter(chosen.pct, chosen.rate), now)}`}</span></div>
             <button type="button" className={`c3-act${panel === 'cool' ? ' on' : ''}`} aria-expanded={panel === 'cool'} onClick={() => togglePanel('cool')}>Cool</button>
-            <button type="button" className={`c3-act${panel === 'customise' ? ' on' : ''}`} aria-expanded={panel === 'customise'} onClick={() => togglePanel('customise')}>Customise</button>
+            <button type="button" className="c3-act" onClick={() => togglePanel('customise')}>Customise</button>
           </div>
         )}
 
-        <section className="c3-dock" aria-label="Your wood">
+        {panel !== 'customise' && <section className="c3-dock" aria-label="Your wood">
           {(Object.keys(STICKS) as StickKind[]).map((k) => (
             <button key={k} type="button" className={`c3-slot${held === k ? ' held' : ''}`}
               aria-label={`${STICKS[k].name}, adds ${STICKS[k].gain} percent. Drag onto a fire, or press Enter to feed the selected fire.`}
@@ -495,7 +501,7 @@ export default function Campfire3DPreview() {
               <span>+{STICKS[k].gain}%</span>
             </button>
           ))}
-        </section>
+        </section>}
       </div>
 
       {SANDBOX && <div className="c3-testtag" aria-label="Test copy, your real data is safe">Test copy</div>}
