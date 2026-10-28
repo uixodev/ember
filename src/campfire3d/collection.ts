@@ -1,12 +1,8 @@
-import { CREATURE_IDS, type CreatureId } from './creatures';
 import type { StickKind } from './sticks';
 
 /**
- * Everything you collect, shared by all your fires. Nothing is spent: it only grows.
- *   Gems       wood sometimes drops a gem in the colour of the fire it was fed to
- *   Creatures  fourteen fire creatures, each unlocked by a goal
- *   Sky        every level-up lights a star in a constellation
- *   Hearth     the Great Hearth grows with all the XP you ever earn
+ * What you collect, shared by all your fires: gems. Wood sometimes drops a gem in the colour of the fire it was fed
+ * to, and you pick it up from the ground. Nothing is spent: it only grows. All creatures are open from the start.
  */
 
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
@@ -32,11 +28,9 @@ export interface Collection {
   wood: Partial<Record<StickKind, number>>;
   /** How many of each gem: key is `${colour}:${rarity}`. */
   gems: Record<string, number>;
-  creatures: CreatureId[];
 }
 
-export const STARTER_CREATURES: CreatureId[] = ['fox'];
-export const emptyCollection = (): Collection => ({ lifetimeXp: 0, feeds: 0, levelUps: 0, daysFed: 0, streak: 0, bestStreak: 0, lastDay: '', wood: {}, gems: {}, creatures: [...STARTER_CREATURES] });
+export const emptyCollection = (): Collection => ({ lifetimeXp: 0, feeds: 0, levelUps: 0, daysFed: 0, streak: 0, bestStreak: 0, lastDay: '', wood: {}, gems: {} });
 
 // ---- gems ---------------------------------------------------------------------------------------
 
@@ -92,66 +86,6 @@ export function recordFeed(c: Collection, feed: { kind: StickKind; xp: number; l
 export function addGem(c: Collection, d: GemDrop): Collection {
   const k = gemKey(d);
   return { ...c, gems: { ...c.gems, [k]: (c.gems[k] ?? 0) + 1 } };
-}
-
-// ---- creatures ----------------------------------------------------------------------------------
-
-export interface Stats { feeds: number; daysFed: number; bestStreak: number; wood: Partial<Record<StickKind, number>>; maxLevel: number; fires: number; gemColors: number }
-
-export const statsOf = (c: Collection, fires: { level: number }[]): Stats => ({
-  feeds: c.feeds, daysFed: c.daysFed, bestStreak: c.bestStreak, wood: c.wood,
-  maxLevel: fires.reduce((m, f) => Math.max(m, f.level), 1), fires: fires.length, gemColors: distinctGemColors(c),
-});
-
-/** What it takes to unlock each creature: a sentence, and how far along you are (have, need). */
-export const CREATURE_GOALS: Record<CreatureId, { text: string; progress: (s: Stats) => [number, number] }> = {
-  fox: { text: 'Starts with you', progress: () => [1, 1] },
-  salamander: { text: 'Feed a fire once', progress: (s) => [s.feeds, 1] },
-  imp: { text: 'Feed 25 times', progress: (s) => [s.feeds, 25] },
-  owl: { text: 'Feed on 7 different days', progress: (s) => [s.daysFed, 7] },
-  cat: { text: 'Feed 7 days in a row', progress: (s) => [s.bestStreak, 7] },
-  rabbit: { text: 'Feed 20 pieces of kindling', progress: (s) => [s.wood.kindling ?? 0, 20] },
-  bear: { text: 'Feed 5 big logs', progress: (s) => [s.wood.big ?? 0, 5] },
-  turtle: { text: 'Feed on 30 different days', progress: (s) => [s.daysFed, 30] },
-  wolf: { text: 'Keep 4 fires', progress: (s) => [s.fires, 4] },
-  serpent: { text: 'Feed 100 times', progress: (s) => [s.feeds, 100] },
-  stag: { text: 'Collect gems in 10 colours', progress: (s) => [s.gemColors, 10] },
-  phoenix: { text: 'Reach level 10 with any fire', progress: (s) => [s.maxLevel, 10] },
-  dragon: { text: 'Reach level 20 with any fire', progress: (s) => [s.maxLevel, 20] },
-  spirit: { text: 'Reach level 40 with any fire', progress: (s) => [s.maxLevel, 40] },
-};
-
-export const creatureReached = (id: CreatureId, s: Stats): boolean => { const [have, need] = CREATURE_GOALS[id].progress(s); return have >= need; };
-
-/** Unlock every creature whose goal is now met. Never takes one away. */
-export function unlockCreatures(c: Collection, s: Stats): { collection: Collection; newly: CreatureId[] } {
-  const newly = CREATURE_IDS.filter((id) => !c.creatures.includes(id) && creatureReached(id, s));
-  return newly.length ? { collection: { ...c, creatures: [...c.creatures, ...newly] }, newly } : { collection: c, newly };
-}
-
-// ---- the sky ------------------------------------------------------------------------------------
-
-/** Stars in each constellation, one constellation for each design. */
-export const CONSTELLATION_SIZES = [5, 6, 7, 8, 9, 10, 12, 14];
-export const TOTAL_STARS = CONSTELLATION_SIZES.reduce((a, b) => a + b, 0);
-
-/** How many stars of each constellation are lit when `lit` stars are lit in all. */
-export function litPerConstellation(lit: number): number[] {
-  let left = Math.max(0, Math.min(TOTAL_STARS, Math.floor(lit)));
-  return CONSTELLATION_SIZES.map((n) => { const k = Math.min(n, left); left -= k; return k; });
-}
-
-// ---- the Great Hearth ---------------------------------------------------------------------------
-
-/** Lifetime XP at which the Great Hearth reaches each of its 8 stages. */
-export const HEARTH_STAGES = [0, 400, 1500, 5000, 14000, 35000, 80000, 180000];
-
-export function hearthStage(lifetimeXp: number): { stage: number; into: number; span: number; fraction: number; toNext: number } {
-  let stage = 1;
-  for (let i = 0; i < HEARTH_STAGES.length; i++) if (lifetimeXp >= HEARTH_STAGES[i]) stage = i + 1;
-  if (stage >= HEARTH_STAGES.length) return { stage, into: 1, span: 1, fraction: 1, toNext: 0 };
-  const from = HEARTH_STAGES[stage - 1], to = HEARTH_STAGES[stage];
-  return { stage, into: lifetimeXp - from, span: to - from, fraction: Math.max(0, Math.min(1, (lifetimeXp - from) / (to - from))), toNext: to - lifetimeXp };
 }
 
 /** A collection for someone who already has fires from before collecting existed. */

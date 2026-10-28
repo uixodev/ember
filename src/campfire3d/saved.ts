@@ -1,7 +1,7 @@
 import type { Area } from '../model/types';
 import { CREATURE_IDS, type CreatureId } from './creatures';
 import { MAX_HEAT, SIZE_RATE } from './cooling';
-import { RARITIES, collectionFromFires, emptyCollection, statsOf, unlockCreatures, type Collection } from './collection';
+import { RARITIES, collectionFromFires, emptyCollection, type Collection } from './collection';
 import { levelOfXp, xpToReach } from './mastery';
 import { PALETTES, type PaletteId } from './palettes';
 import { computeHeat } from '../engine/heat';
@@ -90,16 +90,14 @@ function collectionFrom(raw: unknown, fires: Fire[], events: LogEvent[]): Collec
     if (r.gems && typeof r.gems === 'object') for (const [k, v] of Object.entries(r.gems as Record<string, unknown>)) if (/^[a-z]+:[a-z]+$/.test(k) && typeof v === 'number' && v > 0) gems[k] = Math.min(1e6, Math.floor(v));
     const wood: Collection['wood'] = {};
     if (r.wood && typeof r.wood === 'object') for (const k of ['kindling', 'branch', 'split', 'log', 'big'] as const) { const v = (r.wood as Record<string, unknown>)[k]; if (typeof v === 'number' && v > 0) wood[k] = Math.min(1e6, Math.floor(v)); }
-    const creatures = Array.isArray(r.creatures) ? (r.creatures.filter((x) => CREATURE_IDS.includes(x as CreatureId)) as CreatureId[]) : [];
     c = {
       ...emptyCollection(),
       lifetimeXp: Math.round(num(r.lifetimeXp, 0, 1e12, 0)), feeds: Math.round(num(r.feeds, 0, 1e9, 0)), levelUps: Math.round(num(r.levelUps, 0, 1e6, 0)),
       daysFed: Math.round(num(r.daysFed, 0, 1e6, 0)), streak: Math.round(num(r.streak, 0, 1e6, 0)), bestStreak: Math.round(num(r.bestStreak, 0, 1e6, 0)),
       lastDay: typeof r.lastDay === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.lastDay) ? r.lastDay : '', wood, gems,
-      creatures: [...new Set<CreatureId>(['fox', ...creatures])],
     };
   }
-  return unlockCreatures(c, statsOf(c, levels)).collection;
+  return c;
 }
 
 function groundFrom(raw: unknown): GroundGem[] {

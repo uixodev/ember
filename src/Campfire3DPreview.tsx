@@ -10,7 +10,7 @@ import { Shield } from './campfire3d/Shield';
 import { TIERS, WOOD_XP, levelOfXp, progressInLevel, tierOfLevel, xpMultiplier, xpToReach, type Tier } from './campfire3d/mastery';
 import { CollectionScreen } from './campfire3d/CollectionScreen';
 import { Gem } from './campfire3d/Gem';
-import { CREATURE_GOALS, RARITIES, addGem, emptyCollection, recordFeed, rollGem, statsOf, unlockCreatures, type Collection, type GemDrop } from './campfire3d/collection';
+import { RARITIES, addGem, emptyCollection, recordFeed, rollGem, type Collection, type GemDrop } from './campfire3d/collection';
 import { DEFAULT_RUIN_HOURS, HOUR, RUIN_CHOICES, coldForMs, deadForMs, drainPerHour, msUntilNoXp, ruinProgress, xpAfterCold } from './campfire3d/neglect';
 import { SparkLog, type LogEvent } from './campfire3d/SparkLog';
 import { ConfirmSheet } from './components/ui/Sheets';
@@ -102,6 +102,7 @@ export default function Campfire3DPreview() {
   const frozenRef = useRef<Set<string>>(new Set());
   const [collectOpen, setCollectOpen] = useState(false);
   const [creatureIcons, setCreatureIcons] = useState<Partial<Record<CreatureId, string>>>({});
+  const [styleIcons, setStyleIcons] = useState<Partial<Record<FireStyle, string>>>({});
   const [toast, setToast] = useState<{ key: number; text: string; gem?: GemDrop } | null>(null);
   useEffect(() => { setSaveFailed(!save({ fires, events, collection, ground })); }, [fires, events, collection, ground]);
   useEffect(() => { if (!toast) return; const t = window.setTimeout(() => setToast(null), 4200); return () => window.clearTimeout(t); }, [toast]);
@@ -213,7 +214,7 @@ export default function Campfire3DPreview() {
       world.setQuality(saverRef.current ? 'saver' : 'full');
       (window as unknown as { __world: CampfireWorld }).__world = world;
       window.requestAnimationFrame(() => window.requestAnimationFrame(() => window.dispatchEvent(new Event('ember-ready'))));
-      const t = window.setTimeout(() => { setIcons(world.renderIcons()); setCreatureIcons(world.renderCreatureIcons()); }, 250);
+      const t = window.setTimeout(() => { setIcons(world.renderIcons()); }, 250);
       return () => { window.clearTimeout(t); world.dispose(); worldRef.current = null; };
     } catch {
       setFailed(true);
@@ -235,12 +236,12 @@ export default function Campfire3DPreview() {
     return () => ro.disconnect();
   }, [failed]);
 
-  // only creatures you have unlocked stand on fires: a fire set to a locked one, or to "auto", gets one you own
-  const resolveCreature = (c: Fire['creature'], id: string): CreatureId | 'none' => (c === 'none' ? 'none' : c !== 'auto' && collection.creatures.includes(c) ? c : autoCreature(id, collection.creatures));
+  // every creature is open: "auto" gives each fire its own
+  const resolveCreature = (c: Fire['creature'], id: string): CreatureId | 'none' => (c === 'none' ? 'none' : c !== 'auto' ? c : autoCreature(id));
   useEffect(() => {
     worldRef.current?.setFires(shown.map((f) => ({ id: f.area.id, level: f.level, progress: f.progress, size: f.size, color: f.color, style: f.style, creature: resolveCreature(f.creature, f.area.id), pos: f.pos, tier: f.tier, ruin: f.ruin, smoke: f.smoke, frozen: f.frozen })));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shown, collection.creatures]);
+  }, [shown]);
   useEffect(() => { if (focusId) { worldRef.current?.focusFire(focusId); setFocusId(null); } }, [focusId, shown]);
   useEffect(() => { worldRef.current?.setMoveMode(moving); }, [moving]);
   useEffect(() => { worldRef.current?.setGems(ground); }, [ground]);
@@ -261,11 +262,10 @@ export default function Campfire3DPreview() {
     worldRef.current?.collectGem(id);
     setGround((all) => all.filter((x) => x.id !== id));
     const col = addGem(collection, { color: g.color, rarity: g.rarity });
-    const u = unlockCreatures(col, statsOf(col, shown.map((x) => ({ level: x.lvl }))));
-    setCollection(u.collection);
+    setCollection(col);
     if (quiet) return;
     play('fed');
-    setToast({ key: Date.now(), text: u.newly.length ? `New creature: ${CREATURE_NAMES[u.newly[0]]}` : `${RARITIES.find((x) => x.id === g.rarity)?.name} ${PALETTES[g.color].name} gem collected`, gem: { color: g.color, rarity: g.rarity } });
+    setToast({ key: Date.now(), text: `${RARITIES.find((x) => x.id === g.rarity)?.name} ${PALETTES[g.color].name} gem collected`, gem: { color: g.color, rarity: g.rarity } });
   };
   pickUpRef.current = pickUp;
   gemTapRef.current = (id) => pickUp(id);
@@ -293,12 +293,10 @@ export default function Campfire3DPreview() {
     }, 1300);
     setFires((all) => all.map((f) => (f.area.id === fire.area.id ? { ...f, percent: Math.min(MAX_HEAT, fire.pct + gain), xp: currentXp(f, Date.now()) + earned, since: Date.now() } : f)));
     if (fire.ruin > 0) window.setTimeout(() => { play('ignite'); setToast({ key: Date.now() + 2, text: fire.ruin >= 1 ? `${fire.area.name || 'The fire'} is rebuilt` : 'The gloom creature runs away' }); }, 700);
-    // the collection: wood and XP counted, maybe a gem, maybe a creature
+    // the collection: wood and XP counted, maybe a gem
     const drop = rollGem(pending.kind, fire.level, fire.color);
     let col = recordFeed(collection, { kind: pending.kind, xp: earned, levelsGained: after - before, at: Date.now() });
-    const levels = shown.map((x) => ({ level: x.area.id === fire.area.id ? after : x.lvl }));
-    const unlocked = unlockCreatures(col, statsOf(col, levels));
-    setCollection(unlocked.collection);
+    setCollection(col);
     // a gem hops out of the fire and lands on the ground: tap it to pick it up
     if (drop) window.setTimeout(() => {
       const scale = [0.78, 0.92, 1.08, 1.28][fire.size - 1];
@@ -310,7 +308,6 @@ export default function Campfire3DPreview() {
       play('levelUp');
       setToast({ key: Date.now(), text: `${RARITIES.find((x) => x.id === drop.rarity)?.name} ${PALETTES[fire.color].name} gem! Tap it to pick up`, gem: drop });
     }, 1500);
-    if (unlocked.newly.length) window.setTimeout(() => { play('levelUp'); setToast({ key: Date.now() + 1, text: `New creature: ${CREATURE_NAMES[unlocked.newly[0]]}${unlocked.newly.length > 1 ? ` and ${unlocked.newly.length - 1} more` : ''}` }); }, drop ? 5800 : 1500);
     setEvents((all) => [...all, { id: Date.now(), areaId: fire.area.id, areaName: fire.area.name, swatch: PALETTES[fire.color].swatch, at: Date.now(), note: entry.note, minutes: entry.minutes ?? 5, gain: STICKS[pending.kind].gain, xp: earned }]);
     setPending(null);
   };
@@ -427,6 +424,17 @@ export default function Campfire3DPreview() {
   };
 
   const stageH = stageRef.current?.clientHeight ?? 700;
+  // pictures for the style and creature pickers, drawn in the fire's own colour
+  const pickColor = chosen?.color;
+  useEffect(() => {
+    if (panel !== 'customise' || (tab !== 'style' && tab !== 'creature') || !pickColor) return;
+    const t = window.setTimeout(() => {
+      const w = worldRef.current;
+      if (!w) return;
+      if (tab === 'style') setStyleIcons(w.renderStyleIcons(pickColor)); else setCreatureIcons(w.renderCreatureIcons(pickColor));
+    }, 60);
+    return () => window.clearTimeout(t);
+  }, [panel, tab, pickColor]);
   // Customising: the camera comes in close to the fire and only the panel stays at the bottom.
   const wasCustomising = useRef(false);
   useEffect(() => {
@@ -477,7 +485,7 @@ export default function Campfire3DPreview() {
         <button type="button" className={`c3-round${moving ? ' on' : ''}`} aria-label="Move fires" aria-pressed={moving} onClick={() => { setMoving((m) => !m); setPanel(null); setHint(false); }}>
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>
         </button>
-        <button type="button" className="c3-round" aria-label="Collection" onClick={() => { setCollectOpen(true); setToolsOpen(false); }}>
+        <button type="button" className="c3-round" aria-label="Gems" onClick={() => { setCollectOpen(true); setToolsOpen(false); }}>
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 20 9 12 21 4 9Z" fill="none" stroke="currentColor" strokeWidth="2.200" strokeLinejoin="round" /><path d="M4 9h16M9 9l3 12 3-12M9 9l3-6 3 6" fill="none" stroke="currentColor" strokeWidth="1.600" strokeLinejoin="round" /></svg>
         </button>
         <button type="button" className={`c3-round${panel === 'menu' ? ' on' : ''}`} aria-label="More options" aria-expanded={panel === 'menu'} onClick={() => togglePanel('menu')}>
@@ -559,24 +567,27 @@ export default function Campfire3DPreview() {
                 </div>
               )}
               {tab === 'style' && (
-                <div className="chips left" role="radiogroup" aria-label="Fire style">
+                <div className="c3-picks" role="radiogroup" aria-label="Fire style">
                   {FIRE_STYLES.map((x) => (
-                    <button key={x.id} type="button" role="radio" aria-checked={chosen.style === x.id} className={`chip${chosen.style === x.id ? ' on' : ''}`} onClick={() => patch({ style: x.id })}>{x.name}</button>
+                    <button key={x.id} type="button" role="radio" aria-checked={chosen.style === x.id} aria-label={x.name} className={`c3-pick${chosen.style === x.id ? ' on' : ''}`} onClick={() => patch({ style: x.id })}>
+                      <span className="c3-pick-img">{styleIcons[x.id] ? <img src={styleIcons[x.id]} alt="" draggable={false} /> : <i className="c3-pick-wait" />}</span>
+                      <b>{x.name}</b>
+                    </button>
                   ))}
                 </div>
               )}
               {tab === 'creature' && (
                 <>
-                  <div className="chips left" role="radiogroup" aria-label="Creature on top">
-                    {(['auto', 'none', ...CREATURE_IDS] as const).map((c) => {
-                      const locked = c !== 'auto' && c !== 'none' && !collection.creatures.includes(c);
-                      return (
-                        <button key={c} type="button" role="radio" aria-checked={chosen.creature === c} aria-disabled={locked} title={locked ? CREATURE_GOALS[c].text : undefined}
-                          className={`chip${chosen.creature === c ? ' on' : ''}${locked ? ' locked' : ''}`} onClick={() => { if (locked) setToast({ key: Date.now(), text: `${CREATURE_NAMES[c]}: ${CREATURE_GOALS[c].text}` }); else patch({ creature: c }); }}>
-                          {c === 'auto' ? 'Auto' : c === 'none' ? 'None' : locked ? `${CREATURE_NAMES[c]} (locked)` : CREATURE_NAMES[c]}
-                        </button>
-                      );
-                    })}
+                  <div className="c3-picks" role="radiogroup" aria-label="Creature on top">
+                    {(['auto', 'none', ...CREATURE_IDS] as const).map((c) => (
+                      <button key={c} type="button" role="radio" aria-checked={chosen.creature === c} aria-label={c === 'auto' ? 'Auto' : c === 'none' ? 'None' : CREATURE_NAMES[c]} className={`c3-pick${chosen.creature === c ? ' on' : ''}`} onClick={() => patch({ creature: c })}>
+                        <span className="c3-pick-img">
+                          {c === 'auto' ? <span className="c3-pick-word">Auto</span> : c === 'none' ? <span className="c3-pick-word">None</span>
+                            : creatureIcons[c] ? <img src={creatureIcons[c]} alt="" draggable={false} /> : <i className="c3-pick-wait" />}
+                        </span>
+                        <b>{c === 'auto' ? 'Auto' : c === 'none' ? 'None' : CREATURE_NAMES[c]}</b>
+                      </button>
+                    ))}
                   </div>
                   <span className="camp-size-note">A creature of fire stands on a fire when it is Hot.</span>
                 </>
@@ -708,7 +719,7 @@ export default function Campfire3DPreview() {
           <span>{toast.text}</span>
         </div>
       )}
-      {collectOpen && <CollectionScreen collection={collection} fires={shown.map((f) => ({ level: f.lvl }))} creatureIcons={creatureIcons} onGround={ground.length} onClose={() => setCollectOpen(false)} />}
+      {collectOpen && <CollectionScreen collection={collection} onGround={ground.length} onClose={() => setCollectOpen(false)} />}
       {logOpen && (
         <SparkLog
           events={events} now={now}

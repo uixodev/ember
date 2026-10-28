@@ -704,8 +704,82 @@ export class CampfireWorld {
     return out;
   }
 
+  /** A little picture of each fire style, burning in the given colour, for the style picker. */
+  renderStyleIcons(color: PaletteId): Partial<Record<FireStyle, string>> {
+    const out: Partial<Record<FireStyle, string>> = {};
+    const W = 160, H = 160;
+    const rt = new THREE.WebGLRenderTarget(W, H, { samples: 4 });
+    const scene = new THREE.Scene();
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x6a5fd0, 1.5));
+    const key = new THREE.DirectionalLight(0xffffff, 1.2);
+    key.position.set(-2, 4, 3);
+    scene.add(key);
+    const cam = new THREE.OrthographicCamera(-1.5, 1.5, 2.3, -0.7, 0.1, 20);
+    cam.position.set(0, 1.3, 4.6);
+    cam.lookAt(0, 0.9, 0);
+    const buf = new Uint8Array(W * H * 4);
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    const g = canvas.getContext('2d')!;
+    const prevTarget = this.renderer.getRenderTarget();
+    try {
+      for (const { id } of FIRE_STYLES) {
+        const group = new THREE.Group();
+        const stoneGeo = this.stoneGeo;
+        for (let i = 0; i < 9; i++) {
+          const a = (i / 9) * Math.PI * 2 + 0.2;
+          const m = new THREE.Mesh(stoneGeo, this.stoneMats[i % 3]);
+          m.position.set(Math.cos(a) * 0.98, 0.1, Math.sin(a) * 0.98);
+          m.scale.set(1.15, 0.64, 1);
+          group.add(m);
+        }
+        const flames = new THREE.Group();
+        flames.position.y = 0.14;
+        group.add(flames);
+        const r = rngOf(100);
+        for (const p of this.tonguePlan(id, r)) {
+          const mesh = new THREE.Mesh(this.flameFor(color, p.shape), this.flameMat);
+          if (id === 'wisp') {
+            const a = p.orbitA ?? 0;
+            mesh.position.set(Math.cos(a) * (p.orbitR ?? 0), (p.hover ?? 0) * 1.2, Math.sin(a) * (p.orbitR ?? 0));
+            mesh.scale.set(p.w * 1.0, p.h * 1.35, p.w * 1.0);
+          } else if (id === 'swirl') {
+            const ang = Math.atan2(p.z, p.x);
+            mesh.position.set(p.x, 0, p.z);
+            mesh.scale.set(p.w * 1.12, p.h * 1.3, p.w * 1.12);
+            mesh.rotation.set(Math.cos(ang) * 0.42, 0, Math.sin(ang) * 0.42);
+          } else {
+            mesh.position.set(p.x, 0, p.z);
+            mesh.scale.set(p.w * 1.12, p.h * 1.3, p.w * 1.12);
+            mesh.rotation.z = p.x * 0.12;
+          }
+          flames.add(mesh);
+        }
+        group.rotation.y = 0.4;
+        scene.add(group);
+        this.renderer.setRenderTarget(rt);
+        this.renderer.setClearColor(0x000000, 0);
+        this.renderer.clear();
+        this.renderer.render(scene, cam);
+        this.renderer.readRenderTargetPixels(rt, 0, 0, W, H, buf);
+        const img = g.createImageData(W, H);
+        for (let y = 0; y < H; y++) img.data.set(buf.subarray((H - 1 - y) * W * 4, (H - y) * W * 4), y * W * 4);
+        g.clearRect(0, 0, W, H);
+        g.putImageData(img, 0, 0);
+        out[id] = canvas.toDataURL('image/png');
+        scene.remove(group);
+      }
+    } catch {
+      /* pictures are a nicety: the picker falls back to names */
+    } finally {
+      this.renderer.setRenderTarget(prevTarget);
+      rt.dispose();
+    }
+    return out;
+  }
+
   /** A little picture of each creature, for the collection. */
-  renderCreatureIcons(): Partial<Record<CreatureId, string>> {
+  renderCreatureIcons(color: PaletteId = 'classic'): Partial<Record<CreatureId, string>> {
     const out: Partial<Record<CreatureId, string>> = {};
     const W = 160, H = 160;
     const rt = new THREE.WebGLRenderTarget(W, H, { samples: 4 });
@@ -720,7 +794,7 @@ export class CampfireWorld {
     const prevTarget = this.renderer.getRenderTarget();
     try {
       for (const id of CREATURE_IDS) {
-        const c = buildCreature(id, PALETTES.classic.ramp);
+        const c = buildCreature(id, PALETTES[color].ramp);
         c.tick(1.2);
         c.group.position.y = 0;
         scene.add(c.group);

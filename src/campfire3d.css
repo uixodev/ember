@@ -435,3 +435,12 @@ button.c3-line { padding: 0; min-height: 28px; margin: 0; }
 .c3-meter { position: relative; }
 .c3-over { position: absolute; left: 0; top: 0; bottom: 0; z-index: 1; border-radius: 999px; background: repeating-linear-gradient(115deg, #ffffff 0 5px, #FFE98A 5px 10px); }
 .c3-meter.heat > i { position: relative; z-index: 0; }
+
+/* Pickers with pictures */
+.c3-picks { display: grid; grid-auto-rows: max-content; align-content: start; grid-template-columns: repeat(3, 1fr); gap: 8px; max-height: 40dvh; overflow-y: auto; overscroll-behavior: contain; padding: 2px; }
+.c3-pick { display: grid; grid-template-rows: 72px auto; align-content: start; justify-items: center; gap: 2px; height: auto; min-height: 0; padding: 6px 4px 8px; border: 1px solid var(--glass-line); border-radius: 16px; background: rgba(255, 255, 255, .08); color: #fff; font: 650 12px/1.2 var(--font); cursor: pointer; touch-action: manipulation; min-height: 44px; }
+.c3-pick.on { background: #fff; color: var(--navy); border-color: #fff; }
+.c3-pick-img { width: 72px; height: 72px; display: grid; place-items: center; }
+.c3-pick-img img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+.c3-pick-word { font: 800 15px/1 var(--font); opacity: .8; }
+.c3-pick-wait { width: 28px; height: 28px; border-radius: 50%; background: rgba(255, 255, 255, .15); }
