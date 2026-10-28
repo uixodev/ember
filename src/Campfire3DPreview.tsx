@@ -16,7 +16,7 @@ import { SparkLog, type LogEvent } from './campfire3d/SparkLog';
 import { ConfirmSheet } from './components/ui/Sheets';
 import { LEVEL_NAMES, formatSpan, formatWhen } from './engine/format';
 import { DEFAULT_ACTIVE_HOURS, type Level as HeatLevel } from './engine/heat';
-import { CampfireWorld, FIRE_STYLES, layoutFires, type GroundGem, type DragState, type FireStyle, type LabelPos, type Level, type Size } from './campfire3d/world';
+import { CampfireWorld, FIRE_STYLES, MAX_FIRES, layoutFires, type GroundGem, type DragState, type FireStyle, type LabelPos, type Level, type Size } from './campfire3d/world';
 import { CREATURE_IDS, CREATURE_NAMES, autoCreature, type CreatureId } from './campfire3d/creatures';
 import { PALETTES, PALETTE_IDS, type PaletteId } from './campfire3d/palettes';
 import { STICKS, type StickKind } from './campfire3d/sticks';
@@ -397,9 +397,9 @@ export default function Campfire3DPreview() {
     play('delete');
   };
   const addFire = () => {
-    if (fires.length >= 12) return;
+    if (fires.length >= MAX_FIRES) return;
     const spots: { x: number; z: number }[] = [];
-    for (let x = -10.5; x <= 10.5; x += 3.5) for (let z = -9.6; z <= 9.6; z += 3.2) spots.push({ x, z });
+    for (let x = -17.5; x <= 17.5; x += 3.5) for (let z = -16; z <= 16; z += 3.2) spots.push({ x, z });
     spots.sort((a, b) => Math.hypot(a.x, a.z * 1.2) - Math.hypot(b.x, b.z * 1.2));
     const pos = spots.find((c) => fires.every((f) => Math.hypot(c.x - (f.pos?.x ?? 0), c.z - (f.pos?.z ?? 0)) >= 3.3)) ?? spots[0];
     const f = mk(`new-${Date.now()}`, '', 0, 50, 2, PALETTE_IDS[fires.length % PALETTE_IDS.length]);
@@ -471,7 +471,7 @@ export default function Campfire3DPreview() {
         <button type="button" className="c3-round" aria-label="Change the view" onClick={nextView}>
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" /><circle cx="12" cy="12" r="3" fill="currentColor" /></svg>
         </button>
-        <button type="button" className="c3-round" aria-label="Add an area" disabled={fires.length >= 12} onClick={addFire}>
+        <button type="button" className="c3-round" aria-label="Add an area" disabled={fires.length >= MAX_FIRES} onClick={addFire}>
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" fill="none" /></svg>
         </button>
         <button type="button" className={`c3-round${moving ? ' on' : ''}`} aria-label="Move fires" aria-pressed={moving} onClick={() => { setMoving((m) => !m); setPanel(null); setHint(false); }}>

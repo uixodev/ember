@@ -6,7 +6,7 @@ import { levelOfXp, xpToReach } from './mastery';
 import { PALETTES, type PaletteId } from './palettes';
 import { computeHeat } from '../engine/heat';
 import { parseJson } from '../storage/storage';
-import { FIRE_STYLES, layoutFires, type FireStyle, type GroundGem, type Size } from './world';
+import { FIRE_STYLES, MAX_FIRES, layoutFires, type FireStyle, type GroundGem, type Size } from './world';
 import type { LogEvent } from './SparkLog';
 
 /**
@@ -117,7 +117,7 @@ export function parseSaved(text: string): Saved | null {
   try {
     const d = JSON.parse(text) as { v?: unknown; fires?: unknown; events?: unknown };
     if (!d || typeof d !== 'object' || !Array.isArray(d.fires)) return null;
-    const fires = d.fires.map(fireFrom).filter((f): f is Fire => f !== null).slice(0, 12);
+    const fires = d.fires.map(fireFrom).filter((f): f is Fire => f !== null).slice(0, MAX_FIRES);
     const events = (Array.isArray(d.events) ? d.events : []).map(eventFrom).filter((e): e is LogEvent => e !== null).slice(-2000);
     withXp(fires, events);
     return { fires, events, collection: collectionFrom((d as { collection?: unknown }).collection, fires, events), ground: groundFrom((d as { ground?: unknown }).ground) };

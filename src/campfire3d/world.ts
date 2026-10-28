@@ -83,7 +83,8 @@ const GZ = 3.2;
 const SPARKS_PER = 12;
 const SNOW_PER = 34;
 const SMOKE_PER = 14;
-const MAX_FIRES = 12;
+/** The most campfires you can keep. */
+export const MAX_FIRES = 50;
 const DECOR_KINDS: StickKind[] = ['branch', 'kindling', 'log', 'split', 'branch', 'kindling'];
 
 const rngOf = (seed: number) => { let s = seed >>> 0; return () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296; };
@@ -518,8 +519,8 @@ export class CampfireWorld {
     const f = this.fires.get(d.id);
     const g = this.groundAt(e.clientX, e.clientY);
     if (!f || !g) return;
-    let x = Math.max(-14, Math.min(14, g.x + d.dx));
-    let z = Math.max(-14, Math.min(14, g.z + d.dz));
+    let x = Math.max(-22, Math.min(22, g.x + d.dx));
+    let z = Math.max(-22, Math.min(22, g.z + d.dz));
     for (const o of this.fires.values()) {
       if (o === f) continue;
       const gap = 3.1, dist = Math.hypot(x - o.pos.x, z - o.pos.z);
