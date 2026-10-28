@@ -5,12 +5,13 @@ import * as THREE from 'three';
  * coloured like flame (pale in the middle, red at the edges, in the fire's own colours) and animated.
  * They are about one unit tall and face +z; the world turns them toward the camera.
  */
-export type CreatureId = 'phoenix' | 'fox' | 'dragon' | 'salamander' | 'imp' | 'owl' | 'wolf' | 'cat' | 'rabbit' | 'serpent' | 'bear' | 'turtle' | 'stag' | 'spirit';
+export type CreatureId = 'phoenix' | 'fox' | 'dragon' | 'salamander' | 'imp' | 'owl' | 'wolf' | 'cat' | 'rabbit' | 'serpent' | 'bear' | 'turtle' | 'stag' | 'spirit' | 'bat' | 'frog' | 'penguin' | 'octopus' | 'butterfly' | 'dino' | 'unicorn' | 'jelly';
 
-export const CREATURE_IDS: CreatureId[] = ['phoenix', 'fox', 'dragon', 'salamander', 'imp', 'owl', 'wolf', 'cat', 'rabbit', 'serpent', 'bear', 'turtle', 'stag', 'spirit'];
+export const CREATURE_IDS: CreatureId[] = ['phoenix', 'fox', 'dragon', 'salamander', 'imp', 'owl', 'wolf', 'cat', 'rabbit', 'serpent', 'bear', 'turtle', 'stag', 'spirit', 'bat', 'frog', 'penguin', 'octopus', 'butterfly', 'dino', 'unicorn', 'jelly'];
 export const CREATURE_NAMES: Record<CreatureId, string> = {
   phoenix: 'Phoenix', fox: 'Fire fox', dragon: 'Dragon', salamander: 'Salamander', imp: 'Imp', owl: 'Fire owl',
   wolf: 'Wolf', cat: 'Cat', rabbit: 'Rabbit', serpent: 'Serpent', bear: 'Bear', turtle: 'Turtle', stag: 'Stag', spirit: 'Spirit',
+  bat: 'Bat', frog: 'Frog', penguin: 'Penguin', octopus: 'Octopus', butterfly: 'Butterfly', dino: 'Dino', unicorn: 'Unicorn', jelly: 'Jellyfish',
 };
 
 export interface Creature {
@@ -506,6 +507,210 @@ function spirit(ramp: string[]): Creature {
 }
 
 
+
+// ---- Bat: wings spread wide, big ears, a flapping hover ------------------------------------------
+
+function bat(ramp: string[]): Creature {
+  const b = new Builder();
+  const g = b.group;
+  b.add(g, sph(0.17), 0, 0.5, 0, 1, 1.2, 0.95);
+  const head = b.pivot(g, 0, 0.72, 0.02);
+  b.add(head, sph(0.13), 0, 0, 0);
+  b.add(head, cone(0.06, 0.2, 4), -0.08, 0.1, 0, 1, 1, 0.5, 0, 0, 0.2);
+  b.add(head, cone(0.06, 0.2, 4), 0.08, 0.1, 0, 1, 1, 0.5, 0, 0, -0.2);
+  b.add(head, cone(0.03, 0.06), -0.03, -0.09, 0.09, 1, 1, 1, Math.PI);
+  b.add(head, cone(0.03, 0.06), 0.03, -0.09, 0.09, 1, 1, 1, Math.PI);
+  b.eye(head, 0.032, -0.05, 0.02, 0.11, true); b.eye(head, 0.032, 0.05, 0.02, 0.11, true);
+  b.eye(head, 0.015, -0.05, 0.02, 0.14); b.eye(head, 0.015, 0.05, 0.02, 0.14);
+  const wings: THREE.Group[] = [];
+  for (const side of [-1, 1]) {
+    const w = b.pivot(g, side * 0.14, 0.56, 0);
+    [[0.95, 0.62], [0.55, 0.52], [0.2, 0.42]].forEach(([deg, len]) => b.add(w, cone(0.1, len, 4), 0, 0, 0, 1, 1, 0.22, 0, 0, side * (deg * Math.PI) / 2 * -1 + side * 0.2));
+    b.add(w, cone(0.3, 0.45, 3), side * 0.28, -0.12, 0, 1, 0.8, 0.15, 0, 0, side * 1.45);
+    wings.push(w);
+  }
+  b.add(g, cone(0.05, 0.14), -0.05, 0.36, 0, 1, 1, 1, Math.PI); b.add(g, cone(0.05, 0.14), 0.05, 0.36, 0, 1, 1, 1, Math.PI);
+  return b.finish(ramp, (t) => {
+    const flap = Math.sin(t * 7);
+    wings[0].rotation.z = 0.1 + flap * 0.5; wings[1].rotation.z = -0.1 - flap * 0.5;
+    g.userData.bob = 0.12 + Math.sin(t * 3.5) * 0.06;
+  });
+}
+
+// ---- Frog: squat, wide mouth, big eyes on top, hopping ----------------------------------------------
+
+function frog(ramp: string[]): Creature {
+  const b = new Builder();
+  const g = b.group;
+  b.add(g, sph(0.27), 0, 0.26, 0, 1.15, 0.8, 1.15);
+  const head = b.pivot(g, 0, 0.42, 0.18);
+  b.add(head, sph(0.19), 0, 0, 0, 1.3, 0.7, 1);
+  b.eye(head, 0.07, -0.12, 0.1, 0.03, true); b.eye(head, 0.07, 0.12, 0.1, 0.03, true);
+  b.eye(head, 0.035, -0.12, 0.1, 0.09); b.eye(head, 0.035, 0.12, 0.1, 0.09);
+  b.add(head, sph(0.02), -0.04, 0.02, 0.18); b.add(head, sph(0.02), 0.04, 0.02, 0.18);
+  const legs: THREE.Group[] = [];
+  for (const side of [-1, 1]) {
+    const l = b.pivot(g, side * 0.24, 0.16, -0.08);
+    b.add(l, sph(0.13), 0, 0, 0, 0.6, 1, 1.5);
+    b.add(l, sph(0.07), side * 0.04, -0.12, 0.2, 1.4, 0.6, 1.8);
+    legs.push(l);
+    b.add(g, sph(0.06), side * 0.17, 0.07, 0.24, 1.3, 0.7, 1.7);
+  }
+  return b.finish(ramp, (t) => {
+    const hop = Math.abs(Math.sin(t * 2.6));
+    legs[0].rotation.x = -hop * 0.5; legs[1].rotation.x = -hop * 0.5;
+    head.rotation.x = -hop * 0.15;
+    g.userData.bob = hop * 0.14;
+  });
+}
+
+// ---- Penguin: an egg with flippers, a beak and little feet -----------------------------------------
+
+function penguin(ramp: string[]): Creature {
+  const b = new Builder();
+  const g = b.group;
+  b.add(g, sph(0.27), 0, 0.4, 0, 1, 1.45, 0.95);
+  b.add(g, sph(0.2), 0, 0.72, 0.02, 1, 0.95, 0.95);
+  b.add(g, cone(0.05, 0.13), 0, 0.7, 0.17, 1, 1, 1, Math.PI * 0.5);
+  b.eye(g, 0.035, -0.08, 0.77, 0.14); b.eye(g, 0.035, 0.08, 0.77, 0.14);
+  const fl: THREE.Group[] = [];
+  for (const side of [-1, 1]) {
+    const f = b.pivot(g, side * 0.26, 0.55, 0);
+    b.add(f, sph(0.07), side * 0.05, -0.12, 0, 0.5, 2.4, 0.9);
+    fl.push(f);
+    b.add(g, sph(0.07), side * 0.1, 0.03, 0.12, 1.3, 0.4, 1.9);
+  }
+  return b.finish(ramp, (t) => {
+    g.rotation.z = Math.sin(t * 3) * 0.1;
+    fl[0].rotation.z = 0.2 + Math.sin(t * 3 + 1) * 0.3; fl[1].rotation.z = -0.2 - Math.sin(t * 3 + 1) * 0.3;
+    g.userData.bob = Math.abs(Math.sin(t * 3)) * 0.03;
+  });
+}
+
+// ---- Octopus: a round head, eight tentacles that curl and sway ----------------------------------------
+
+function octopus(ramp: string[]): Creature {
+  const b = new Builder();
+  const g = b.group;
+  b.add(g, sph(0.27), 0, 0.62, 0, 1, 1.15, 1);
+  b.eye(g, 0.06, -0.1, 0.6, 0.22, true); b.eye(g, 0.06, 0.1, 0.6, 0.22, true);
+  b.eye(g, 0.028, -0.1, 0.6, 0.275); b.eye(g, 0.028, 0.1, 0.6, 0.275);
+  const arms: THREE.Mesh[][] = [];
+  for (let k = 0; k < 8; k++) {
+    const a = (k / 8) * Math.PI * 2;
+    const row: THREE.Mesh[] = [];
+    for (let i = 0; i < 5; i++) row.push(b.add(g, sph(0.085 - i * 0.012), Math.cos(a) * (0.16 + i * 0.07), 0.38 - i * 0.07, Math.sin(a) * (0.16 + i * 0.07)));
+    arms.push(row);
+  }
+  return b.finish(ramp, (t) => {
+    arms.forEach((row, k) => row.forEach((m, i) => {
+      const a = (k / 8) * Math.PI * 2 + Math.sin(t * 2 + k + i * 0.5) * 0.12 * (i + 1) * 0.4;
+      const r = 0.16 + i * 0.07;
+      m.position.x = Math.cos(a) * r; m.position.z = Math.sin(a) * r;
+    }));
+    g.userData.bob = Math.sin(t * 2.2) * 0.04;
+  });
+}
+
+// ---- Butterfly: four big wings that open and close, a slim body, feelers ---------------------------------
+
+function butterfly(ramp: string[]): Creature {
+  const b = new Builder();
+  const g = b.group;
+  b.add(g, sph(0.07), 0, 0.5, 0, 1, 3.2, 1);
+  b.add(g, sph(0.07), 0, 0.72, 0.01);
+  b.add(g, cone(0.012, 0.2), -0.03, 0.76, 0, 1, 1, 1, 0, 0, 0.5); b.add(g, cone(0.012, 0.2), 0.03, 0.76, 0, 1, 1, 1, 0, 0, -0.5);
+  b.eye(g, 0.02, -0.03, 0.73, 0.06); b.eye(g, 0.02, 0.03, 0.73, 0.06);
+  const wings: THREE.Group[] = [];
+  for (const side of [-1, 1]) {
+    const w = b.pivot(g, 0, 0.56, 0);
+    b.add(w, sph(0.3), side * 0.28, 0.1, 0, 1, 1.1, 0.12);
+    b.add(w, sph(0.22), side * 0.2, -0.16, 0, 1, 1, 0.12);
+    wings.push(w);
+  }
+  return b.finish(ramp, (t) => {
+    const open = 0.35 + Math.abs(Math.sin(t * 3.2)) * 0.8;
+    wings[0].rotation.y = -open; wings[1].rotation.y = open;
+    g.userData.bob = 0.1 + Math.sin(t * 2) * 0.08;
+  });
+}
+
+// ---- Dino: a long neck, back plates, a thick tail --------------------------------------------------------
+
+function dino(ramp: string[]): Creature {
+  const b = new Builder();
+  const g = b.group;
+  b.add(g, sph(0.26), 0, 0.34, 0, 0.95, 0.95, 1.5);
+  const neck: THREE.Mesh[] = [];
+  for (let i = 0; i < 4; i++) neck.push(b.add(g, sph(0.12 - i * 0.012), 0, 0.46 + i * 0.12, 0.22 + i * 0.07));
+  const head = b.pivot(g, 0, 0.98, 0.5);
+  b.add(head, sph(0.12), 0, 0, 0, 1, 0.9, 1.3);
+  b.add(head, sph(0.075), 0, -0.02, 0.13, 1, 0.8, 1.4);
+  b.eye(head, 0.03, -0.075, 0.04, 0.07); b.eye(head, 0.03, 0.075, 0.04, 0.07);
+  for (let i = 0; i < 5; i++) b.add(g, cone(0.07, 0.17 - i * 0.015, 4), 0, 0.57 + (i % 2) * 0.02, 0.18 - i * 0.12);
+  const tail: THREE.Mesh[] = [];
+  for (let i = 0; i < 6; i++) tail.push(b.add(g, sph(0.17 - i * 0.025), 0, 0.28 - i * 0.02, -0.3 - i * 0.14));
+  for (const x of [-0.14, 0.14]) b.add(g, cyl(0.07, 0.06, 0.2), x, 0.18, 0.04);
+  return b.finish(ramp, (t) => {
+    head.rotation.x = Math.sin(t * 1.4) * 0.15; head.rotation.y = Math.sin(t * 0.8) * 0.3;
+    neck.forEach((m, i) => { m.position.x = Math.sin(t * 1.2 + i * 0.4) * 0.03 * (i + 1); });
+    tail.forEach((m, i) => { m.position.x = Math.sin(t * 2.4 + i * 0.6) * 0.05 * (i + 1) * 0.6; });
+    g.userData.bob = Math.sin(t * 2) * 0.02;
+  });
+}
+
+// ---- Unicorn: a horse with a spiralling horn and a flowing mane -----------------------------------------
+
+function unicorn(ramp: string[]): Creature {
+  const b = new Builder();
+  const g = b.group;
+  b.add(g, sph(0.2), 0, 0.46, -0.02, 0.9, 0.95, 1.7);
+  b.add(g, cone(0.1, 0.36), 0, 0.52, 0.2, 1, 1, 1, -0.55);
+  const head = b.pivot(g, 0, 0.88, 0.34);
+  b.add(head, sph(0.11), 0, 0, 0, 0.95, 1, 1.2);
+  b.add(head, cone(0.06, 0.2), 0, -0.05, 0.1, 1, 1, 1, Math.PI / 2);
+  b.add(head, cone(0.025, 0.3, 6), 0, 0.12, 0.05, 1, 1, 1, 0.25);
+  b.add(head, cone(0.045, 0.12), -0.07, 0.1, -0.03, 1, 1, 0.5, 0, 0, 0.2); b.add(head, cone(0.045, 0.12), 0.07, 0.1, -0.03, 1, 1, 0.5, 0, 0, -0.2);
+  b.eye(head, 0.026, -0.06, 0.03, 0.09); b.eye(head, 0.026, 0.06, 0.03, 0.09);
+  const mane: THREE.Mesh[] = [];
+  for (let i = 0; i < 6; i++) mane.push(b.add(g, sph(0.06), 0, 0.82 - i * 0.07, 0.2 - i * 0.05));
+  for (const [x, z] of [[-0.08, 0.17], [0.08, 0.17], [-0.08, -0.2], [0.08, -0.2]]) b.add(g, cyl(0.035, 0.028, 0.4), x, 0.4, z);
+  const tail: THREE.Mesh[] = [];
+  for (let i = 0; i < 5; i++) tail.push(b.add(g, sph(0.06), 0, 0.5 - i * 0.07, -0.34 - i * 0.04));
+  return b.finish(ramp, (t) => {
+    head.rotation.x = Math.sin(t * 1.3) * 0.12; head.rotation.y = Math.sin(t * 0.7) * 0.25;
+    mane.forEach((m, i) => { m.position.x = Math.sin(t * 3 + i * 0.7) * 0.05 * (i * 0.5 + 1); });
+    tail.forEach((m, i) => { m.position.x = Math.sin(t * 2.6 + i * 0.8) * 0.06 * (i + 1) * 0.6; });
+    g.userData.bob = Math.sin(t * 2) * 0.02;
+  });
+}
+
+// ---- Jellyfish: a floating dome with long, trailing tentacles -------------------------------------------------
+
+function jelly(ramp: string[]): Creature {
+  const b = new Builder();
+  const g = b.group;
+  b.add(g, sph(0.3, 16, 10), 0, 0.72, 0, 1, 0.8, 1);
+  b.eye(g, 0.05, -0.1, 0.7, 0.26, true); b.eye(g, 0.05, 0.1, 0.7, 0.26, true);
+  b.eye(g, 0.022, -0.1, 0.7, 0.305); b.eye(g, 0.022, 0.1, 0.7, 0.305);
+  const strands: THREE.Mesh[][] = [];
+  for (let k = 0; k < 6; k++) {
+    const a = (k / 6) * Math.PI * 2;
+    const row: THREE.Mesh[] = [];
+    for (let i = 0; i < 6; i++) row.push(b.add(g, sph(0.05 - i * 0.005), Math.cos(a) * 0.2, 0.58 - i * 0.1, Math.sin(a) * 0.2));
+    strands.push(row);
+  }
+  return b.finish(ramp, (t) => {
+    strands.forEach((row, k) => row.forEach((m, i) => {
+      const a = (k / 6) * Math.PI * 2;
+      m.position.x = Math.cos(a) * 0.2 + Math.sin(t * 2.4 + i * 0.6 + k) * 0.05 * (i + 1) * 0.5;
+      m.position.z = Math.sin(a) * 0.2 + Math.cos(t * 2 + i * 0.6 + k) * 0.04 * (i + 1) * 0.5;
+    }));
+    g.scale.y = 1 + Math.sin(t * 2.6) * 0.04;
+    g.userData.bob = 0.2 + Math.sin(t * 1.8) * 0.1;
+  });
+}
+
 // ---- Pests: creatures of gloom that find fires nobody has fed for a long time --------------------
 // Dark and cold, with bright eyes. They are not in the collection and never stand on a fire.
 
@@ -593,7 +798,7 @@ const PEST_BUILDERS: Record<PestId, () => Creature> = { gloom, chill, gnaw, smok
 export const buildPest = (id: PestId): Creature => PEST_BUILDERS[id]();
 export const pestFor = (areaId: string): PestId => PEST_IDS[Math.abs([...areaId].reduce((h, c) => (Math.imul(h, 31) + c.charCodeAt(0)) | 0, 7)) % PEST_IDS.length];
 
-const BUILDERS: Record<CreatureId, (ramp: string[]) => Creature> = { phoenix, fox, dragon, salamander, imp, owl, wolf, cat, rabbit, serpent, bear, turtle, stag, spirit };
+const BUILDERS: Record<CreatureId, (ramp: string[]) => Creature> = { phoenix, fox, dragon, salamander, imp, owl, wolf, cat, rabbit, serpent, bear, turtle, stag, spirit, bat, frog, penguin, octopus, butterfly, dino, unicorn, jelly };
 
 export function buildCreature(id: CreatureId, ramp: string[]): Creature {
   return BUILDERS[id](ramp);

@@ -17,10 +17,12 @@ export type Level = 0 | 1 | 2 | 3;
 export type Size = 1 | 2 | 3 | 4;
 
 /** How the flames look and move. */
-export type FireStyle = 'camp' | 'inferno' | 'torch' | 'swirl' | 'wisp' | 'candle' | 'crystal';
+export type FireStyle = 'camp' | 'inferno' | 'torch' | 'swirl' | 'wisp' | 'candle' | 'crystal' | 'bonfire' | 'ring' | 'fountain' | 'twin' | 'nova' | 'lotus' | 'meadow';
 export const FIRE_STYLES: { id: FireStyle; name: string }[] = [
   { id: 'camp', name: 'Campfire' }, { id: 'inferno', name: 'Inferno' }, { id: 'torch', name: 'Torch' }, { id: 'swirl', name: 'Swirl' },
   { id: 'wisp', name: 'Wisps' }, { id: 'candle', name: 'Candle' }, { id: 'crystal', name: 'Crystal' },
+  { id: 'bonfire', name: 'Bonfire' }, { id: 'ring', name: 'Ring of fire' }, { id: 'fountain', name: 'Fountain' }, { id: 'twin', name: 'Twin towers' },
+  { id: 'nova', name: 'Nova' }, { id: 'lotus', name: 'Lotus' }, { id: 'meadow', name: 'Meadow' },
 ];
 
 export interface FireSpec {
@@ -104,7 +106,7 @@ export function layoutFires(n: number): { x: number; z: number }[] {
   return slots.sort((a, b) => Math.hypot(a.x, a.z * 1.2) - Math.hypot(b.x, b.z * 1.2));
 }
 
-interface Tongue { mesh: THREE.Mesh; shape: FlameShape; baseW: number; baseH: number; phase: number; speed: number; need: number; x: number; z: number; orbitR: number; orbitA: number; hover: number }
+interface Tongue { mesh: THREE.Mesh; shape: FlameShape; baseW: number; baseH: number; phase: number; speed: number; need: number; x: number; z: number; orbitR: number; orbitA: number; hover: number; lean: number }
 
 interface FireObj {
   id: string; spec: FireSpec; group: THREE.Group; scale: number; pos: THREE.Vector3;
@@ -313,13 +315,13 @@ export class CampfireWorld {
   // ---- building -------------------------------------------------------------------------------
 
   /** Where the flames of each style stand, and how big they are. */
-  private tonguePlan(style: FireStyle, r: () => number): { x: number; z: number; w: number; h: number; shape: FlameShape; speed?: number; orbitR?: number; orbitA?: number; hover?: number }[] {
-    const out: { x: number; z: number; w: number; h: number; shape: FlameShape; speed?: number; orbitR?: number; orbitA?: number; hover?: number }[] = [];
-    const ring = (count: number, radius: number, minH: number, maxH: number, wMul: number, shape: FlameShape = 'round', speed?: number) => {
+  private tonguePlan(style: FireStyle, r: () => number): { x: number; z: number; w: number; h: number; shape: FlameShape; speed?: number; orbitR?: number; orbitA?: number; hover?: number; lean?: number }[] {
+    const out: { x: number; z: number; w: number; h: number; shape: FlameShape; speed?: number; orbitR?: number; orbitA?: number; hover?: number; lean?: number }[] = [];
+    const ring = (count: number, radius: number, minH: number, maxH: number, wMul: number, shape: FlameShape = 'round', speed?: number, lean?: number, cx = 0, cz = 0) => {
       for (let i = 0; i < count; i++) {
         const a = (i / count) * Math.PI * 2 + r();
         const h = minH + r() * (maxH - minH);
-        out.push({ x: Math.cos(a) * radius, z: Math.sin(a) * radius, w: (0.34 + (h / 1.6) * 0.26 + r() * 0.08) * wMul, h, shape, speed });
+        out.push({ x: cx + Math.cos(a) * radius, z: cz + Math.sin(a) * radius, w: (0.34 + (h / 1.6) * 0.26 + r() * 0.08) * wMul, h, shape, speed, lean });
       }
     };
     if (style === 'camp') { ring(1, 0, 1.35, 1.55, 1); ring(4, 0.2, 0.85, 1.25, 1); ring(6, 0.4, 0.45, 0.8, 1); }
@@ -335,6 +337,21 @@ export class CampfireWorld {
     } else if (style === 'candle') {
       out.push({ x: 0, z: 0, w: 0.5, h: 1.55, shape: 'slim', speed: 1.3 });
       out.push({ x: 0, z: 0, w: 0.3, h: 0.9, shape: 'core', speed: 1.6 });
+    } else if (style === 'bonfire') {
+      ring(1, 0, 2.5, 2.8, 1.3); ring(5, 0.3, 1.8, 2.3, 1.2, 'round', undefined, -0.1); ring(8, 0.6, 1.1, 1.6, 1.15, 'round', undefined, -0.14); ring(10, 0.9, 0.5, 0.95, 1.1, 'round', undefined, -0.18);
+    } else if (style === 'ring') {
+      ring(13, 0.85, 0.85, 1.35, 0.85, 'round', undefined, -0.3); ring(8, 0.55, 0.4, 0.7, 0.8, 'round', undefined, -0.2);
+    } else if (style === 'fountain') {
+      ring(1, 0, 1.8, 2.1, 0.7, 'slim', 2.6); ring(9, 0.22, 1.3, 1.8, 0.7, 'slim', 2.6, 0.5); ring(7, 0.35, 0.8, 1.2, 0.65, 'slim', 2.9, 0.75);
+    } else if (style === 'twin') {
+      ring(1, 0, 1.7, 1.95, 0.95, 'round', undefined, undefined, -0.5, 0); ring(5, 0.25, 0.8, 1.4, 0.9, 'round', undefined, undefined, -0.5, 0);
+      ring(1, 0, 1.7, 1.95, 0.95, 'round', undefined, undefined, 0.5, 0); ring(5, 0.25, 0.8, 1.4, 0.9, 'round', undefined, undefined, 0.5, 0);
+    } else if (style === 'nova') {
+      ring(1, 0, 1.7, 1.95, 0.55, 'crystal', 1.1); ring(10, 0.1, 1.3, 1.9, 0.5, 'crystal', 1.2, 0.6); ring(8, 0.2, 0.7, 1.1, 0.5, 'crystal', 1.3, 0.95);
+    } else if (style === 'lotus') {
+      ring(1, 0, 1.7, 1.9, 0.9); ring(6, 0.3, 1.2, 1.5, 1, 'round', undefined, 0.3); ring(7, 0.5, 0.85, 1.1, 1.1, 'round', undefined, 0.6);
+    } else if (style === 'meadow') {
+      for (let i = 0; i < 24; i++) { const a = r() * Math.PI * 2, d = Math.sqrt(r()) * 0.95; out.push({ x: Math.cos(a) * d, z: Math.sin(a) * d, w: 0.2 + r() * 0.1, h: 0.4 + r() * 0.6, shape: 'slim', speed: 2 + r() * 1.5 }); }
     } else {
       // wisps: small flames that float and drift around above the coals
       for (let i = 0; i < 8; i++) out.push({ x: 0, z: 0, w: 0.26 + r() * 0.08, h: 0.5 + r() * 0.3, shape: 'slim', speed: 1.4 + r(), orbitR: 0.28 + r() * 0.5, orbitA: r() * 6.28, hover: 0.5 + r() * 0.9 });
@@ -387,7 +404,7 @@ export class CampfireWorld {
       const m = new THREE.Mesh(this.flameFor(spec.color, p.shape), this.flameMat);
       m.position.set(p.x, 0, p.z);
       fireGroup.add(m);
-      tongues.push({ mesh: m, shape: p.shape, baseW: p.w, baseH: p.h, phase: r() * 10, speed: p.speed ?? 1.6 + r() * 1.6, need: n / plan.length, x: p.x, z: p.z, orbitR: p.orbitR ?? 0, orbitA: p.orbitA ?? 0, hover: p.hover ?? 0 });
+      tongues.push({ mesh: m, shape: p.shape, baseW: p.w, baseH: p.h, phase: r() * 10, speed: p.speed ?? 1.6 + r() * 1.6, need: n / plan.length, x: p.x, z: p.z, orbitR: p.orbitR ?? 0, orbitA: p.orbitA ?? 0, hover: p.hover ?? 0, lean: p.lean ?? NaN });
     });
 
     const hotPool = new THREE.Mesh(this.discGeo, new THREE.MeshBasicMaterial({ map: this.poolFor(spec.color), transparent: true, depthWrite: false, opacity: 0 }));
@@ -751,7 +768,8 @@ export class CampfireWorld {
           } else {
             mesh.position.set(p.x, 0, p.z);
             mesh.scale.set(p.w * 1.12, p.h * 1.3, p.w * 1.12);
-            mesh.rotation.z = p.x * 0.12;
+            if (p.lean === undefined) mesh.rotation.z = p.x * 0.12;
+            else { const len = Math.hypot(p.x, p.z) || 1; mesh.rotation.z = -(p.x / len) * p.lean; mesh.rotation.x = (p.z / len) * p.lean; }
           }
           flames.add(mesh);
         }
@@ -1143,8 +1161,15 @@ export class CampfireWorld {
           tg.mesh.rotation.set(Math.cos(ang) * 0.42, 0, Math.sin(ang) * 0.42);
         } else {
           tg.mesh.scale.set(tg.baseW * (1 + 0.1 * w2) * wd, tg.baseH * k * (1 + 0.13 * w) * boost, tg.baseW * (1 - 0.1 * w2) * wd);
-          tg.mesh.rotation.z = 0.12 * w2 + tg.x * 0.12;
-          tg.mesh.rotation.x = 0.1 * Math.cos(t * tg.speed * 0.8 + tg.phase) * amp - tg.z * 0.12;
+          if (Number.isNaN(tg.lean)) {
+            tg.mesh.rotation.z = 0.12 * w2 + tg.x * 0.12;
+            tg.mesh.rotation.x = 0.1 * Math.cos(t * tg.speed * 0.8 + tg.phase) * amp - tg.z * 0.12;
+          } else {
+            // an explicit lean in radians: outward when positive, towards the middle when negative
+            const len = Math.hypot(tg.x, tg.z) || 1;
+            tg.mesh.rotation.z = 0.1 * w2 - (tg.x / len) * tg.lean;
+            tg.mesh.rotation.x = 0.08 * Math.cos(t * tg.speed * 0.8 + tg.phase) * amp + (tg.z / len) * tg.lean;
+          }
         }
       }
       this.updateCreature(f, dt, t);
