@@ -469,7 +469,8 @@ export class CampfireWorld {
         f.paintedLevel = spec.level;
       }
     });
-    if (this.sigOf() !== this.fitSig) this.refit();
+    // fires added or taken away while you are looking around must not throw the camera somewhere else
+    if (this.sigOf() !== this.fitSig) this.refit(this.fitSig !== '');
   }
 
   private fitSig = '';
@@ -488,8 +489,10 @@ export class CampfireWorld {
   }
 
   /** Frame the camera around wherever the fires are now. */
+  private holdCamera = false;
   private refit(keepTarget = false): void {
     this.fitSig = this.sigOf();
+    this.holdCamera = keepTarget;
     let maxX = 2.8, minZ = -2.4, maxZ = 2.4;
     for (const f of this.fires.values()) { maxX = Math.max(maxX, Math.abs(f.pos.x) + 2.7); minZ = Math.min(minZ, f.pos.z - 2.4); maxZ = Math.max(maxZ, f.pos.z + 2.4); }
     this.extent = maxX;
@@ -499,6 +502,7 @@ export class CampfireWorld {
     this.ground.scale.setScalar(Math.max(this.extent, this.depth) + 3.2);
     this.ground.position.set(0, 0, this.center.z);
     this.resize();
+    this.holdCamera = false;
   }
 
   // ---- moving fires -----------------------------------------------------------------------------
@@ -517,6 +521,23 @@ export class CampfireWorld {
     const from = this.current();
     this.controls.autoRotate = false;
     this.fly = { from, to: { azimuth: from.azimuth, polar: 1.0, distance: Math.max(this.controls.minDistance, this.baseDistance * 0.5) }, t: 0 };
+  }
+
+  /** Is this spot on the ground inside the part of the screen the controls leave free? */
+  isInView(x: number, z: number): boolean {
+    const v = new THREE.Vector3(x, 0.4, z).project(this.camera);
+    const px = (v.x * 0.5 + 0.5) * this.width, py = (-v.y * 0.5 + 0.5) * this.height;
+    return v.z < 1 && px > 40 && px < this.width - 40 && py > this.insetTop + 20 && py < this.height - this.insetBottom - 10;
+  }
+
+  /** Where on the ground the middle of what you are looking at lies. */
+  groundPointAtView(): { x: number; z: number } {
+    // the middle of the free part of the screen, between the controls at the top and the cards at the bottom
+    const cy = (this.insetTop + (this.height - this.insetBottom)) / 2;
+    this.raycaster.setFromCamera(new THREE.Vector2(0, -((cy / this.height) * 2 - 1)), this.camera);
+    const hit = new THREE.Vector3();
+    if (this.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit)) return { x: hit.x, z: hit.z };
+    return { x: this.controls.target.x, z: this.controls.target.z };
   }
 
   /** While on, dragging a fire carries it across the ground instead of turning the camera. */
@@ -1071,7 +1092,7 @@ export class CampfireWorld {
     this.baseDistance = next;
     this.controls.minDistance = next * 0.4;
     this.controls.maxDistance = next * 1.3;
-    if (first || (changed && !this.drag)) this.place({ azimuth: this.current().azimuth || 0, polar: first ? 0.84 : this.current().polar, distance: next });
+    if (first || (changed && !this.drag && !this.holdCamera)) this.place({ azimuth: this.current().azimuth || 0, polar: first ? 0.84 : this.current().polar, distance: next });
     this.camera.updateProjectionMatrix();
     this.applyOffset(true);
     const pxH = this.height * this.renderer.getPixelRatio();

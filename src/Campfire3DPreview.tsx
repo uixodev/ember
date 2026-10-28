@@ -393,17 +393,36 @@ export default function Campfire3DPreview() {
     setSel((cur) => (cur === id ? fires.find((f) => f.area.id !== id)?.area.id ?? null : cur));
     play('delete');
   };
+  // A new fire appears in the middle of what you are looking at, in the nearest free spot. Before you set it up you
+  // can drag it to where you want it.
+  const [placingId, setPlacingId] = useState<string | null>(null);
   const addFire = () => {
     if (fires.length >= MAX_FIRES) return;
-    const spots: { x: number; z: number }[] = [];
-    for (let x = -17.5; x <= 17.5; x += 3.5) for (let z = -16; z <= 16; z += 3.2) spots.push({ x, z });
-    spots.sort((a, b) => Math.hypot(a.x, a.z * 1.2) - Math.hypot(b.x, b.z * 1.2));
-    const pos = spots.find((c) => fires.every((f) => Math.hypot(c.x - (f.pos?.x ?? 0), c.z - (f.pos?.z ?? 0)) >= 3.3)) ?? spots[0];
+    const aim = worldRef.current?.groundPointAtView() ?? { x: 0, z: 0 };
+    const free = (x: number, z: number) => fires.every((f) => Math.hypot(x - (f.pos?.x ?? 0), z - (f.pos?.z ?? 0)) >= 3.4);
+    let pos = { x: aim.x, z: aim.z };
+    search: for (let radius = 0; radius <= 30; radius += 0.8) {
+      const steps = radius === 0 ? 1 : Math.max(8, Math.round(radius * 5));
+      for (let k = 0; k < steps; k++) {
+        const a = (k / steps) * Math.PI * 2 + 0.6;
+        const x = Math.max(-22, Math.min(22, aim.x + Math.cos(a) * radius)), z = Math.max(-22, Math.min(22, aim.z + Math.sin(a) * radius));
+        if (free(x, z) && (worldRef.current?.isInView(x, z) ?? true)) { pos = { x, z }; break search; }
+      }
+    }
+    if (!free(pos.x, pos.z)) { for (let radius = 0; radius <= 40 && !free(pos.x, pos.z); radius += 1) for (let k = 0; k < 16; k++) { const a = (k / 16) * Math.PI * 2; const x = Math.max(-22, Math.min(22, aim.x + Math.cos(a) * radius)), z = Math.max(-22, Math.min(22, aim.z + Math.sin(a) * radius)); if (free(x, z)) { pos = { x, z }; break; } } }
     const f = mk(`new-${Date.now()}`, '', 0, 50, 2, PALETTE_IDS[fires.length % PALETTE_IDS.length]);
     f.pos = pos;
     f.creature = CREATURE_IDS[fires.length % CREATURE_IDS.length];
     setFires((all) => [...all, f]);
-    setSel(f.area.id); setTab('size'); setPanel('customise'); setHint(false); setFocusId(f.area.id);
+    setSel(f.area.id); setTab('size'); setPanel(null); setHint(false); setToolsOpen(false);
+    setPlacingId(f.area.id); setMoving(true);
+  };
+  const finishPlacing = (keep: boolean) => {
+    const id = placingId;
+    setPlacingId(null); setMoving(false);
+    if (!id) return;
+    if (!keep) { setFires((all) => all.filter((f) => f.area.id !== id)); setSel(fires.find((f) => f.area.id !== id)?.area.id ?? null); return; }
+    setPanel('customise'); setFocusId(id);
   };
   const nextView = () => { viewIndex.current = (viewIndex.current + 1) % VIEWS.length; worldRef.current?.flyTo(VIEWS[viewIndex.current]); };
 
@@ -643,7 +662,16 @@ export default function Campfire3DPreview() {
           </section>
         )}
 
-        {chosen && !drag && panel !== 'customise' && (
+        {placingId && !drag && (
+          <div className="c3-place" role="group" aria-label="Place the new fire">
+            <span>Drag the new fire to where you want it</span>
+            <div>
+              <button type="button" className="c3-act" onClick={() => finishPlacing(false)}>Cancel</button>
+              <button type="button" className="c3-act primary" onClick={() => finishPlacing(true)}>Place here</button>
+            </div>
+          </div>
+        )}
+        {chosen && !drag && !placingId && panel !== 'customise' && (
           <div className="c3-focus compact">
             {(() => { const xp = progressInLevel(chosen.xp); const info = TIERS[chosen.tier - 1]; return (
               <div className="c3-stats">
@@ -679,7 +707,7 @@ export default function Campfire3DPreview() {
           </div>
         )}
 
-        {panel !== 'customise' && <section className="c3-dock" aria-label="Your wood">
+        {panel !== 'customise' && !placingId && <section className="c3-dock" aria-label="Your wood">
           {(Object.keys(STICKS) as StickKind[]).map((k) => (
             <button key={k} type="button" className={`c3-slot${held === k ? ' held' : ''}`}
               aria-label={`${STICKS[k].name}, adds ${STICKS[k].gain} percent. Drag onto a fire, or press Enter to feed the selected fire.`}
