@@ -1,9 +1,11 @@
 /**
- * Fire colours you can pick for each area. Solid colours only, and no pinks or purples.
+ * Fire colours you can pick for each area. Solid colours only: reds, oranges and golds, greens, blues, and also
+ * pinks, purples and black.
  * Each palette colours the flames, the coals, the glow on the ground and the sparks.
  */
 export type PaletteId =
   | 'classic' | 'lava' | 'crimson' | 'amber' | 'gold' | 'lime' | 'green' | 'mint' | 'teal' | 'aurora' | 'sky' | 'blue' | 'sapphire' | 'ice' | 'star'
+  | 'rose' | 'pink' | 'magenta' | 'orchid' | 'purple' | 'violet' | 'lavender' | 'black' | 'obsidian' | 'mahogany'
   | 'copper' | 'ember' | 'citrus' | 'forest' | 'emerald' | 'jade' | 'cyan' | 'turquoise' | 'arctic' | 'cobalt' | 'midnight' | 'silver';
 
 export interface Palette {
@@ -35,6 +37,16 @@ export const PALETTES: Record<PaletteId, Palette> = {
   sapphire: { id: 'sapphire', name: 'Sapphire', swatch: '#2A45B8', ramp: ['#CFE0FF', '#7FA6FF', '#3F6BE8', '#2A45B8', '#1C2C80'], coal: 0x3f6be8, pool: ['#2A45B8', '#1F3394', '#1F2564'], sparks: ['#7FA6FF', '#3F6BE8', '#FFFFFF'] },
   ice: { id: 'ice', name: 'Ice', swatch: '#DCEBFF', ramp: ['#FFFFFF', '#F2F7FF', '#DCEBFF', '#BFD6F5', '#9DB8E6'], coal: 0xdcebff, pool: ['#7F94C8', '#566AA6', '#3A4780'], sparks: ['#FFFFFF', '#DCEBFF', '#A9D4FF'] },
   star: { id: 'star', name: 'White-hot', swatch: '#FFFFFF', ramp: ['#FFFFFF', '#FFFFFF', '#FFF8E0', '#FFE9A8', '#FFD27A'], coal: 0xffffff, pool: ['#9A8A7A', '#6E6460', '#463F52'], sparks: ['#FFFFFF', '#FFF8E0', '#FFE9A8'] },
+  rose: { id: 'rose', name: 'Rose', swatch: '#FF8FB1', ramp: ['#FFF0F5', '#FFC2D6', '#FF8FB1', '#E5527F', '#B5305C'], coal: 0xff8fb1, pool: ['#B84B72', '#8A3A5C', '#4A2448'], sparks: ['#FFC2D6', '#FF8FB1', '#FFFFFF'] },
+  pink: { id: 'pink', name: 'Pink', swatch: '#FF5FA8', ramp: ['#FFE6F2', '#FFA3CF', '#FF5FA8', '#D93A86', '#9E2262'], coal: 0xff5fa8, pool: ['#A93A78', '#7A2D62', '#432452'], sparks: ['#FFA3CF', '#FF5FA8', '#FFFFFF'] },
+  magenta: { id: 'magenta', name: 'Magenta', swatch: '#E01FA8', ramp: ['#FFD9F3', '#FF7AD6', '#E01FA8', '#A8157F', '#6E0F55'], coal: 0xe01fa8, pool: ['#8F1F78', '#6A1B62', '#3A1A52'], sparks: ['#FF7AD6', '#E01FA8', '#FFFFFF'] },
+  orchid: { id: 'orchid', name: 'Orchid', swatch: '#C86BE8', ramp: ['#F6E6FF', '#E2A8F7', '#C86BE8', '#9B3FC4', '#6A2894'], coal: 0xc86be8, pool: ['#7F3FA8', '#5E3490', '#35276E'], sparks: ['#E2A8F7', '#C86BE8', '#FFFFFF'] },
+  purple: { id: 'purple', name: 'Purple', swatch: '#8A3FE0', ramp: ['#EBDDFF', '#BE92F5', '#8A3FE0', '#6224B8', '#411A82'], coal: 0x8a3fe0, pool: ['#5E2FA8', '#46288A', '#2A2068'], sparks: ['#BE92F5', '#8A3FE0', '#FFFFFF'] },
+  violet: { id: 'violet', name: 'Violet', swatch: '#6B4FFF', ramp: ['#E3DEFF', '#A99BFF', '#6B4FFF', '#4A32D1', '#33229A'], coal: 0x6b4fff, pool: ['#4A3AC4', '#392F9E', '#262470'], sparks: ['#A99BFF', '#6B4FFF', '#FFFFFF'] },
+  lavender: { id: 'lavender', name: 'Lavender', swatch: '#BDB0FF', ramp: ['#FFFFFF', '#EEE9FF', '#BDB0FF', '#8F7FE0', '#6256B8'], coal: 0xbdb0ff, pool: ['#7466C4', '#574DA0', '#35307A'], sparks: ['#FFFFFF', '#EEE9FF', '#BDB0FF'] },
+  black: { id: 'black', name: 'Black', swatch: '#15151F', ramp: ['#B8B8CC', '#6A6A82', '#34344A', '#1A1A28', '#0A0A12'], coal: 0x8a8aa8, pool: ['#5A5A78', '#3A3A56', '#262644'], sparks: ['#D8D8E8', '#8A8AA8', '#FFFFFF'] },
+  obsidian: { id: 'obsidian', name: 'Obsidian', swatch: '#2B1F4A', ramp: ['#E6D8FF', '#9D7FE0', '#4B3A8A', '#251B4A', '#0E0A22'], coal: 0x9d7fe0, pool: ['#5A3FA0', '#3E2F78', '#241C56'], sparks: ['#E6D8FF', '#9D7FE0', '#FFFFFF'] },
+  mahogany: { id: 'mahogany', name: 'Mahogany', swatch: '#8A3B22', ramp: ['#FFD9B8', '#D98A5A', '#A8502C', '#7A3118', '#4A1C0E'], coal: 0xc8643a, pool: ['#7A3A22', '#5A2C1C', '#38201C'], sparks: ['#FFD9B8', '#D98A5A', '#FFF1E0'] },
   copper: { id: 'copper', name: 'Copper', swatch: '#D2792F', ramp: ['#FFE6C0', '#F2A860', '#D2792F', '#A8541F', '#6E3418'], coal: 0xd2792f, pool: ['#8A4A24', '#5E3520', '#3A2420'], sparks: ['#F2A860', '#D2792F', '#FFE6C0'] },
   ember: { id: 'ember', name: 'Ember', swatch: '#FF5A1F', ramp: ['#FFD7A0', '#FF8A3A', '#FF5A1F', '#D43A14', '#8A220F'], coal: 0xff5a1f, pool: ['#A83A1C', '#702A1A', '#3E1D1A'], sparks: ['#FF8A3A', '#FF5A1F', '#FFD7A0'] },
   citrus: { id: 'citrus', name: 'Citrus', swatch: '#FFC21F', ramp: ['#FFFBD0', '#FFEA6A', '#FFC21F', '#FF9A12', '#E06A0C'], coal: 0xffc21f, pool: ['#B08A22', '#76601F', '#463C22'], sparks: ['#FFEA6A', '#FFC21F', '#FFFFFF'] },
@@ -49,4 +61,11 @@ export const PALETTES: Record<PaletteId, Palette> = {
   silver: { id: 'silver', name: 'Silver', swatch: '#C8D2E0', ramp: ['#FFFFFF', '#EEF2F8', '#C8D2E0', '#9FAEC4', '#7886A4'], coal: 0xc8d2e0, pool: ['#7684A8', '#586688', '#3E486A'], sparks: ['#FFFFFF', '#C8D2E0', '#A9D4FF'] },
 };
 
-export const PALETTE_IDS = Object.keys(PALETTES) as PaletteId[];
+/** The order in the picker: warm colours, pinks, purples, blues, greens, then the light and dark ones. */
+export const PALETTE_IDS: PaletteId[] = [
+  'classic', 'lava', 'ember', 'crimson', 'copper', 'mahogany', 'amber', 'citrus', 'gold',
+  'rose', 'pink', 'magenta', 'orchid', 'purple', 'violet', 'lavender',
+  'sapphire', 'midnight', 'cobalt', 'blue', 'sky', 'cyan', 'turquoise', 'teal', 'aurora',
+  'forest', 'green', 'emerald', 'jade', 'mint', 'lime',
+  'arctic', 'ice', 'silver', 'star', 'black', 'obsidian',
+];
