@@ -120,8 +120,20 @@ export function useCloud(enabled: boolean, getSaved: () => Saved, apply: (s: Sav
     setBusy(true); setError(null);
     const { data, error: err } = create ? await client.auth.signUp({ email, password }) : await client.auth.signInWithPassword({ email, password });
     setBusy(false);
-    if (err) { setError(err.message); return; }
+    if (err) { setError(/invalid login/i.test(err.message) ? 'Wrong email or password. If you signed in before with an emailed link and never set a password, send yourself the link and set a password in Account.' : err.message); return; }
+    // Supabase answers "ok" without doing anything when the address already has an account (so nobody can probe for addresses)
+    if (create && data.user && (data.user.identities?.length ?? 1) === 0) { setError('This email already has an account, so no new one was made. Use Sign in. If it never had a password, send yourself the sign-in link, then set a password in Account.'); return; }
     if (create && !data.session) setSent(true); // this project asks to confirm the address by email first
+  }, [client]);
+
+  /** For someone who is already signed in (for example through the emailed link): give the account a password. */
+  const setPassword = useCallback(async (password: string): Promise<boolean> => {
+    if (!client) return false;
+    setBusy(true); setError(null);
+    const { error: err } = await client.auth.updateUser({ password });
+    setBusy(false);
+    if (err) { setError(err.message); return false; }
+    return true;
   }, [client]);
 
   const signOut = useCallback(async () => {
@@ -150,5 +162,5 @@ export function useCloud(enabled: boolean, getSaved: () => Saved, apply: (s: Sav
     : !session ? { kind: 'signed-out', sent, busy, error }
     : { kind: 'signed-in', email: session.user.email ?? 'you', busy, lastSync, error, conflict: conflict?.remote ?? null };
 
-  return { state, signIn, signInPassword, signOut, syncNow, resolve };
+  return { state, signIn, signInPassword, setPassword, signOut, syncNow, resolve };
 }

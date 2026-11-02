@@ -106,6 +106,7 @@ export default function Campfire3DPreview() {
   const [collectOpen, setCollectOpen] = useState(false);
   const [cloudEmail, setCloudEmail] = useState('');
   const [cloudPassword, setCloudPassword] = useState('');
+  const [pwDone, setPwDone] = useState(false);
   const savedVersion = useMemo(() => [fires, events, collection, ground], [fires, events, collection, ground]);
   const cloud = useCloud(!SANDBOX, () => ({ fires, events, collection, ground }), (d) => { setFires(d.fires); setEvents(d.events); setCollection(d.collection); setGround(d.ground); setSel(d.fires[0]?.area.id ?? null); }, savedVersion);
   const [creatureIcons, setCreatureIcons] = useState<Partial<Record<CreatureId, string>>>({});
@@ -678,6 +679,10 @@ export default function Campfire3DPreview() {
                 ) : (
                   <>
                     <span className="camp-size-note">Signed in as {cloud.state.email}. {cloud.state.busy ? 'Syncing…' : cloud.state.lastSync ? 'Your fires follow you to your other devices.' : 'Not synced yet.'}</span>
+                    <form className="c3-setpw" onSubmit={(e) => { e.preventDefault(); void cloud.setPassword(cloudPassword).then((ok) => { if (ok) { setCloudPassword(''); setPwDone(true); } }); }}>
+                      <input type="password" autoComplete="new-password" placeholder="set or change your password" aria-label="New password" value={cloudPassword} onChange={(e) => { setCloudPassword(e.target.value); setPwDone(false); }} />
+                      <button type="submit" className="c3-pill" disabled={cloud.state.busy || cloudPassword.length < 6}>{pwDone ? 'Saved' : 'Save password'}</button>
+                    </form>
                     <div className="c3-switches">
                       <button type="button" className="c3-pill" disabled={cloud.state.busy} onClick={() => void cloud.syncNow()}>Sync now</button>
                       <button type="button" className="c3-pill" onClick={() => void cloud.signOut()}>Sign out</button>
