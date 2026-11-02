@@ -74,3 +74,23 @@ The campfire (3D) app is the main app and opens at the plain address. Your fires
 
 `/?test` opens the campfire app on a copy of your data. It keeps its own save (`ember:campfire:test:v1`), so you can try
 anything without touching the real fires. If you have no data yet it starts with example fires. Options has "Reset the test copy".
+
+## Cloud backup with Supabase (optional)
+
+Without this, everything stays on the device. With it, you sign in with your email (a magic link, no password) and your
+fires, sparks and gems are kept in your own Supabase database, so they follow you between phones and survive a lost one.
+The app still works offline and syncs when it can.
+
+1. Create a project at https://supabase.com (the free plan is enough).
+2. Open **SQL Editor**, paste all of `supabase/schema.sql` and run it. It creates one table, `ember_state`, with row level
+   security so each person can only ever see their own row.
+3. **Authentication > Providers**: make sure *Email* is on. **Authentication > URL Configuration**: set the *Site URL* to
+   your site (for example `https://uixodev.github.io/ember/`) and add it to *Redirect URLs* too. Add `http://localhost:5173/`
+   if you want to try it locally.
+4. **Project Settings > API**: copy the *Project URL* and the *anon public* key.
+   - Locally: copy `.env.example` to `.env.local` and fill both values, then `npm run dev`.
+   - On GitHub Pages: repo **Settings > Secrets and variables > Actions**, add `VITE_SUPABASE_URL` and
+     `VITE_SUPABASE_ANON_KEY`, then push (or re-run the workflow). `npm run deploy` reads them from your shell.
+5. Open the app, menu > Options > **Cloud backup**, type your email and open the link you receive.
+
+Never put the `service_role` key in the app: only the anon key belongs here. The test page (`?test`) never syncs.

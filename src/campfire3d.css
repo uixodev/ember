@@ -474,3 +474,11 @@ button.c3-line { padding: 0; min-height: 28px; margin: 0; }
 .cal-day em { position: absolute; top: 2px; right: 4px; font: 750 9px/1 var(--font); font-style: normal; color: #5B4BD6; }
 .cal-day.on em { color: #BDB2FF; }
 .cal-note { margin: 4px 0 0; font: 600 13px/1.3 var(--font); color: #4A4675; text-align: center; }
+
+.c3-cloud { display: grid; gap: 8px; padding-top: 4px; border-top: 1px solid var(--glass-line); }
+.c3-cloud b { font: 750 14px/1.2 var(--font); }
+.c3-cloud form { display: flex; gap: 8px; }
+.c3-cloud input { flex: 1; min-width: 0; min-height: 44px; padding: 0 12px; border: 1px solid var(--glass-line); border-radius: 12px; background: rgba(255,255,255,.1); color: #fff; font: 500 15px/1 var(--font); }
+.c3-cloud input::placeholder { color: var(--ink-2); }
+.camp-size-note.err { color: #FFB4A8; }
+.c3-panel[aria-label="More options"] { max-height: 56dvh; overflow-y: auto; overscroll-behavior: contain; }

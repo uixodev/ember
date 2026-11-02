@@ -14,6 +14,9 @@ import { RARITIES, addGem, emptyCollection, recordFeed, rollGem, type Collection
 import { DEFAULT_RUIN_HOURS, HOUR, RUIN_CHOICES, coldForMs, deadForMs, drainPerHour, msUntilNoXp, ruinProgress, xpAfterCold } from './campfire3d/neglect';
 import { SparkLog, type LogEvent } from './campfire3d/SparkLog';
 import { ConfirmSheet } from './components/ui/Sheets';
+import { Sheet } from './components/ui/Sheet';
+import { Button } from './components/ui/Button';
+import { useCloud } from './cloud/useCloud';
 import { LEVEL_NAMES, formatSpan, formatWhen } from './engine/format';
 import { DEFAULT_ACTIVE_HOURS, type Level as HeatLevel } from './engine/heat';
 import { CampfireWorld, FIRE_STYLES, MAX_FIRES, layoutFires, type GroundGem, type DragState, type FireStyle, type LabelPos, type Level, type Size } from './campfire3d/world';
@@ -101,6 +104,9 @@ export default function Campfire3DPreview() {
   const gemTapRef = useRef<(id: string) => void>(() => undefined);
   const frozenRef = useRef<Set<string>>(new Set());
   const [collectOpen, setCollectOpen] = useState(false);
+  const [cloudEmail, setCloudEmail] = useState('');
+  const savedVersion = useMemo(() => [fires, events, collection, ground], [fires, events, collection, ground]);
+  const cloud = useCloud(!SANDBOX, () => ({ fires, events, collection, ground }), (d) => { setFires(d.fires); setEvents(d.events); setCollection(d.collection); setGround(d.ground); setSel(d.fires[0]?.area.id ?? null); }, savedVersion);
   const [creatureIcons, setCreatureIcons] = useState<Partial<Record<CreatureId, string>>>({});
   const [styleIcons, setStyleIcons] = useState<Partial<Record<FireStyle, string>>>({});
   const [toast, setToast] = useState<{ key: number; text: string; gem?: GemDrop } | null>(null);
@@ -651,6 +657,30 @@ export default function Campfire3DPreview() {
                 <button key={h} type="button" role="radio" aria-checked={ruinHours === h} className={`c3-pill${ruinHours === h ? ' on' : ''}`} onClick={() => chooseRuin(h)}>{h === 0 ? 'Never' : h === 24 ? '1 day' : h === 168 ? '1 week' : `${h / 24} days`}</button>
               ))}
             </div>
+            {cloud.state.kind !== 'off' && (
+              <div className="c3-cloud" aria-label="Cloud backup">
+                <b>Cloud backup</b>
+                {cloud.state.kind === 'signed-out' ? (
+                  cloud.state.sent ? (
+                    <span className="camp-size-note">We sent a sign-in link to {cloudEmail}. Open it on this device.</span>
+                  ) : (
+                    <form onSubmit={(e) => { e.preventDefault(); if (cloudEmail.includes('@')) void cloud.signIn(cloudEmail.trim()); }}>
+                      <input type="email" inputMode="email" autoComplete="email" placeholder="your@email" aria-label="Email" value={cloudEmail} onChange={(e) => setCloudEmail(e.target.value)} />
+                      <button type="submit" className="c3-pill" disabled={cloud.state.busy || !cloudEmail.includes('@')}>{cloud.state.busy ? 'Sending…' : 'Send sign-in link'}</button>
+                    </form>
+                  )
+                ) : (
+                  <>
+                    <span className="camp-size-note">Signed in as {cloud.state.email}. {cloud.state.busy ? 'Syncing…' : cloud.state.lastSync ? 'Everything is backed up.' : 'Not synced yet.'}</span>
+                    <div className="c3-switches">
+                      <button type="button" className="c3-pill" disabled={cloud.state.busy} onClick={() => void cloud.syncNow()}>Sync now</button>
+                      <button type="button" className="c3-pill" onClick={() => void cloud.signOut()}>Sign out</button>
+                    </div>
+                  </>
+                )}
+                {cloud.state.error && <span className="camp-size-note err">{cloud.state.error}</span>}
+              </div>
+            )}
             <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={importData} />
             {SANDBOX && (
               <div className="c3-switches">
@@ -763,6 +793,16 @@ export default function Campfire3DPreview() {
             <button type="button" className="c3-menu-item" onClick={() => { setConfirmDel(menu.id); setMenu(null); }}>Delete this fire</button>
           </div>
         </>
+      )}
+      {cloud.state.kind === 'signed-in' && cloud.state.conflict && (
+        <Sheet label="Your cloud already has data" onClose={() => undefined} closable={false}>
+          <h2>Your cloud already has fires</h2>
+          <p>It has {cloud.state.conflict.fires.length} {cloud.state.conflict.fires.length === 1 ? 'fire' : 'fires'}, and this device has {fires.length}. Which should we keep?</p>
+          <div className="sheet-actions">
+            <Button variant="navy" block onClick={() => void cloud.resolve('cloud')}>Use the cloud copy</Button>
+            <button type="button" className="sheet-link" onClick={() => void cloud.resolve('device')}>Keep this device's data (replaces the cloud)</button>
+          </div>
+        </Sheet>
       )}
       {confirmReset && (
         <ConfirmSheet
