@@ -105,6 +105,7 @@ export default function Campfire3DPreview() {
   const frozenRef = useRef<Set<string>>(new Set());
   const [collectOpen, setCollectOpen] = useState(false);
   const [cloudEmail, setCloudEmail] = useState('');
+  const [cloudPassword, setCloudPassword] = useState('');
   const savedVersion = useMemo(() => [fires, events, collection, ground], [fires, events, collection, ground]);
   const cloud = useCloud(!SANDBOX, () => ({ fires, events, collection, ground }), (d) => { setFires(d.fires); setEvents(d.events); setCollection(d.collection); setGround(d.ground); setSel(d.fires[0]?.area.id ?? null); }, savedVersion);
   const [creatureIcons, setCreatureIcons] = useState<Partial<Record<CreatureId, string>>>({});
@@ -658,20 +659,25 @@ export default function Campfire3DPreview() {
               ))}
             </div>
             {cloud.state.kind !== 'off' && (
-              <div className="c3-cloud" aria-label="Cloud backup">
-                <b>Cloud backup</b>
+              <div className="c3-cloud" aria-label="Account">
+                <b>Account</b>
                 {cloud.state.kind === 'signed-out' ? (
                   cloud.state.sent ? (
-                    <span className="camp-size-note">We sent a sign-in link to {cloudEmail}. Open it on this device.</span>
+                    <span className="camp-size-note">Check {cloudEmail} and open the link. {cloudPassword ? 'After that, sign in here with your password.' : ''}</span>
                   ) : (
-                    <form onSubmit={(e) => { e.preventDefault(); if (cloudEmail.includes('@')) void cloud.signIn(cloudEmail.trim()); }}>
+                    <form onSubmit={(e) => e.preventDefault()}>
                       <input type="email" inputMode="email" autoComplete="email" placeholder="your@email" aria-label="Email" value={cloudEmail} onChange={(e) => setCloudEmail(e.target.value)} />
-                      <button type="submit" className="c3-pill" disabled={cloud.state.busy || !cloudEmail.includes('@')}>{cloud.state.busy ? 'Sending…' : 'Send sign-in link'}</button>
+                      <input type="password" autoComplete="current-password" placeholder="password (6+ characters)" aria-label="Password" value={cloudPassword} onChange={(e) => setCloudPassword(e.target.value)} />
+                      <div className="c3-switches">
+                        <button type="submit" className="c3-pill on" disabled={cloud.state.busy || !cloudEmail.includes('@') || cloudPassword.length < 6} onClick={() => void cloud.signInPassword(cloudEmail.trim(), cloudPassword, false)}>Sign in</button>
+                        <button type="submit" className="c3-pill" disabled={cloud.state.busy || !cloudEmail.includes('@') || cloudPassword.length < 6} onClick={() => void cloud.signInPassword(cloudEmail.trim(), cloudPassword, true)}>Create account</button>
+                      </div>
+                      <button type="button" className="c3-linkbtn" disabled={cloud.state.busy || !cloudEmail.includes('@')} onClick={() => void cloud.signIn(cloudEmail.trim())}>Email me a sign-in link instead</button>
                     </form>
                   )
                 ) : (
                   <>
-                    <span className="camp-size-note">Signed in as {cloud.state.email}. {cloud.state.busy ? 'Syncing…' : cloud.state.lastSync ? 'Everything is backed up.' : 'Not synced yet.'}</span>
+                    <span className="camp-size-note">Signed in as {cloud.state.email}. {cloud.state.busy ? 'Syncing…' : cloud.state.lastSync ? 'Your fires follow you to your other devices.' : 'Not synced yet.'}</span>
                     <div className="c3-switches">
                       <button type="button" className="c3-pill" disabled={cloud.state.busy} onClick={() => void cloud.syncNow()}>Sync now</button>
                       <button type="button" className="c3-pill" onClick={() => void cloud.signOut()}>Sign out</button>

@@ -114,6 +114,16 @@ export function useCloud(enabled: boolean, getSaved: () => Saved, apply: (s: Sav
     if (err) setError(err.message); else setSent(true);
   }, [client]);
 
+  /** Sign in with a password. With `create`, make the account first. This sends no email unless Supabase asks to confirm addresses. */
+  const signInPassword = useCallback(async (email: string, password: string, create: boolean) => {
+    if (!client) return;
+    setBusy(true); setError(null);
+    const { data, error: err } = create ? await client.auth.signUp({ email, password }) : await client.auth.signInWithPassword({ email, password });
+    setBusy(false);
+    if (err) { setError(err.message); return; }
+    if (create && !data.session) setSent(true); // this project asks to confirm the address by email first
+  }, [client]);
+
   const signOut = useCallback(async () => {
     if (!client) return;
     await client.auth.signOut();
@@ -140,5 +150,5 @@ export function useCloud(enabled: boolean, getSaved: () => Saved, apply: (s: Sav
     : !session ? { kind: 'signed-out', sent, busy, error }
     : { kind: 'signed-in', email: session.user.email ?? 'you', busy, lastSync, error, conflict: conflict?.remote ?? null };
 
-  return { state, signIn, signOut, syncNow, resolve };
+  return { state, signIn, signInPassword, signOut, syncNow, resolve };
 }

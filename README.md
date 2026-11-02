@@ -91,6 +91,6 @@ The app still works offline and syncs when it can.
    - Locally: copy `.env.example` to `.env.local` and fill both values, then `npm run dev`.
    - On GitHub Pages: repo **Settings > Secrets and variables > Actions**, add `VITE_SUPABASE_URL` and
      `VITE_SUPABASE_ANON_KEY`, then push (or re-run the workflow). `npm run deploy` reads them from your shell.
-5. Open the app, menu > Options > **Cloud backup**, type your email and open the link you receive.
+5. Open the app, menu > Options > **Account**. Type your email and a password, then **Create account**, and use the same on your other devices with **Sign in**. For this to send no email at all, turn off **Confirm email** in **Authentication > Providers > Email** (the free built-in email sender only allows a few emails an hour). "Email me a sign-in link instead" works too, but needs the email sender.
 
 Never put the `service_role` key in the app: only the anon key belongs here. The test page (`?test`) never syncs.
